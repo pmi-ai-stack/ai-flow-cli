@@ -13,4 +13,7 @@
 - [ ] stdout = envelope only; stderr = logs; verified by the testscript for the command
 - [ ] New dependency justified in the PR description; still `CGO_ENABLED=0`
 - [ ] Doc comments on exported identifiers; `--help` text and this file updated if a rule changed; `cli_version` bumped if the contract changed
+- [ ] Naming: no stutter, no `Get`, initialisms uppercase, booleans read as predicates (`18-naming.md`)
+- [ ] Any new type parameter has a concrete caller in the same PR, and isn't standing in for an interface (`19-generics.md`)
+- [ ] Config changes: precedence (flags > env > file > defaults) unchanged, validated once with an aggregated error, no secret in the file or a flag (`21-config.md`)
 
