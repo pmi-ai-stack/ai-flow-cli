@@ -68,8 +68,26 @@ linters:
         linters: [gochecknoglobals] # secretEnvVars is a lookup table, not mutable state
       - path: ^internal/config/template\.go$
         linters: [gochecknoglobals] # templateBytes is the embedded template content, not mutable state
+      - path: ^internal/ops/exec/table\.go$
+        linters: [gochecknoglobals] # Table is the allowlist itself — the one package-level slice every phase from 5 on is expected to append rows to
       - path: ^internal/handoff/events\.go$
         text: 'time\.Now'
+      - path: ^internal/handoff/clock\.go$
+        linters: [gochecknoglobals] # Now is the injectable clock by design — tests reassign it (handofftest.FixedClock)
+      - path: ^internal/handoff/clock\.go$
+        text: 'time\.Now'
+      - path: ^internal/handoff/key\.go$
+        linters: [gochecknoglobals] # ReservedNames is a lookup table, not mutable state
+      - path: ^internal/handoff/stage\.go$
+        linters: [gochecknoglobals] # stages is the one declared pipeline order every other table derives from, not mutable state
+      - path: ^internal/handoff/stagetable\.go$
+        linters: [gochecknoglobals] # stageTable is a lookup table, not mutable state
+      - path: ^internal/handoff/catalog\.go$
+        linters: [gochecknoglobals] # catalog is a lookup table, extended (not mutated) by later phases
+      - path: ^internal/handoff/shouldrun\.go$
+        linters: [gochecknoglobals] # skipRules is a lookup table, not mutable state
+      - path: ^internal/handoff/predicates\.go$
+        linters: [gochecknoglobals] # primaryArtifacts/schemaArtifactNames are lookup tables, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

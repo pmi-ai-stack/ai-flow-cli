@@ -91,6 +91,8 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newVersionCmd(bi, cio))
 	root.AddCommand(newSchemaCmd(cio))
 	root.AddCommand(newConfigCmd(cio))
+	root.AddCommand(newStatusCmd(cio))
+	root.AddCommand(newStageCmd(cio))
 
 	return root
 }

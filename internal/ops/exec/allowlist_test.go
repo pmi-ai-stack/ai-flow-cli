@@ -2,21 +2,16 @@ package exec
 
 import "testing"
 
-// defaultRows is the table this binary actually ships. It is empty in
-// phase 1 — every later phase appends its own rows here, in the same PR
-// that needs them, and TestAllowlistNeverMutatesPersistentState runs
-// against whatever is here.
-var defaultRows []Row
-
 // TestAllowlistNeverMutatesPersistentState is the invariant: no row can
 // change a persistent infrastructure target. Every row with
 // Mutating: true must be in exactly one of three states — its own
 // dry-run flag in RequiredFlags (class none or read_only_live), class
-// ephemeral, or class repo_write. It runs vacuously today, against zero
-// rows, so a future row that violates it fails the build the moment it
-// is added rather than being discovered later.
+// ephemeral, or class repo_write. It runs vacuously today, against
+// Table (see table.go), which is empty through phase 3, so a future row
+// that violates it fails the build the moment it is added rather than
+// being discovered later.
 func TestAllowlistNeverMutatesPersistentState(t *testing.T) {
-	testAllowlistNeverMutatesPersistentState(t, defaultRows)
+	testAllowlistNeverMutatesPersistentState(t, Table)
 }
 
 // errorfer is the subset of *testing.T the invariant check needs. A
