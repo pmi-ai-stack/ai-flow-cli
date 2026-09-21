@@ -1,0 +1,69 @@
+version: "2"
+run:
+  timeout: 5m
+  build-tags: [integration, mutation, ops]
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - errorlint
+    - bodyclose
+    - nolintlint
+    - gochecknoinits
+    - gochecknoglobals
+    - forbidigo
+    - gosec
+    - misspell
+    - thelper
+    - testifylint
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    forbidigo:
+      forbid:
+        - pattern: '^fmt\.Print(|f|ln)$'
+          msg: "stdout is the envelope; use cmd.OutOrStdout()/ErrOrStderr() or the logger"
+        - pattern: '^(print|println)$'
+        - pattern: '^os\.Exit$'
+          msg: "only main exits"
+        - pattern: '^log\.(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$'
+        - pattern: '^exec\.Command(Context)?$'
+          msg: "every subprocess goes through internal/ops/exec"
+        - pattern: '^os\.Setenv$'
+          msg: "build cmd.Env explicitly; t.Setenv in tests"
+        - pattern: '^time\.Sleep$'
+          msg: "use ctx deadlines / tickers"
+        - pattern: '^time\.Now$'
+          msg: "results files carry no wall-clock data; inject a clock or write to events.jsonl only"
+    gosec:
+      excludes: [G204]
+  exclusions:
+    generated: lax
+    rules:
+      - path: ^cmd/ai-flow/main\.go$
+        linters: [forbidigo, gochecknoglobals] # version/commit/date are -X link-time injection targets
+      - path: ^internal/ops/exec/
+        text: 'exec\.Command'
+      - path: ^internal/ops/exec/allowlist\.go$
+        linters: [gochecknoglobals]
+      - path: ^internal/ops/exec/denied\.go$
+        linters: [gochecknoglobals] # CommandHints is a lookup table, not mutable state
+      - path: ^internal/envelope/exitcode\.go$
+        linters: [gochecknoglobals] # codeExitCode is a lookup table, not mutable state
+      - path: ^internal/handoff/events\.go$
+        text: 'time\.Now'
+      - path: _test\.go$
+        linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
+formatters:
+  enable: [gofmt, goimports]
+  settings:
+    goimports:
+      local-prefixes: [github.com/pmi-ai-stack/ai-flow-cli]

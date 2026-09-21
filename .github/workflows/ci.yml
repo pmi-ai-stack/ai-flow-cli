@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # The toolchain named by go.mod's `go` line is pinned, not auto-upgraded.
+  GOTOOLCHAIN: local
+
+jobs:
+  cli-required:
+    name: CLI required
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "$out"
+            echo "::error::gofmt found unformatted files (run: gofmt -w .)"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        run: go tool golangci-lint run
+
+      - name: go test -race
+        run: go test -race -count=1 ./...
+
+      - name: cross-build six platforms (goreleaser snapshot)
+        run: go tool goreleaser build --snapshot --clean
+
+      - name: govulncheck
+        run: go tool govulncheck ./...
+
+      - name: go mod tidy (no diff)
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum

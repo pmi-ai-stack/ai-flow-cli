@@ -1,0 +1,117 @@
+// Package envelope defines the one JSON object every ai-flow command
+// prints on stdout, and the exit-code contract that maps every
+// documented error.code to its exit code (0-6).
+package envelope
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+)
+
+// Envelope is the one JSON object every ai-flow command prints on
+// stdout. Field order matches the spec's own example and is preserved
+// by encoding/json's struct-field ordering — it is not alphabetically
+// sorted, because the envelope's shape is fixed, not data.
+type Envelope struct {
+	OK         bool        `json:"ok"`
+	Command    string      `json:"command"`
+	Result     any         `json:"result"`
+	NeedsInput *NeedsInput `json:"needs_input"`
+	Error      *Error      `json:"error"`
+	Warnings   []string    `json:"warnings"`
+}
+
+// NeedsInput carries an exit-4 question back to the calling skill, which
+// relays needs_input.question, then resumes with resume_with.
+type NeedsInput struct {
+	Question   string   `json:"question"`
+	Options    []string `json:"options"`
+	ResumeWith string   `json:"resume_with"`
+}
+
+// Error is the envelope's error payload. It implements the error
+// interface so a command handler can return *Error directly and have it
+// carried through to the envelope without a wrapping type.
+type Error struct {
+	Code    string   `json:"code"`
+	Message string   `json:"message"`
+	Details []string `json:"details,omitempty"`
+}
+
+func (e *Error) Error() string {
+	return e.Message
+}
+
+// Ok builds a successful envelope for command with the given result.
+func Ok(command string, result any) Envelope {
+	return Envelope{OK: true, Command: command, Result: result, Warnings: []string{}}
+}
+
+// Fail builds a failing envelope for command carrying err.
+func Fail(command string, err *Error) Envelope {
+	return Envelope{OK: false, Command: command, Error: err, Warnings: []string{}}
+}
+
+// Print writes e to w as the one JSON envelope: two-space indent,
+// trailing newline, nothing else — stdout is the envelope, and nothing
+// but the envelope.
+func Print(w io.Writer, e Envelope) error {
+	b, err := json.MarshalIndent(e, "", "  ")
+	if err != nil {
+		return fmt.Errorf("envelope: marshal: %w", err)
+	}
+	b = append(b, '\n')
+	if _, err := w.Write(b); err != nil {
+		return fmt.Errorf("envelope: write: %w", err)
+	}
+	return nil
+}
+
+// PrintHuman writes a human-readable rendering of e to w, for --human.
+// Per-command formatting is added as each command lands; this generic
+// form is what every command falls back to.
+func PrintHuman(w io.Writer, e Envelope) error {
+	if !e.OK {
+		if e.Error == nil {
+			return fmt.Errorf("envelope: ok=false with no error")
+		}
+		if _, err := fmt.Fprintf(w, "%s: failed (%s)\n%s\n", e.Command, e.Error.Code, e.Error.Message); err != nil {
+			return err
+		}
+		for _, d := range e.Error.Details {
+			if _, err := fmt.Fprintf(w, "  - %s\n", d); err != nil {
+				return err
+			}
+		}
+		if e.NeedsInput != nil {
+			if _, err := fmt.Fprintf(w, "? %s\n", e.NeedsInput.Question); err != nil {
+				return err
+			}
+			for _, o := range e.NeedsInput.Options {
+				if _, err := fmt.Fprintf(w, "  - %s\n", o); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "%s: ok\n", e.Command); err != nil {
+		return err
+	}
+	if e.Result != nil {
+		b, err := json.MarshalIndent(e.Result, "", "  ")
+		if err != nil {
+			return fmt.Errorf("envelope: marshal result: %w", err)
+		}
+		if _, err := fmt.Fprintf(w, "%s\n", b); err != nil {
+			return err
+		}
+	}
+	for _, wmsg := range e.Warnings {
+		if _, err := fmt.Fprintf(w, "! %s\n", wmsg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
