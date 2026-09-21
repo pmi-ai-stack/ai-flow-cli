@@ -1,7 +1,7 @@
 // Package cli builds the ai-flow root command: cobra commands, one file
 // per noun, plus Catalog() and StageTable() for skills lint and status
-// once phase 3 lands. Phase 1 carries only the root, global flags and
-// "version".
+// once phase 3 lands. As of phase 2 this carries the root, global flags,
+// "version", "schema <artifact>" and "config init"/"config validate".
 package cli
 
 import "context"

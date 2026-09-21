@@ -30,6 +30,17 @@ type Outcome struct {
 	Warnings   []string
 }
 
+// cmdIO groups the two build-time values every leaf command constructor
+// needs to hand to wrap: where the envelope goes, and where the exit
+// code is recorded. Bundling them saves every newXCmd from repeating the
+// same two-parameter pair — a shape the command catalog's remaining
+// nouns (tracker, host, stage, ops, standards, ...) will otherwise
+// repeat many more times over.
+type cmdIO struct {
+	stdout   io.Writer
+	exitCode *int
+}
+
 // Handler is the signature every ai-flow subcommand implements. A
 // returned *envelope.Error carries a documented error.code straight
 // through to the envelope; any other non-nil error is an unexpected
@@ -76,9 +87,10 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 		return nil
 	}
 
-	root.AddCommand(newVersionCmd(bi, stdout, exitCode))
-	root.AddCommand(newSchemaCmd(stdout, exitCode))
-	root.AddCommand(newConfigCmd(stdout, exitCode))
+	cio := cmdIO{stdout: stdout, exitCode: exitCode}
+	root.AddCommand(newVersionCmd(bi, cio))
+	root.AddCommand(newSchemaCmd(cio))
+	root.AddCommand(newConfigCmd(cio))
 
 	return root
 }

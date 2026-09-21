@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,12 +11,12 @@ import (
 	schemapkg "github.com/pmi-ai-stack/ai-flow-cli/internal/schema"
 )
 
-func newSchemaCmd(stdout io.Writer, exitCode *int) *cobra.Command {
+func newSchemaCmd(cio cmdIO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "schema <artifact>",
 		Short: "Print the embedded JSON Schema for an artifact",
 		Args:  cobra.ExactArgs(1),
-		RunE: wrap("schema", stdout, exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
+		RunE: wrap("schema", cio.stdout, cio.exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
 			artifact := args[0]
 			v, err := schemapkg.Print(artifact)
 			if err != nil {

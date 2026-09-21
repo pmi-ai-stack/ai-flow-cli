@@ -1,10 +1,5 @@
 package redact
 
-import (
-	"slices"
-	"strings"
-)
-
 // MarkedValue is one value a tool itself marked sensitive — a
 // Kubernetes Secret's data, a Terraform attribute the provider schema
 // marks sensitive. Pointer is a label for diagnostics only (typically a
@@ -21,15 +16,9 @@ type MarkedValue struct {
 // exists. Longest values are substituted first, the same rule String
 // applies.
 func RedactMarked(text string, marked []MarkedValue) string {
-	sorted := slices.Clone(marked)
-	slices.SortFunc(sorted, func(a, b MarkedValue) int {
-		return len(b.Value) - len(a.Value)
-	})
-	for _, m := range sorted {
-		if m.Value == "" {
-			continue
-		}
-		text = strings.ReplaceAll(text, m.Value, HashPrefix(m.Value))
+	values := make([]string, len(marked))
+	for i, m := range marked {
+		values[i] = m.Value
 	}
-	return text
+	return replaceLongestFirst(text, values)
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"io"
 	"runtime"
 	"runtime/debug"
 
@@ -17,12 +16,12 @@ type versionResult struct {
 	SchemaVersion int    `json:"schema_version"`
 }
 
-func newVersionCmd(bi BuildInfo, stdout io.Writer, exitCode *int) *cobra.Command {
+func newVersionCmd(bi BuildInfo, cio cmdIO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print CLI, Go and schema versions",
 		Args:  cobra.NoArgs,
-		RunE: wrap("version", stdout, exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
+		RunE: wrap("version", cio.stdout, cio.exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
 			return Outcome{Result: buildVersionResult(bi, runtime.Version())}, nil
 		}),
 	}

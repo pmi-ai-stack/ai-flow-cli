@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/spf13/cobra"
 
@@ -10,13 +9,13 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
-func newConfigCmd(stdout io.Writer, exitCode *int) *cobra.Command {
+func newConfigCmd(cio cmdIO) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage ~/.ai-flow/config.json",
 	}
-	cmd.AddCommand(newConfigInitCmd(stdout, exitCode))
-	cmd.AddCommand(newConfigValidateCmd(stdout, exitCode))
+	cmd.AddCommand(newConfigInitCmd(cio))
+	cmd.AddCommand(newConfigValidateCmd(cio))
 	return cmd
 }
 
@@ -24,12 +23,12 @@ type configInitResult struct {
 	Path string `json:"path"`
 }
 
-func newConfigInitCmd(stdout io.Writer, exitCode *int) *cobra.Command {
+func newConfigInitCmd(cio cmdIO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Write the embedded config template to ~/.ai-flow/config.json",
 		Args:  cobra.NoArgs,
-		RunE: wrap("config init", stdout, exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
+		RunE: wrap("config init", cio.stdout, cio.exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
 			f := FlagsFrom(cmd.Context())
 			path, err := config.Init(f.Home, f.Config)
 			if err != nil {
@@ -45,12 +44,12 @@ type configValidateResult struct {
 	SchemaVersion int    `json:"schema_version"`
 }
 
-func newConfigValidateCmd(stdout io.Writer, exitCode *int) *cobra.Command {
+func newConfigValidateCmd(cio cmdIO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "validate",
 		Short: "Validate ~/.ai-flow/config.json against every documented rule",
 		Args:  cobra.NoArgs,
-		RunE: wrap("config validate", stdout, exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
+		RunE: wrap("config validate", cio.stdout, cio.exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
 			f := FlagsFrom(cmd.Context())
 			path := config.ResolvePath(f.Home, f.Config)
 

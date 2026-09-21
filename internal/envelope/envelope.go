@@ -88,50 +88,54 @@ func marshalIndentNoEscape(v any) ([]byte, error) {
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
+// errWriter wraps an io.Writer and records the first write error, so a
+// sequence of writes can be expressed as a flat list of calls instead of
+// an "if err != nil { return err }" after each one. Once err is set,
+// printf is a no-op — there is no point attempting further output to a
+// writer that has already failed.
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (ew *errWriter) printf(format string, args ...any) {
+	if ew.err != nil {
+		return
+	}
+	_, ew.err = fmt.Fprintf(ew.w, format, args...)
+}
+
 // PrintHuman writes a human-readable rendering of e to w, for --human.
 // Per-command formatting is added as each command lands; this generic
 // form is what every command falls back to.
 func PrintHuman(w io.Writer, e Envelope) error {
+	ew := &errWriter{w: w}
 	if !e.OK {
 		if e.Error == nil {
 			return fmt.Errorf("envelope: ok=false with no error")
 		}
-		if _, err := fmt.Fprintf(w, "%s: failed (%s)\n%s\n", e.Command, e.Error.Code, e.Error.Message); err != nil {
-			return err
-		}
+		ew.printf("%s: failed (%s)\n%s\n", e.Command, e.Error.Code, e.Error.Message)
 		for _, d := range e.Error.Details {
-			if _, err := fmt.Fprintf(w, "  - %s\n", d); err != nil {
-				return err
-			}
+			ew.printf("  - %s\n", d)
 		}
 		if e.NeedsInput != nil {
-			if _, err := fmt.Fprintf(w, "? %s\n", e.NeedsInput.Question); err != nil {
-				return err
-			}
+			ew.printf("? %s\n", e.NeedsInput.Question)
 			for _, o := range e.NeedsInput.Options {
-				if _, err := fmt.Fprintf(w, "  - %s\n", o); err != nil {
-					return err
-				}
+				ew.printf("  - %s\n", o)
 			}
 		}
-		return nil
+		return ew.err
 	}
-	if _, err := fmt.Fprintf(w, "%s: ok\n", e.Command); err != nil {
-		return err
-	}
+	ew.printf("%s: ok\n", e.Command)
 	if e.Result != nil {
 		b, err := marshalIndentNoEscape(e.Result)
 		if err != nil {
 			return fmt.Errorf("envelope: marshal result: %w", err)
 		}
-		if _, err := fmt.Fprintf(w, "%s\n", b); err != nil {
-			return err
-		}
+		ew.printf("%s\n", b)
 	}
 	for _, wmsg := range e.Warnings {
-		if _, err := fmt.Fprintf(w, "! %s\n", wmsg); err != nil {
-			return err
-		}
+		ew.printf("! %s\n", wmsg)
 	}
-	return nil
+	return ew.err
 }
