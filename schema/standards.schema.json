@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/standards.schema.json",
+  "title": "standards",
+  "description": "~/.ai-flow/<KEY>/standards.json — the resolved standards layering for one ticket. Nested shapes are minimal placeholders in phase 2; phase 13 (the resolver) owns and tightens them.",
+  "type": "object",
+  "required": ["resolution_hash", "sources", "languages", "addons", "sections", "checks"],
+  "additionalProperties": false,
+  "properties": {
+    "resolution_hash": { "type": "string", "minLength": 1 },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "repo", "ref", "layer"],
+        "properties": {
+          "id": { "type": "string" },
+          "repo": { "type": "string" },
+          "ref": { "type": "string" },
+          "layer": { "enum": ["org", "team", "repo"] }
+        }
+      }
+    },
+    "languages": { "type": "array", "items": { "type": "string" } },
+    "addons": { "type": "array", "items": { "type": "string" } },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "layer"],
+        "properties": {
+          "id": { "type": "string" },
+          "layer": { "enum": ["org", "team", "repo"] },
+          "overridden_by": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "layer", "waived"],
+        "properties": {
+          "id": { "type": "string" },
+          "layer": { "enum": ["org", "team", "repo"] },
+          "waived": { "type": "boolean" },
+          "dropped_from": {
+            "type": "array",
+            "items": { "enum": ["should", "may"] }
+          }
+        }
+      }
+    }
+  }
+}

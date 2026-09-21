@@ -1,0 +1,12 @@
+{
+  "key": "PROJ-123",
+  "project": "PROJ",
+  "issue_type": "Bug",
+  "summary": "Fix the thing",
+  "status": "To Do",
+  "branch_name": "bugfix/PROJ-123",
+  "comments": [
+    { "author": "alice", "body": "please fix", "created": "2026-09-01T00:00:00Z" }
+  ],
+  "attachments": ["attachments/screenshot.png"]
+}

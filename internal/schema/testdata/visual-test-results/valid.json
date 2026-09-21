@@ -1,0 +1,5 @@
+{
+  "screens": [
+    { "screen": "billing/invoice", "verdict": "pass", "reason": "matches design", "screenshot": "screenshots/billing-invoice.png" }
+  ]
+}

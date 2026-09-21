@@ -1,0 +1,8 @@
+{
+  "key": "PROJ-123",
+  "stages": [
+    { "stage": "fetch", "state": "pass" },
+    { "stage": "plan", "state": "awaiting_approval" },
+    { "stage": "ship", "state": "pending", "approval": null }
+  ]
+}

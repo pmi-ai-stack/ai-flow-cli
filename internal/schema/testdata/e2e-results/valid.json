@@ -1,0 +1,7 @@
+{
+  "total": 12,
+  "passed": 11,
+  "failed": 1,
+  "new_cases": ["checkout/apply-coupon"],
+  "failures": [ { "name": "checkout flow", "message": "timeout" } ]
+}

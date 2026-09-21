@@ -50,6 +50,7 @@ var codeExitCode = map[string]ExitCode{
 	"unknown_report_format": ExitSchemaInvalid,
 	"pack_invalid":          ExitSchemaInvalid,
 	"check_runner_missing":  ExitSchemaInvalid,
+	"config_invalid":        ExitSchemaInvalid,
 }
 
 // ExitCodeFor returns the exit code for a documented error.code and

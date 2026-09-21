@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/visual-test-results.schema.json",
+  "title": "visual-test-results",
+  "description": "~/.ai-flow/<KEY>/visual-test-results.json — one verdict per screen, recorded by `visual judge`.",
+  "type": "object",
+  "required": ["screens"],
+  "additionalProperties": false,
+  "properties": {
+    "screens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["screen", "verdict", "reason"],
+        "properties": {
+          "screen": { "type": "string" },
+          "verdict": { "enum": ["pass", "fail"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "screenshot": { "type": "string" }
+        }
+      }
+    }
+  }
+}

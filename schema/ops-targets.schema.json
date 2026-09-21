@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/ops-targets.schema.json",
+  "title": "ops-targets",
+  "description": "~/.ai-flow/<KEY>/ops-targets.json — the OPS targets ai-flow detected. Field names are fixed by phase 18's text; semantics are owned by phase 18.",
+  "type": "object",
+  "required": ["targets", "app_files"],
+  "additionalProperties": false,
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["addon", "path", "scope", "changed"],
+        "properties": {
+          "addon": { "type": "string" },
+          "path": { "type": "string" },
+          "scope": {
+            "enum": ["repo", "diff"],
+            "description": "repo at plan (nothing changed yet); diff from implement onward."
+          },
+          "changed": { "type": ["boolean", "null"] },
+          "environment": { "type": ["string", "null"] },
+          "tier": { "enum": ["sandbox", "nonprod", "prod", null] },
+          "files": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "app_files": {
+      "type": "array",
+      "description": "Changed files no addon claimed and that are not documentation.",
+      "items": { "type": "string" }
+    }
+  }
+}

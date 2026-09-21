@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "target": "infra/prod", "drift": "none", "drift_resources": [], "validation": [] }
+  ]
+}

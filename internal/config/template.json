@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "tracker": {
+    "provider": "jira",
+    "base_url": "https://your-org.atlassian.net",
+    "statuses": {
+      "todo": ["To Do", "Backlog"],
+      "in_progress": "In Progress",
+      "in_review": "In Review"
+    },
+    "bug_types": ["Bug"],
+    "comment_limit": 5
+  },
+  "host": {
+    "provider": "github",
+    "default_base_branch": "main",
+    "draft_prs": false
+  },
+  "routing": {
+    "project_key_map": {},
+    "keyword_to_repo": {},
+    "teams": {}
+  },
+  "defaults": {
+    "worktree": false,
+    "viewport": "1440x900",
+    "mutation_threshold": 80,
+    "mutation_max_rounds": 3,
+    "mutation_timeout_minutes": 20,
+    "test_timeout_minutes": 20,
+    "guard_idle_hours": 8
+  },
+  "standards": {
+    "sources": [],
+    "guidance_budget_tokens": 6000
+  },
+  "ops": {
+    "environments": {
+      "dev": { "tier": "nonprod" }
+    },
+    "target_map": {},
+    "default_environment": "dev",
+    "risk_gate": 40,
+    "risk": {
+      "action_weight": { "create": 1, "update": 2, "replace": 5, "delete": 8, "noop": 0 },
+      "kind_weight": {
+        "workload": 2,
+        "network": 3,
+        "rbac": 4,
+        "secret": 4,
+        "data": 6,
+        "iam": 6,
+        "crd_or_namespace": 5,
+        "pipeline": 2,
+        "other": 1
+      },
+      "tier_multiplier": { "sandbox": 0.2, "nonprod": 1, "prod": 3 },
+      "drift_penalty": 5,
+      "offline_penalty": 10
+    },
+    "protected_kinds": [
+      "Namespace",
+      "CustomResourceDefinition",
+      "PersistentVolumeClaim",
+      "aws_db_instance",
+      "aws_s3_bucket",
+      "google_sql_database_instance",
+      "aws_iam_role"
+    ],
+    "e2e": { "enabled": false, "sandbox_environment": "sandbox" },
+    "tool_timeout_minutes": 30
+  }
+}

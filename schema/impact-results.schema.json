@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/impact-results.schema.json",
+  "title": "impact-results",
+  "description": "~/.ai-flow/<KEY>/impact-results.json — minimal placeholder; phase 23 (internal/ops/risk) owns the full shape.",
+  "type": "object",
+  "required": ["score", "protected", "sensitive"],
+  "additionalProperties": false,
+  "properties": {
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "protected": { "type": "boolean" },
+    "sensitive": { "type": "boolean" },
+    "blast_radius": { "type": "array", "items": { "type": "object" } },
+    "contributions": { "type": "array", "items": { "type": "object" } }
+  }
+}

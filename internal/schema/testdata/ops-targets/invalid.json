@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "addon": "terraform", "path": "infra/prod", "scope": "not-a-scope", "changed": null }
+  ],
+  "app_files": []
+}

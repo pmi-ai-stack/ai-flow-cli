@@ -1,0 +1,5 @@
+{
+  "repositories": [
+    { "repo": "acme.billing.api", "tool": "jest", "score": 82.5, "threshold": 80 }
+  ]
+}

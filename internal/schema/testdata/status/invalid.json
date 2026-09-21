@@ -1,0 +1,6 @@
+{
+  "key": "proj-123",
+  "stages": [
+    { "stage": "not-a-real-stage", "state": "pass" }
+  ]
+}

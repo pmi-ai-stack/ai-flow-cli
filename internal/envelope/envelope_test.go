@@ -55,6 +55,46 @@ func TestEnvelopeByteShape(t *testing.T) {
 	}
 }
 
+// TestPrintDoesNotHTMLEscape proves 07-determinism.md's
+// SetEscapeHTML(false) rule: a result containing literal "<"/">"/"&"
+// (an embedded JSON Schema's description text, a diff, a shell
+// snippet) prints those characters as written, not as their JSON
+// HTML-escaped </>/& forms — a real bug discovered by
+// phase 2's `schema status` output, which embeds "<KEY>" in a
+// description field.
+func TestPrintDoesNotHTMLEscape(t *testing.T) {
+	e := Ok("schema", map[string]any{"description": "~/.ai-flow/<KEY>/status.json & friends"})
+	var buf bytes.Buffer
+	if err := Print(&buf, e); err != nil {
+		t.Fatalf("Print: %v", err)
+	}
+	out := buf.String()
+	forbiddenEscapes := []string{"\\u003c", "\\u003e", "\\u0026"}
+	for _, escapeSeq := range forbiddenEscapes {
+		if strings.Contains(out, escapeSeq) {
+			t.Errorf("Print HTML-escaped the result (found %s):\n%s", escapeSeq, out)
+		}
+	}
+	if !strings.Contains(out, "<KEY>") || !strings.Contains(out, " & friends") {
+		t.Errorf("Print output missing literal special characters:\n%s", out)
+	}
+}
+
+func TestPrintHumanDoesNotHTMLEscape(t *testing.T) {
+	e := Ok("schema", map[string]any{"description": "~/.ai-flow/<KEY>/status.json"})
+	var buf bytes.Buffer
+	if err := PrintHuman(&buf, e); err != nil {
+		t.Fatalf("PrintHuman: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "\\u003c") {
+		t.Errorf("PrintHuman HTML-escaped the result:\n%s", out)
+	}
+	if !strings.Contains(out, "<KEY>") {
+		t.Errorf("PrintHuman output missing literal special characters:\n%s", out)
+	}
+}
+
 func TestEnvelopeOkAlwaysHasEmptyWarningsNotNull(t *testing.T) {
 	e := Ok("version", nil)
 	var buf bytes.Buffer

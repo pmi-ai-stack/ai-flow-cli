@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/render-drift-results.schema.json",
+  "title": "render-drift-results",
+  "description": "~/.ai-flow/<KEY>/render-drift-results.json — minimal placeholder; phase 20 owns the full shape.",
+  "type": "object",
+  "required": ["targets"],
+  "additionalProperties": false,
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "drift"],
+        "properties": {
+          "target": { "type": "string" },
+          "drift": { "enum": ["none", "present", "not_applicable", "offline"] },
+          "drift_resources": { "type": "array", "items": { "type": "object" } },
+          "validation": { "type": "array", "items": { "type": "object" } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "pull_requests": [
+    { "repo": "acme.billing.api" }
+  ]
+}

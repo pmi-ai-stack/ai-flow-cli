@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "target": "infra/prod", "drift": "sort-of" }
+  ]
+}

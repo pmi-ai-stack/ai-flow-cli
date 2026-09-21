@@ -1,0 +1,6 @@
+{
+  "team": "Team Beta",
+  "repositories": [
+    { "name": "acme.billing.api", "instructions_file": "README.md" }
+  ]
+}

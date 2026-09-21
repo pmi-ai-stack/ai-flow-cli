@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "target": "infra/prod", "steps": ["git revert HEAD"], "non_revertible": [] }
+  ]
+}

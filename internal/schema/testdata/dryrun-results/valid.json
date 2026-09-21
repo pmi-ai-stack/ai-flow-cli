@@ -1,0 +1,6 @@
+{
+  "mode": "live",
+  "targets": [
+    { "target": "infra/prod", "validation": [] }
+  ]
+}

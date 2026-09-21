@@ -1,0 +1,8 @@
+{
+  "repositories": [
+    { "repo": "acme.billing.api", "tool": "gremlins", "score": 82.5, "threshold": 80,
+      "survivors": 3, "killed": 40,
+      "equivalent": [ { "id": "m17", "reason": "dead branch, unreachable in practice" } ] }
+  ],
+  "accepted_below_threshold": null
+}

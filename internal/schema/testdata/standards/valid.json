@@ -1,0 +1,14 @@
+{
+  "resolution_hash": "abc123",
+  "sources": [
+    { "id": "acme-org", "repo": "https://github.com/acme/standards", "ref": "v3.2.0", "layer": "org" }
+  ],
+  "languages": ["go"],
+  "addons": [],
+  "sections": [
+    { "id": "org.security", "layer": "org", "overridden_by": null }
+  ],
+  "checks": [
+    { "id": "org.gofmt", "layer": "org", "waived": false, "dropped_from": ["may"] }
+  ]
+}

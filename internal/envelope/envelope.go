@@ -4,6 +4,7 @@
 package envelope
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,7 +58,7 @@ func Fail(command string, err *Error) Envelope {
 // trailing newline, nothing else — stdout is the envelope, and nothing
 // but the envelope.
 func Print(w io.Writer, e Envelope) error {
-	b, err := json.MarshalIndent(e, "", "  ")
+	b, err := marshalIndentNoEscape(e)
 	if err != nil {
 		return fmt.Errorf("envelope: marshal: %w", err)
 	}
@@ -66,6 +67,25 @@ func Print(w io.Writer, e Envelope) error {
 		return fmt.Errorf("envelope: write: %w", err)
 	}
 	return nil
+}
+
+// marshalIndentNoEscape is json.MarshalIndent with HTML escaping
+// disabled — 07-determinism.md requires SetEscapeHTML(false) for
+// exactly this reason: content that legitimately contains "<" or ">"
+// (an embedded JSON Schema's own description text, a diff, a shell
+// snippet in a message) must print as written, not as </>.
+// json.MarshalIndent has no such option, so this goes through
+// json.Encoder instead and trims the trailing newline Encode always
+// appends, to keep MarshalIndent's exact return contract.
+func marshalIndentNoEscape(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
 // PrintHuman writes a human-readable rendering of e to w, for --human.
@@ -100,7 +120,7 @@ func PrintHuman(w io.Writer, e Envelope) error {
 		return err
 	}
 	if e.Result != nil {
-		b, err := json.MarshalIndent(e.Result, "", "  ")
+		b, err := marshalIndentNoEscape(e.Result)
 		if err != nil {
 			return fmt.Errorf("envelope: marshal result: %w", err)
 		}

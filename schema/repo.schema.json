@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/repo.schema.json",
+  "title": "repo",
+  "description": "~/.ai-flow/<KEY>/repo.json — the routing result: team, repositories, in-scope files.",
+  "type": "object",
+  "required": ["team", "repositories"],
+  "additionalProperties": false,
+  "properties": {
+    "team": { "type": "string", "minLength": 1 },
+    "repositories": {
+      "type": "array",
+      "description": "In repo.json order — the order later commands (git commit, pr create) walk.",
+      "items": {
+        "type": "object",
+        "required": ["name", "instructions_file"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "local_path": { "type": "string" },
+          "instructions_file": { "enum": ["AGENTS.md", "CLAUDE.md"] }
+        }
+      }
+    },
+    "in_scope_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

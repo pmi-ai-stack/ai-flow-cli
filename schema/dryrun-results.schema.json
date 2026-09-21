@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/dryrun-results.schema.json",
+  "title": "dryrun-results",
+  "description": "~/.ai-flow/<KEY>/dryrun-results.json — minimal placeholder; phase 20 owns the full shape.",
+  "type": "object",
+  "required": ["mode", "targets"],
+  "additionalProperties": false,
+  "properties": {
+    "mode": { "enum": ["live", "offline"] },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target"],
+        "properties": {
+          "target": { "type": "string" },
+          "validation": { "type": "array", "items": { "type": "object" } }
+        }
+      }
+    }
+  }
+}

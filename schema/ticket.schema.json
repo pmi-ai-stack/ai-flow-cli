@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/ticket.schema.json",
+  "title": "ticket",
+  "description": "~/.ai-flow/<KEY>/ticket.json — the fetched tracker issue.",
+  "type": "object",
+  "required": ["key", "summary", "status", "branch_name"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"
+    },
+    "project": { "type": "string" },
+    "issue_type": { "type": "string" },
+    "summary": { "type": "string" },
+    "description": { "type": "string" },
+    "status": { "type": "string" },
+    "branch_name": {
+      "type": "string",
+      "description": "bugfix/<KEY> when issue_type is in tracker.bug_types, else feature/<KEY>.",
+      "pattern": "^(bugfix|feature)/[A-Z][A-Z0-9]*-[0-9]+$"
+    },
+    "comments": {
+      "type": "array",
+      "description": "The tracker.comment_limit most recent comments.",
+      "items": {
+        "type": "object",
+        "required": ["author", "body", "created"],
+        "properties": {
+          "author": { "type": "string" },
+          "body": { "type": "string" },
+          "created": { "type": "string" }
+        }
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

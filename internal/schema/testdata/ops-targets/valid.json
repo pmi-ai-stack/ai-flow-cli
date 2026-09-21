@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "addon": "terraform", "path": "infra/prod", "scope": "repo", "changed": null, "environment": null, "tier": null, "files": [] }
+  ],
+  "app_files": ["main.go"]
+}

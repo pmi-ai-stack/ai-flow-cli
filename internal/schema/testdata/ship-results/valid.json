@@ -1,0 +1,5 @@
+{
+  "pull_requests": [
+    { "repo": "acme.billing.api", "url": "https://github.com/acme/acme.billing.api/pull/42", "draft": false }
+  ]
+}

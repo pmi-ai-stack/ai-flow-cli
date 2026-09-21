@@ -1,0 +1,5 @@
+{
+  "screens": [
+    { "screen": "billing/invoice", "verdict": "maybe", "reason": "matches design" }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "repositories": [
+    { "repo": "acme.billing.api", "runner": "go test", "total": -1, "passed": 9, "failed": 1, "failures": [] }
+  ]
+}

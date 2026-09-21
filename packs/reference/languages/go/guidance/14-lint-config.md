@@ -63,6 +63,16 @@ linters:
         linters: [gochecknoglobals]  # CommandHints is a lookup table, not mutable state
       - path: ^internal/envelope/exitcode\.go$
         linters: [gochecknoglobals]  # codeExitCode is a lookup table, not mutable state
+      - path: ^schema/embed\.go$
+        linters: [gochecknoglobals]  # FS is the embedded schema content, not mutable state
+      - path: ^internal/schema/registry\.go$
+        linters: [gochecknoglobals]  # artifacts is a lookup table, not mutable state
+      - path: ^internal/schema/compile\.go$
+        linters: [gochecknoglobals]  # compiled is a compiled-schema cache, not mutable state
+      - path: ^internal/redact/redact\.go$
+        linters: [gochecknoglobals]  # secretEnvVars is a lookup table, not mutable state
+      - path: ^internal/config/template\.go$
+        linters: [gochecknoglobals]  # templateBytes is the embedded template content, not mutable state
       - path: ^internal/handoff/events\.go$
         text: 'time\.Now'       # events.jsonl is the one place wall-clock is allowed
       - path: _test\.go$

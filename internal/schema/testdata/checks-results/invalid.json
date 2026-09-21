@@ -1,0 +1,6 @@
+{
+  "findings": [
+    { "check_id": "org.gofmt", "layer": "org", "kind": "format", "stage": "checks",
+      "severity": "critical", "tool": "gofmt", "message": "not gofmt-ed", "status": "open" }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/checks-results.schema.json",
+  "title": "checks-results",
+  "description": "~/.ai-flow/<KEY>/checks-results.json — findings by check, sorted (layer, check_id, file, line). Finding shape is given verbatim by the spec's Checks section; counts/summary are a phase-14 placeholder.",
+  "type": "object",
+  "required": ["findings"],
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "layer", "kind", "stage", "severity", "tool", "message", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "check_id": { "type": "string" },
+          "layer": { "enum": ["org", "team", "repo"] },
+          "kind": {
+            "enum": [
+              "format", "lint", "policy", "scan", "dependency", "secrets",
+              "layout", "docs", "commit", "pr"
+            ]
+          },
+          "stage": { "enum": ["checks", "ship"] },
+          "severity": { "enum": ["must", "should", "may"] },
+          "tool": { "type": "string" },
+          "repo": { "type": "string" },
+          "target": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "message": { "type": "string" },
+          "fix_hint": { "type": "string" },
+          "autofix_applied": { "type": "boolean" },
+          "status": { "enum": ["open", "fixed", "waived"] }
+        }
+      }
+    }
+  }
+}

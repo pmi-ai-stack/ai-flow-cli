@@ -77,6 +77,8 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	}
 
 	root.AddCommand(newVersionCmd(bi, stdout, exitCode))
+	root.AddCommand(newSchemaCmd(stdout, exitCode))
+	root.AddCommand(newConfigCmd(stdout, exitCode))
 
 	return root
 }

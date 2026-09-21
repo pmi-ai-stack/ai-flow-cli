@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/ship-results.schema.json",
+  "title": "ship-results",
+  "description": "~/.ai-flow/<KEY>/ship-results.json — one PR record per in-scope repository, in repo.json order. Minimal placeholder; phase 5 owns the full shape.",
+  "type": "object",
+  "required": ["pull_requests"],
+  "additionalProperties": false,
+  "properties": {
+    "pull_requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "url"],
+        "properties": {
+          "repo": { "type": "string" },
+          "url": { "type": "string" },
+          "draft": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/skill-frontmatter.schema.json",
+  "title": "skill-frontmatter",
+  "description": "SKILL.md frontmatter — deliberately minimal in phase 2 (name, description only). Phase 10's internal/skills/lint owns the full portable-skill-profile rule set: license, the fixed compatibility sentence, disable-model-invocation on entry points only, and rejecting every other field including allowed-tools.",
+  "type": "object",
+  "required": ["name", "description"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    }
+  }
+}

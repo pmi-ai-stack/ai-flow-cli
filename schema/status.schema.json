@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/status.schema.json",
+  "title": "status",
+  "description": "~/.ai-flow/<KEY>/status.json — the stage state machine for one ticket.",
+  "type": "object",
+  "required": ["key", "stages"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"
+    },
+    "stages": {
+      "type": "array",
+      "description": "Every stage, in pipeline order — order carries meaning, so this is an array, never an object keyed by stage id.",
+      "items": {
+        "type": "object",
+        "required": ["stage", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": {
+            "enum": [
+              "fetch", "locate", "plan", "implement", "render-drift", "checks",
+              "dry-run", "impact", "rollback", "infra-test", "mutation",
+              "visual-test", "e2e", "review", "output", "ship"
+            ]
+          },
+          "state": {
+            "enum": [
+              "pending", "running", "awaiting_approval", "pass", "fail",
+              "skipped", "approved"
+            ]
+          },
+          "approval": {
+            "type": ["object", "null"],
+            "required": ["by", "at", "gate"],
+            "additionalProperties": false,
+            "properties": {
+              "by": { "type": "string", "minLength": 1 },
+              "at": { "type": "string" },
+              "gate": { "enum": ["pre", "post"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

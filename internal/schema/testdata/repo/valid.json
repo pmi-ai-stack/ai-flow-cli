@@ -1,0 +1,7 @@
+{
+  "team": "Team Beta",
+  "repositories": [
+    { "name": "acme.billing.api", "local_path": "~/projects/acme.billing.api", "instructions_file": "AGENTS.md" }
+  ],
+  "in_scope_files": ["main.go"]
+}

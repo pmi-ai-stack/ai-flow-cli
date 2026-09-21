@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/test-results.schema.json",
+  "title": "test-results",
+  "description": "~/.ai-flow/<KEY>/test-results.json — normalized unit-test results, one entry per in-scope repository.",
+  "type": "object",
+  "required": ["repositories"],
+  "additionalProperties": false,
+  "properties": {
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "runner", "total", "passed", "failed", "failures"],
+        "additionalProperties": false,
+        "properties": {
+          "repo": { "type": "string" },
+          "runner": { "type": "string" },
+          "total": { "type": "integer", "minimum": 0 },
+          "passed": { "type": "integer", "minimum": 0 },
+          "failed": { "type": "integer", "minimum": 0 },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "message"],
+              "properties": {
+                "name": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "findings": [
+    {
+      "check_id": "org.gofmt", "layer": "org", "kind": "format", "stage": "checks",
+      "severity": "must", "tool": "gofmt", "repo": "acme.billing.api", "target": "",
+      "file": "main.go", "line": 12, "message": "not gofmt-ed",
+      "fix_hint": "run gofmt -w", "autofix_applied": true, "status": "fixed"
+    }
+  ]
+}

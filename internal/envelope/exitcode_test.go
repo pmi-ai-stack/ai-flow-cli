@@ -43,6 +43,7 @@ func TestExitCodeTable(t *testing.T) {
 		{"unknown_report_format", ExitSchemaInvalid},
 		{"pack_invalid", ExitSchemaInvalid},
 		{"check_runner_missing", ExitSchemaInvalid},
+		{"config_invalid", ExitSchemaInvalid},
 	}
 
 	if len(cases) != len(codeExitCode) {

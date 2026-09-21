@@ -1,0 +1,10 @@
+{
+  "resolution_hash": "abc123",
+  "sources": [],
+  "languages": [],
+  "addons": [],
+  "sections": [],
+  "checks": [
+    { "id": "org.gofmt", "layer": "not-a-layer", "waived": false }
+  ]
+}

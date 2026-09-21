@@ -1,0 +1,4 @@
+{
+  "name": "plan-solution",
+  "description": "Reads the ticket, asks clarifying questions, proposes at least two options and writes plan.md."
+}

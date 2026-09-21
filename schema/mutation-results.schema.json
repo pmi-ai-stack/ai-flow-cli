@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/mutation-results.schema.json",
+  "title": "mutation-results",
+  "description": "~/.ai-flow/<KEY>/mutation-results.json — per-repository mutation scores. equivalent[]/accepted_below_threshold are precise per the spec; per-tool report fields are a phase-7 placeholder.",
+  "type": "object",
+  "required": ["repositories"],
+  "additionalProperties": false,
+  "properties": {
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "tool", "score", "threshold"],
+        "properties": {
+          "repo": { "type": "string" },
+          "tool": { "enum": ["stryker", "mutmut", "gremlins", "pitest"] },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "threshold": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "survivors": { "type": "integer", "minimum": 0 },
+          "killed": { "type": "integer", "minimum": 0 },
+          "equivalent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "reason"],
+              "properties": {
+                "id": { "type": "string" },
+                "reason": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "accepted_below_threshold": {
+      "type": ["object", "null"],
+      "required": ["by", "reason"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

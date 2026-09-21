@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "target": "infra/prod", "harness": "terraform test", "total": 3, "passed": 3, "failed": 0 }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/infra-test-results.schema.json",
+  "title": "infra-test-results",
+  "description": "~/.ai-flow/<KEY>/infra-test-results.json — minimal placeholder; phase 24 owns the full shape.",
+  "type": "object",
+  "required": ["targets"],
+  "additionalProperties": false,
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "harness", "total", "passed", "failed"],
+        "properties": {
+          "target": { "type": "string" },
+          "harness": { "type": "string" },
+          "total": { "type": "integer", "minimum": 0 },
+          "passed": { "type": "integer", "minimum": 0 },
+          "failed": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

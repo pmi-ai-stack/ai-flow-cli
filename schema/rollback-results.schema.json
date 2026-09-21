@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/rollback-results.schema.json",
+  "title": "rollback-results",
+  "description": "~/.ai-flow/<KEY>/rollback-results.json — minimal placeholder; phase 23 owns the full shape.",
+  "type": "object",
+  "required": ["targets"],
+  "additionalProperties": false,
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "steps", "non_revertible"],
+        "properties": {
+          "target": { "type": "string" },
+          "steps": { "type": "array", "items": { "type": "string" } },
+          "non_revertible": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

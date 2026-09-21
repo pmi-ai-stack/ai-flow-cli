@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/e2e-results.schema.json",
+  "title": "e2e-results",
+  "description": "~/.ai-flow/<KEY>/e2e-results.json — minimal placeholder; phase 6 owns the full shape.",
+  "type": "object",
+  "required": ["total", "passed", "failed"],
+  "additionalProperties": false,
+  "properties": {
+    "total": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "new_cases": { "type": "array", "items": { "type": "string" } },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
