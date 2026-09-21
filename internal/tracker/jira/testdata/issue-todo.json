@@ -1,0 +1,14 @@
+{
+  "key": "TEST-1",
+  "fields": {
+    "summary": "Fix the thing",
+    "description": "Full description text.",
+    "status": { "name": "To Do" },
+    "issuetype": { "name": "Bug" },
+    "project": { "key": "TEST" },
+    "attachment": [
+      { "id": "10001", "filename": "mock.png", "content": "https://example.atlassian.net/secure/attachment/10001/mock.png" },
+      { "id": "10002", "filename": "notes.txt", "content": "https://example.atlassian.net/secure/attachment/10002/notes.txt" }
+    ]
+  }
+}

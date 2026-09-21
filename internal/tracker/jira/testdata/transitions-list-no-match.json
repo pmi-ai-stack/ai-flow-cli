@@ -1,0 +1,5 @@
+{
+  "transitions": [
+    { "id": "99", "to": { "name": "Done" } }
+  ]
+}

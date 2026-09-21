@@ -1,0 +1,11 @@
+{
+  "key": "TEST-2",
+  "fields": {
+    "summary": "A feature ticket",
+    "description": "No attachments here.",
+    "status": { "name": "Backlog" },
+    "issuetype": { "name": "Story" },
+    "project": { "key": "TEST" },
+    "attachment": []
+  }
+}

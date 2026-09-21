@@ -101,6 +101,15 @@ func WriteRaw(dir, filename string, v any) (string, error) {
 	return writeJSON(dir, filename, data)
 }
 
+// WriteFile writes data to dir/filename as a temp file in the same
+// directory, synced, closed, then renamed into place — WriteArtifact's
+// atomic-write core, exported without the JSON-marshal or
+// schema-validate steps, for artifacts that are not JSON: images.md, a
+// downloaded attachment, and any later phase's own non-JSON output.
+func WriteFile(dir, filename string, data []byte) (string, error) {
+	return writeJSON(dir, filename, data)
+}
+
 // ReadArtifact reads path, returning (nil, nil) when it does not
 // exist — every loader in this package treats a missing artifact as
 // "not written yet", not as an error, so callers branch on a nil

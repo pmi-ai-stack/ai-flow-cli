@@ -1,0 +1,116 @@
+package jira
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
+)
+
+// Client implements tracker.Tracker against a Jira Cloud or Server
+// instance over its REST API v2.
+var _ tracker.Tracker = (*Client)(nil)
+
+type Client struct {
+	baseURL    string
+	authHeader string
+	cfg        config.Tracker
+	httpClient *http.Client
+	verbose    io.Writer
+}
+
+// New builds a Client. transport is the http.RoundTripper the
+// production caller sets to http.DefaultTransport and a test sets to a
+// recorded-fixture transport. verbose, when non-nil, receives one
+// "<method> <path>" line per request — the caller wraps it in
+// redact.New(os.Environ()).Writer before passing it in (--verbose:
+// "tool logs to stderr, secrets redacted").
+func New(cfg config.Tracker, email, token string, transport http.RoundTripper, verbose io.Writer) *Client {
+	creds := base64.StdEncoding.EncodeToString([]byte(email + ":" + token))
+	return &Client{
+		baseURL:    cfg.BaseURL,
+		authHeader: "Basic " + creds,
+		cfg:        cfg,
+		httpClient: &http.Client{Transport: transport},
+		verbose:    verbose,
+	}
+}
+
+// do sends one request: method against c.baseURL+path, body marshaled
+// as the JSON request body (nil for none), the response decoded into
+// out (nil when the caller expects no meaningful body, e.g. a 204). A
+// non-2xx response is mapped to *envelope.Error via statusError.
+func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	var reqBody io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("jira: marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
+	if err != nil {
+		return fmt.Errorf("jira: build request: %w", err)
+	}
+	req.Header.Set("Authorization", c.authHeader)
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	if c.verbose != nil {
+		fmt.Fprintf(c.verbose, "%s %s\n", method, path) //nolint:errcheck // best-effort diagnostic logging to --verbose's writer, never load-bearing
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("jira: %s %s: %w", method, path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("jira: read response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return statusError(method, path, resp.StatusCode, respBody)
+	}
+	if out == nil || len(respBody) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(respBody, out); err != nil {
+		return fmt.Errorf("jira: decode %s %s response: %w", method, path, err)
+	}
+	return nil
+}
+
+// statusError maps a non-2xx Jira response to a documented exit-5
+// error.code: 401/403 are an auth failure, 404 is "no such issue" or
+// "no such comment", 429 is a rate limit, and everything else is a
+// generic tool failure — Jira's own workflow or configuration not
+// doing what was asked, not one of the three more specific codes.
+func statusError(method, path string, status int, body []byte) error {
+	code := "tool_failed"
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		code = "tracker_auth"
+	case http.StatusNotFound:
+		code = "tracker_not_found"
+	case http.StatusTooManyRequests:
+		code = "rate_limited"
+	}
+	return &envelope.Error{
+		Code:    code,
+		Message: fmt.Sprintf("jira: %s %s: HTTP %d: %s", method, path, status, string(body)),
+	}
+}

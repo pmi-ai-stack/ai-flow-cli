@@ -13,7 +13,10 @@ func TestCatalogTicketScopedCommandsHaveKeyFirst(t *testing.T) {
 	for _, c := range Catalog() {
 		found[c.Name] = true
 	}
-	ticketScoped := []string{"status", "stage should-run", "stage start", "stage complete", "stage approve", "stage skip", "stage reset"}
+	ticketScoped := []string{
+		"status", "stage should-run", "stage start", "stage complete", "stage approve", "stage skip", "stage reset",
+		"ticket fetch", "ticket update", "ticket show",
+	}
 	for _, name := range ticketScoped {
 		if !found[name] {
 			t.Errorf("Catalog() is missing %q", name)

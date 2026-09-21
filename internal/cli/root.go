@@ -93,6 +93,7 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newConfigCmd(cio))
 	root.AddCommand(newStatusCmd(cio))
 	root.AddCommand(newStageCmd(cio))
+	root.AddCommand(newTicketCmd(cio))
 
 	return root
 }

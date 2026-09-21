@@ -36,6 +36,9 @@ var catalog = []CommandSpec{
 	{Name: "stage approve", TicketScoped: true, Positional: []string{"stage"}},
 	{Name: "stage skip", TicketScoped: true, Positional: []string{"stage"}, Flags: []string{"reason"}},
 	{Name: "stage reset", TicketScoped: true, Positional: []string{"stage"}},
+	{Name: "ticket fetch", TicketScoped: true},
+	{Name: "ticket update", TicketScoped: true, Flags: []string{"status", "comment", "marker"}},
+	{Name: "ticket show", TicketScoped: true},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

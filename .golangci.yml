@@ -88,6 +88,8 @@ linters:
         linters: [gochecknoglobals] # skipRules is a lookup table, not mutable state
       - path: ^internal/handoff/predicates\.go$
         linters: [gochecknoglobals] # primaryArtifacts/schemaArtifactNames are lookup tables, not mutable state
+      - path: ^internal/cli/ticket\.go$
+        linters: [gochecknoglobals] # imageExtensions is a lookup table, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:
