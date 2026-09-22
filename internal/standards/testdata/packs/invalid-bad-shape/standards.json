@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "id": "fixture",
+  "version": "1.0.0",
+  "sections": [
+    { "id": "go.errors", "severity": "extreme" }
+  ],
+  "checks": []
+}

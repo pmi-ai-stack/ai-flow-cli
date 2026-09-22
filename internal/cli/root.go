@@ -112,6 +112,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 	root.AddCommand(newHookCmd(bi, cio))
 	root.AddCommand(newHooksCmd(cio))
 	root.AddCommand(newSkillsCmd(cio))
+	root.AddCommand(newStandardsCmd(cio))
 
 	return root
 }

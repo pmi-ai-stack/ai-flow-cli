@@ -1,0 +1,15 @@
+# Reference ruff config — a starting point a repository forks and
+# tightens (packs/reference/languages/python/guidance/06-lint-format-config.md).
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = []
+
+[lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

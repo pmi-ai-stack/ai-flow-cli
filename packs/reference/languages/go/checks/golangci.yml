@@ -1,0 +1,22 @@
+version: "2"
+# Reference golangci-lint config — a starting point a repository forks
+# and tightens (packs/reference/languages/go/guidance/14-lint-config.md
+# covers this codebase's own, stricter configuration in detail).
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - errorlint
+    - gosec
+    - misspell
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close

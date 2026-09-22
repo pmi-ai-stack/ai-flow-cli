@@ -78,6 +78,10 @@ linters:
         text: 'time\.Now'
       - path: ^internal/handoff/key\.go$
         linters: [gochecknoglobals] # ReservedNames is a lookup table, not mutable state
+      - path: ^internal/standards/validate\.go$
+        linters: [gochecknoglobals] # renderingValidatorTools is a lookup table, not mutable state
+      - path: ^internal/standards/clock\.go$
+        linters: [gochecknoglobals, forbidigo] # defaultClock is the injectable clock by design, mirroring internal/handoff/clock.go's own Now
       - path: ^internal/handoff/stage\.go$
         linters: [gochecknoglobals] # stages is the one declared pipeline order every other table derives from, not mutable state
       - path: ^internal/handoff/stagetable\.go$

@@ -19,6 +19,7 @@ const (
 	EventTypeSessionStart    = "session_start"
 	EventTypeToolRun         = "tool_run"
 	EventTypeGuardDecision   = "guard_decision"
+	EventTypeStandardsSync   = "standards_sync"
 )
 
 // Event is one line of an events.jsonl file: the append-only
@@ -48,6 +49,12 @@ type Event struct {
 	// `hook guard` (phase 9) — Command carries the shell command or file
 	// path the decision was about (GuardDecisionEvent's own doc comment).
 	Allow *bool `json:"allow,omitempty"`
+	// PackID, PackRef, PackRefKind and Synced are set only on a
+	// "standards_sync" event, written by `standards sync` (phase 12).
+	PackID      string `json:"pack_id,omitempty"`
+	PackRef     string `json:"pack_ref,omitempty"`
+	PackRefKind string `json:"pack_ref_kind,omitempty"`
+	Synced      *bool  `json:"synced,omitempty"`
 }
 
 // AppendEvent appends one compact JSON line to path, redacting any
@@ -133,5 +140,21 @@ func GuardDecisionEvent(host, reason, command string, allow bool) Event {
 		Reason:  reason,
 		Command: command,
 		Allow:   &allow,
+	}
+}
+
+// StandardsSyncEvent builds a "standards_sync" Event — `standards
+// sync`'s own write, appended to the global events.jsonl (a pack
+// source belongs to no ticket). synced is false for a source Sync
+// skipped (a pinned ref already cached, or a branch synced within the
+// last day) — still worth a line, since "nothing changed" is itself
+// diagnostic information doctor and a human both want.
+func StandardsSyncEvent(id, ref, refKind string, synced bool) Event {
+	return Event{
+		Type:        EventTypeStandardsSync,
+		PackID:      id,
+		PackRef:     ref,
+		PackRefKind: refKind,
+		Synced:      &synced,
 	}
 }

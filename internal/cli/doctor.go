@@ -20,6 +20,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host/github"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker/jira"
 )
@@ -86,6 +87,20 @@ type doctorSelftestReport struct {
 	Passed bool   `json:"passed"`
 }
 
+// doctorPackReport is one standards source's health — phase 12's own
+// "pack block: id, ref, sync state, validation result" line in the
+// growing-surfaces registry.
+type doctorPackReport struct {
+	ID     string `json:"id"`
+	Layer  string `json:"layer"`
+	Repo   string `json:"repo,omitempty"`
+	Ref    string `json:"ref"`
+	Synced bool   `json:"synced"`
+	Stale  bool   `json:"stale"`
+	Valid  *bool  `json:"valid"`
+	Error  string `json:"error,omitempty"`
+}
+
 type doctorResult struct {
 	Config          doctorConfig           `json:"config"`
 	EnvVars         []doctorEnvVar         `json:"env_vars"`
@@ -98,6 +113,7 @@ type doctorResult struct {
 	LastSessionHost *string                `json:"last_session_host"`
 	Hosts           []doctorHostReport     `json:"hosts"`
 	HookSelftest    []doctorSelftestReport `json:"hook_selftest"`
+	Packs           []doctorPackReport     `json:"packs"`
 }
 
 // testRunnerBinaries and mutationToolBinaries are the fixed tables
@@ -167,6 +183,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			var selftestWarnings []string
 			result.HookSelftest, selftestWarnings = doctorProbeHookSelftest()
 			warnings = append(warnings, selftestWarnings...)
+
+			var packsWarnings []string
+			result.Packs, packsWarnings = doctorProbePacks(f.Home, cfg)
+			warnings = append(warnings, packsWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -454,6 +474,54 @@ func doctorProbeHookSelftest() ([]doctorSelftestReport, []string) {
 		if !result.Passed {
 			warnings = append(warnings, "hook selftest ("+string(host)+"): one or more fixtures failed")
 		}
+	}
+	return reports, warnings
+}
+
+// doctorProbePacks reports every configured standards source's cache
+// state and, when cached, standards.Validate's own result against that
+// cache entry — phase 12's "pack block: id, ref, sync state,
+// validation result." cfg nil (config did not load) reports nothing,
+// same tolerant-of-a-missing-config shape doctorProbeTracker already
+// uses. An empty config.standards.sources reports one synthetic row
+// for the embedded reference pack, matching config.Validate's own rule
+// that an empty list means the embedded pack is the org layer.
+func doctorProbePacks(home string, cfg *config.Config) ([]doctorPackReport, []string) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	sources := standards.SourcesFromConfig(cfg)
+	if len(sources) == 0 {
+		valid := true
+		return []doctorPackReport{{ID: "reference", Layer: "org", Ref: "embedded", Synced: true, Valid: &valid}}, nil
+	}
+
+	reports := make([]doctorPackReport, 0, len(sources))
+	var warnings []string
+	for _, s := range sources {
+		r := doctorPackReport{ID: s.ID, Layer: s.Layer, Repo: s.Repo, Ref: s.Ref}
+
+		status := standards.StatusOf(home, s.ID, s.Ref, nil)
+		r.Synced = status.Cached
+		r.Stale = status.Stale
+		if status.RefKind == standards.RefKindBranch && status.Stale {
+			warnings = append(warnings, "standards source "+s.ID+": branch ref "+s.Ref+" has not been synced in over a day")
+		}
+
+		switch {
+		case !status.Cached:
+			warnings = append(warnings, "standards source "+s.ID+": not yet synced (run `standards sync`)")
+		default:
+			_, err := standards.ValidateAgainstProductionAllowlist(standards.CacheDir(home, s.ID, s.Ref))
+			valid := err == nil
+			r.Valid = &valid
+			if err != nil {
+				r.Error = redactMessage(err)
+				warnings = append(warnings, "standards source "+s.ID+": "+r.Error)
+			}
+		}
+		reports = append(reports, r)
 	}
 	return reports, warnings
 }

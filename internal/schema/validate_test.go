@@ -75,7 +75,7 @@ func TestAllHandoffArtifactsHaveASchema(t *testing.T) {
 		"status", "standards", "ticket", "repo", "ops-targets", "test-results",
 		"render-drift-results", "dryrun-results", "impact-results", "rollback-results",
 		"infra-test-results", "checks-results", "mutation-results", "visual-test-results",
-		"e2e-results", "ship-results", "skill-frontmatter",
+		"e2e-results", "ship-results", "skill-frontmatter", "pack",
 	}
 	got := Artifacts()
 	if !slices.Equal(got, want) {

@@ -1,0 +1,18 @@
+root = false
+
+[*.cs]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8-bom
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Reference severities — a repository tightens or overrides these via
+# its own .ai-flow/standards/ override, with a reason
+# (packs/reference/languages/csharp/guidance/06-lint-format-config.md).
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8618.severity = error
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = true:warning

@@ -1,0 +1,7 @@
+{
+  "required_files": ["pom.xml"],
+  "test_placement": "parallel_tree",
+  "test_root": "src/test/java",
+  "source_root": "src/main/java",
+  "test_suffix": ["Test.java"]
+}

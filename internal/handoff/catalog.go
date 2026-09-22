@@ -90,6 +90,11 @@ var catalog = []CommandSpec{
 
 	// Phase 11.
 	{Name: "skills evals", TicketScoped: false, Positional: []string{"dir"}, Flags: []string{"skill", "host", "model", "out"}},
+
+	// Phase 12.
+	{Name: "standards validate", TicketScoped: false, Positional: []string{"dir"}},
+	{Name: "standards sync", TicketScoped: false, Flags: []string{"source"}},
+	{Name: "standards export", TicketScoped: false, Positional: []string{"dir"}},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

@@ -1,0 +1,6 @@
+{
+  "required_files": ["go.mod"],
+  "test_placement": "sibling",
+  "test_suffix": ["_test.go"],
+  "forbidden_paths": ["vendor/**"]
+}

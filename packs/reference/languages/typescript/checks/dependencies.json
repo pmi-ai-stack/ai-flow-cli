@@ -1,0 +1,6 @@
+{
+  "allowed_licenses": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD"],
+  "banned_packages": ["request", "moment"],
+  "minimum_versions": {},
+  "fail_on_advisory_severity": "high"
+}

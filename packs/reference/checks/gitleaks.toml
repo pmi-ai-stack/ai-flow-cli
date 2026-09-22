@@ -1,0 +1,16 @@
+title = "ai-flow reference gitleaks config"
+# The one pack-wide "secrets" check config (checks/, not per-language —
+# a credential leak doesn't care which language surrounds it). Runs
+# against the diff only; secrets checks cannot be waived — the pack
+# format's own loader rule, enforced by phase 13's resolver, not by
+# this config file.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "generated fixtures and this pack's own documentation examples"
+paths = [
+  '''testdata/''',
+  '''\.md$''',
+]

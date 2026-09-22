@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "reference",
+  "version": "1.0.0",
+  "sections": [
+    { "id": "go.errors", "path": "languages/go/guidance/04-errors.md", "severity": "must",
+      "applies_to": { "languages": ["go"], "stages": ["implement", "review"] } },
+    { "id": "process.adr", "path": "process/guidance/adr.md", "severity": "must", "applies_to": { "stages": ["plan"] } }
+  ],
+  "checks": [
+    { "id": "commit.conventional", "kind": "commit", "tool": "ai-flow-builtin", "severity": "must", "applies_to": { "stages": ["ship"] } }
+  ]
+}

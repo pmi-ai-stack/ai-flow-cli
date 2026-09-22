@@ -1,0 +1,6 @@
+{
+  "required_files": ["package.json", "tsconfig.json"],
+  "test_placement": "sibling",
+  "test_suffix": [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"],
+  "forbidden_paths": ["src/**/__tests__/**"]
+}

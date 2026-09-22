@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "fixture",
+  "version": "1.0.0",
+  "sections": [
+    { "id": "go.errors", "path": "languages/go/guidance/errors.md", "severity": "must", "applies_to": { "languages": ["go"], "stages": ["implement", "review"] } }
+  ],
+  "checks": [
+    { "id": "go.test", "kind": "commit", "tool": "go", "severity": "must", "applies_to": { "stages": ["ship"] } }
+  ]
+}

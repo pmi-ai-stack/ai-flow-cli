@@ -1,0 +1,6 @@
+{
+  "required_files": ["*.sln"],
+  "test_placement": "parallel_project",
+  "test_project_suffix": ".Tests",
+  "test_suffix": ["Tests.cs"]
+}

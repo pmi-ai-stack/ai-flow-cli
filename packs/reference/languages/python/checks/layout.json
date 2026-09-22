@@ -1,0 +1,7 @@
+{
+  "required_files": ["pyproject.toml"],
+  "test_placement": "parallel_tree",
+  "test_root": "tests",
+  "test_prefix": ["test_"],
+  "forbidden_paths": ["src/**/test_*.py"]
+}
