@@ -11,7 +11,7 @@ import (
 func TestSchemaCommandJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs([]string{"schema", "status"})
 
 	if err := root.ExecuteContext(context.Background()); err != nil {
@@ -42,7 +42,7 @@ func TestSchemaCommandJSON(t *testing.T) {
 func TestSchemaCommandUnknownArtifact(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs([]string{"schema", "no-such-artifact"})
 
 	if err := root.ExecuteContext(context.Background()); err != nil {
@@ -77,7 +77,7 @@ func TestSchemaCommandUnknownArtifact(t *testing.T) {
 func TestSchemaCommandRequiresArg(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs([]string{"schema"})
 
 	err := root.ExecuteContext(context.Background())

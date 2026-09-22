@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "preToolUse",
+  "cwd": "/home/dev/acme.billing.api",
+  "tool": "Shell",
+  "input": {
+    "command": "git push origin feature/PROJ-1"
+  }
+}

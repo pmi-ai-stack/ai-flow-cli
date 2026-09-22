@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "preToolUse",
+  "cwd": "/home/dev/acme.billing.api",
+  "tool": "Write",
+  "input": {
+    "file_path": "/home/dev/.ai-flow/PROJ-1/plan.md"
+  }
+}

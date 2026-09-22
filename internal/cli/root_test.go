@@ -23,7 +23,7 @@ var fixedBuildInfo = BuildInfo{Version: "1.2.3", Commit: "abc123", Date: "2026-0
 func TestVersionGoldenJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs([]string{"version"})
 
 	if err := root.ExecuteContext(context.Background()); err != nil {
@@ -87,7 +87,7 @@ func TestVersionGoldenJSON(t *testing.T) {
 func TestVersionGoldenHuman(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs([]string{"version", "--human"})
 
 	if err := root.ExecuteContext(context.Background()); err != nil {
@@ -112,7 +112,7 @@ func TestVersionRunTwiceIsIdempotent(t *testing.T) {
 	run := func() string {
 		var stdout, stderr bytes.Buffer
 		exitCode := -1
-		root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+		root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 		root.SetArgs([]string{"version"})
 		if err := root.ExecuteContext(context.Background()); err != nil {
 			t.Fatalf("Execute: %v", err)
@@ -132,7 +132,7 @@ func TestVersionRunTwiceIsIdempotent(t *testing.T) {
 func TestGlobalFlagsReachContext(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 
 	var captured Flags
 	root.AddCommand(&cobra.Command{
@@ -170,7 +170,7 @@ func TestGlobalFlagsReachContext(t *testing.T) {
 func TestWrapCarriesNeedsInputOnErrorPath(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	exitCode := -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 
 	root.AddCommand(&cobra.Command{
 		Use: "needs-input-for-test",

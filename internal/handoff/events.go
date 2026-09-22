@@ -23,6 +23,19 @@ type Event struct {
 	To      string `json:"to,omitempty"`
 	Command string `json:"command,omitempty"`
 	Reason  string `json:"reason,omitempty"`
+	// Host, HostVersion, PluginRoot and CLIVersion are set only on a
+	// "session_start" event, written by `hook session-start` (phase 9).
+	// doctor's doctorLastSessionHost (built in phase 8, unchanged since)
+	// already tolerantly scans for Host — it starts reporting the moment
+	// this field is populated, with no further change there.
+	Host        string `json:"host,omitempty"`
+	HostVersion string `json:"host_version,omitempty"`
+	PluginRoot  string `json:"plugin_root,omitempty"`
+	CLIVersion  string `json:"cli_version,omitempty"`
+	// Allow is set only on a "guard_decision" event, written by
+	// `hook guard` (phase 9) — Command carries the shell command or file
+	// path the decision was about (GuardDecisionEvent's own doc comment).
+	Allow *bool `json:"allow,omitempty"`
 }
 
 // AppendEvent appends one compact JSON line to path, redacting any
@@ -63,5 +76,37 @@ func StageTransitionEvent(stage Stage, from, to State, command, reason string) E
 		To:      string(to),
 		Command: command,
 		Reason:  reason,
+	}
+}
+
+// SessionStartEvent builds a "session_start" Event — `hook
+// session-start`'s own write, appended to the global events.jsonl (a
+// session start belongs to no ticket). Matches the Guardrails
+// section's documented shape verbatim: "{ ts, host, host_version,
+// plugin_root, cli_version }" (ts is At, set by AppendEvent).
+func SessionStartEvent(host, hostVersion, pluginRoot, cliVersion string) Event {
+	return Event{
+		Type:        "session_start",
+		Host:        host,
+		HostVersion: hostVersion,
+		PluginRoot:  pluginRoot,
+		CLIVersion:  cliVersion,
+	}
+}
+
+// GuardDecisionEvent builds a "guard_decision" Event — `hook guard`'s
+// own write, appended to the ticket-scoped events.jsonl when the
+// decision resolves to an active ticket, else the global one ("guard
+// decisions whose path or cwd resolves to no active ticket" — the
+// Handoff directory section's own words for what belongs in the
+// global file). command carries the shell command or file path the
+// decision was made about.
+func GuardDecisionEvent(host, reason, command string, allow bool) Event {
+	return Event{
+		Type:    "guard_decision",
+		Host:    host,
+		Reason:  reason,
+		Command: command,
+		Allow:   &allow,
 	}
 }

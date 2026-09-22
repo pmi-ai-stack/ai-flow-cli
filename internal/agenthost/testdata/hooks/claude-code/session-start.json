@@ -1,0 +1,6 @@
+{
+  "session_id": "sess-abc123",
+  "hook_event_name": "SessionStart",
+  "source": "startup",
+  "version": "2.1.0"
+}

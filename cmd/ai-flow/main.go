@@ -29,7 +29,7 @@ func main() {
 	defer stop()
 
 	exitCode := 0
-	root := cli.NewRoot(cli.BuildInfo{Version: version, Commit: commit, Date: date}, os.Stdout, os.Stderr, &exitCode)
+	root := cli.NewRoot(cli.BuildInfo{Version: version, Commit: commit, Date: date}, os.Stdin, os.Stdout, os.Stderr, &exitCode)
 
 	if err := root.ExecuteContext(ctx); err != nil {
 		// A cobra-level failure (bad flags, unknown command) happens

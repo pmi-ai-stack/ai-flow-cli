@@ -340,9 +340,11 @@ func TestDoctor_LastSessionHost(t *testing.T) {
 		t.Errorf("LastSessionHost = %v, want nil (no session_start writer exists before phase 9)", *got.LastSessionHost)
 	}
 
-	// Hand-write a session_start-shaped line — nothing produces this
-	// yet, but the reader must already recognize it (forward
-	// compatibility with phase 9's hook session-start).
+	// Hand-write a session_start-shaped line directly, rather than
+	// going through `hook session-start` itself (see hook_test.go's own
+	// TestHookSessionStart_CreatesConfigAndAppendsEvent for that path) —
+	// this test only needs to prove the tolerant reader recognizes the
+	// shape.
 	line := []byte(`{"at":"2026-01-01T00:00:00Z","type":"session_start","host":"claude-code"}` + "\n")
 	if err := os.WriteFile(handoff.GlobalEventsPath(home), line, 0o600); err != nil {
 		t.Fatalf("write events.jsonl: %v", err)
@@ -351,5 +353,56 @@ func TestDoctor_LastSessionHost(t *testing.T) {
 	got = runDoctor(t, home)
 	if got.LastSessionHost == nil || *got.LastSessionHost != "claude-code" {
 		t.Errorf("LastSessionHost = %v, want \"claude-code\"", got.LastSessionHost)
+	}
+}
+
+func TestDoctor_HostsNotDetected(t *testing.T) {
+	home := t.TempDir()
+	got := runDoctor(t, home)
+	if len(got.Hosts) != 2 {
+		t.Fatalf("Hosts = %+v, want 2 entries", got.Hosts)
+	}
+	for _, h := range got.Hosts {
+		if h.Detected {
+			t.Errorf("host %q: Detected = true in a bare temp home, want false", h.Host)
+		}
+	}
+}
+
+func TestDoctor_HostsDetected(t *testing.T) {
+	home := t.TempDir()
+	manifestDir := filepath.Join(home, "plugins", "ai-flow", ".claude-plugin")
+	if err := os.MkdirAll(manifestDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(manifestDir, "plugin.json"), []byte(`{"version":"0.4.0"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got := runDoctor(t, home)
+	found := false
+	for _, h := range got.Hosts {
+		if h.Host == "claude-code" {
+			found = true
+			if !h.Detected || h.Version != "0.4.0" {
+				t.Errorf("claude-code host report = %+v, want detected 0.4.0", h)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("Hosts = %+v, missing claude-code", got.Hosts)
+	}
+}
+
+func TestDoctor_HookSelftest(t *testing.T) {
+	home := t.TempDir()
+	got := runDoctor(t, home)
+	if len(got.HookSelftest) != 2 {
+		t.Fatalf("HookSelftest = %+v, want 2 entries", got.HookSelftest)
+	}
+	for _, r := range got.HookSelftest {
+		if !r.Passed {
+			t.Errorf("host %q: Passed = false, want true (embedded fixtures should always self-test clean)", r.Host)
+		}
 	}
 }

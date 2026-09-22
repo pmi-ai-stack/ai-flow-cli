@@ -55,6 +55,42 @@ func TestAppendEventRecordsSkipReason(t *testing.T) {
 	}
 }
 
+func TestSessionStartEventShape(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	if err := AppendEvent(path, SessionStartEvent("claude-code", "2.1.0", "/plugin/root", "0.3.1")); err != nil {
+		t.Fatalf("AppendEvent: %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	var e Event
+	if err := json.Unmarshal(data[:len(data)-1], &e); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if e.Type != "session_start" || e.Host != "claude-code" || e.HostVersion != "2.1.0" ||
+		e.PluginRoot != "/plugin/root" || e.CLIVersion != "0.3.1" {
+		t.Errorf("event = %+v, want the session_start shape", e)
+	}
+}
+
+func TestGuardDecisionEventShape(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	if err := AppendEvent(path, GuardDecisionEvent("cursor", "row6_git_publish", "git push origin main", false)); err != nil {
+		t.Fatalf("AppendEvent: %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	var e Event
+	if err := json.Unmarshal(data[:len(data)-1], &e); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if e.Type != "guard_decision" || e.Host != "cursor" || e.Reason != "row6_git_publish" || e.Command != "git push origin main" {
+		t.Errorf("event = %+v, want the guard_decision shape", e)
+	}
+	if e.Allow == nil || *e.Allow {
+		t.Errorf("Allow = %v, want a non-nil false", e.Allow)
+	}
+}
+
 func TestAppendEventRedactsSecrets(t *testing.T) {
 	t.Setenv("AI_FLOW_JIRA_TOKEN", "super-secret-token-value")
 	dir := t.TempDir()

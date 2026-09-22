@@ -13,7 +13,7 @@ import (
 func runRoot(t *testing.T, args ...string) (stdout, stderr bytes.Buffer, exitCode int) {
 	t.Helper()
 	exitCode = -1
-	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+	root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
 	root.SetArgs(args)
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatalf("Execute(%v): %v", args, err)

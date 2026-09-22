@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/agenthost"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
@@ -67,16 +68,36 @@ type doctorActive struct {
 	DifferentCLIVersion bool   `json:"different_cli_version"`
 }
 
+// doctorHostReport is one agent host's Detect result, phase 9's own
+// "plugin roots found" line.
+type doctorHostReport struct {
+	Host       string `json:"host"`
+	Detected   bool   `json:"detected"`
+	PluginRoot string `json:"plugin_root,omitempty"`
+	Version    string `json:"version,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// doctorSelftestReport is one host's `hook selftest` result — the same
+// RunHookSelftest hook.go's own CLI command uses, called directly
+// rather than shelled out to.
+type doctorSelftestReport struct {
+	Host   string `json:"host"`
+	Passed bool   `json:"passed"`
+}
+
 type doctorResult struct {
-	Config          doctorConfig   `json:"config"`
-	EnvVars         []doctorEnvVar `json:"env_vars"`
-	Tracker         doctorTracker  `json:"tracker"`
-	Host            doctorHost     `json:"host"`
-	Git             doctorTool     `json:"git"`
-	TestRunners     []doctorTool   `json:"test_runners"`
-	MutationTools   []doctorTool   `json:"mutation_tools"`
-	Active          *doctorActive  `json:"active"`
-	LastSessionHost *string        `json:"last_session_host"`
+	Config          doctorConfig           `json:"config"`
+	EnvVars         []doctorEnvVar         `json:"env_vars"`
+	Tracker         doctorTracker          `json:"tracker"`
+	Host            doctorHost             `json:"host"`
+	Git             doctorTool             `json:"git"`
+	TestRunners     []doctorTool           `json:"test_runners"`
+	MutationTools   []doctorTool           `json:"mutation_tools"`
+	Active          *doctorActive          `json:"active"`
+	LastSessionHost *string                `json:"last_session_host"`
+	Hosts           []doctorHostReport     `json:"hosts"`
+	HookSelftest    []doctorSelftestReport `json:"hook_selftest"`
 }
 
 // testRunnerBinaries and mutationToolBinaries are the fixed tables
@@ -138,6 +159,14 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			if err != nil {
 				return Outcome{}, err
 			}
+
+			var hostsWarnings []string
+			result.Hosts, hostsWarnings = doctorProbeHosts(f.Home)
+			warnings = append(warnings, hostsWarnings...)
+
+			var selftestWarnings []string
+			result.HookSelftest, selftestWarnings = doctorProbeHookSelftest()
+			warnings = append(warnings, selftestWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -375,4 +404,56 @@ func doctorLastSessionHost(home string) (*string, error) {
 		return nil, nil
 	}
 	return &last, nil
+}
+
+// doctorProbeHosts reports each agent host's Detect result — "the
+// plugin roots found", phase 9's own line in the growing-surfaces
+// registry. A real Detect error (not "not installed here", which is
+// (Detection{}, false, nil) by Detect's own contract) becomes a
+// warning, never a doctor failure — the plan's design decision 9,
+// mirroring every other doctor probe's own "findings are data"
+// philosophy (phase 8 design decision 6).
+func doctorProbeHosts(home string) ([]doctorHostReport, []string) {
+	claudeCode, cursorAdapter := adapters()
+	reports := make([]doctorHostReport, 0, 2)
+	var warnings []string
+
+	for _, a := range []agenthost.Adapter{claudeCode, cursorAdapter} {
+		r := doctorHostReport{Host: string(a.Host())}
+		det, found, err := a.Detect(home)
+		switch {
+		case err != nil:
+			r.Error = redactMessage(err)
+			warnings = append(warnings, string(a.Host())+": "+r.Error)
+		case found:
+			r.Detected = true
+			r.PluginRoot = det.PluginRoot
+			r.Version = det.Version
+		}
+		reports = append(reports, r)
+	}
+	return reports, warnings
+}
+
+// doctorProbeHookSelftest runs RunHookSelftest for both hosts — the
+// same function `hook selftest` itself calls, invoked directly rather
+// than shelled out to, exactly like every other doctor probe.
+func doctorProbeHookSelftest() ([]doctorSelftestReport, []string) {
+	claudeCode, cursorAdapter := adapters()
+	reports := make([]doctorSelftestReport, 0, 2)
+	var warnings []string
+
+	for _, a := range []agenthost.Adapter{claudeCode, cursorAdapter} {
+		host := a.Host()
+		result, err := RunHookSelftest(a, host)
+		if err != nil {
+			warnings = append(warnings, "hook selftest ("+string(host)+"): "+redactMessage(err))
+			continue
+		}
+		reports = append(reports, doctorSelftestReport{Host: string(host), Passed: result.Passed})
+		if !result.Passed {
+			warnings = append(warnings, "hook selftest ("+string(host)+"): one or more fixtures failed")
+		}
+	}
+	return reports, warnings
 }

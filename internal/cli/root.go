@@ -50,8 +50,11 @@ type Handler func(cmd *cobra.Command, args []string) (Outcome, error)
 // NewRoot builds the root command: global flags, PersistentPreRunE
 // plumbing them into the context, and every subcommand. main prints
 // nothing itself — every RunE prints exactly one envelope via wrap, and
-// *exitCode is set to the code main() must exit with.
-func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Command {
+// *exitCode is set to the code main() must exit with. stdin is read by
+// exactly two commands (hook guard, hook session-start — the two a
+// host's own hook protocol pipes a JSON payload into); every other
+// command ignores it.
+func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var (
 		homeFlag     string
 		configFlag   string
@@ -66,6 +69,7 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 
@@ -104,6 +108,8 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newMutationCmd(cio))
 	root.AddCommand(newSummaryCmd(cio))
 	root.AddCommand(newDoctorCmd(cio))
+	root.AddCommand(newHookCmd(bi, cio))
+	root.AddCommand(newHooksCmd(cio))
 
 	return root
 }

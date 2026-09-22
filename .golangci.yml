@@ -106,6 +106,8 @@ linters:
         linters: [gochecknoglobals] # mutationTools is a lookup table, not mutable state
       - path: ^internal/cli/doctor\.go$
         linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state
+      - path: ^internal/agenthost/guard/rows\.go$
+        linters: [gochecknoglobals] # proseArtifacts/row6Denied/row7InfraTools/execAllowlist are lookup tables (or built once from one), not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

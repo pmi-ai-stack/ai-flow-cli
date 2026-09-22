@@ -1,0 +1,5 @@
+{
+  "hook_event_name": "sessionStart",
+  "plugin_root": "/home/dev/.cursor/plugins/local/ai-flow",
+  "app_version": "1.5.0"
+}

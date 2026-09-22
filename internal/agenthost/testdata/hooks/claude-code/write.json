@@ -1,0 +1,10 @@
+{
+  "session_id": "sess-abc123",
+  "cwd": "/home/dev/acme.billing.api",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/dev/.ai-flow/PROJ-1/plan.md",
+    "content": "# Plan\n"
+  }
+}

@@ -69,6 +69,12 @@ var catalog = []CommandSpec{
 	// Phase 8.
 	{Name: "summary render", TicketScoped: true},
 	{Name: "doctor", TicketScoped: false},
+
+	// Phase 9.
+	{Name: "hook guard", TicketScoped: false},
+	{Name: "hook session-start", TicketScoped: false, Flags: []string{"plugin-root"}},
+	{Name: "hook selftest", TicketScoped: false, Flags: []string{"host"}},
+	{Name: "hooks install", TicketScoped: false, Flags: []string{"host", "scope"}},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always
