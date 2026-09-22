@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="mutmut" tests="2" failures="0">
+  <testcase classname="pkg/add.py" name="1" line="4"></testcase>
+  <testcase classname="pkg/add.py" name="2" line="9"></testcase>
+</testsuite>

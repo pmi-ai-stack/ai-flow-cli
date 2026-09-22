@@ -1,0 +1,21 @@
+{
+  "go_module": "example.com/acme/billing",
+  "test_efficacy": 50,
+  "mutations_efficacy": 50,
+  "results": [
+    {
+      "mutant": {
+        "type": "CONDITIONALS_BOUNDARY",
+        "status": "KILLED",
+        "position": { "file": "main.go", "line": 10, "column": 5 }
+      }
+    },
+    {
+      "mutant": {
+        "type": "ARITHMETIC_BASE",
+        "status": "LIVED",
+        "position": { "file": "main.go", "line": 22, "column": 3 }
+      }
+    }
+  ]
+}

@@ -5,20 +5,17 @@ package handoff
 // this map (fetch, locate, plan, implement, review, output, ship) skip
 // "never" — the rule is a fixed fact of the pipeline, not deferred.
 //
-// Phase 6 makes two of the other nine real: visual-test and e2e (see
-// ShouldRun below and the plan's design decision 1). The remaining
-// seven need data no phase before 7, 14, 18, 20, 23 or 24 produces
-// (mutation tool detection feeding the mutation skip rule specifically
-// — deliberately deferred to phase 7 alongside mutation run/summarize,
-// not wired here even though internal/detect.Mutation already exists
-// — plus ops detect's changed targets and dry-run's changeset). Their
-// entries in this map still name the coded rule id so StageTable,
-// skills lint (phase 10) and doctor have something to check
-// skill/orchestrator text against; ShouldRun's default branch keeps
-// answering run: true for them regardless of what ShouldRunInput
-// carries, until their owning phase adds a case for them explicitly —
-// the only default that can never cause a stage to be silently skipped
-// before its data exists.
+// Phase 6 made two of the other nine real: visual-test and e2e (see
+// ShouldRun below and phase 6's own design decision 1). Phase 7 makes
+// a third: mutation. The remaining six need data no phase before 14,
+// 18, 20, 23 or 24 produces (ops detect's changed targets and
+// dry-run's changeset). Their entries in this map still name the coded
+// rule id so StageTable, skills lint (phase 10) and doctor have
+// something to check skill/orchestrator text against; ShouldRun's
+// default branch keeps answering run: true for them regardless of what
+// ShouldRunInput carries, until their owning phase adds a case for
+// them explicitly — the only default that can never cause a stage to
+// be silently skipped before its data exists.
 var skipRules = map[Stage]string{
 	StageRenderDrift: "no_changed_target",
 	StageChecks:      "no_check_applies",
@@ -61,11 +58,14 @@ type ShouldRunInput struct {
 	// HasE2ESuite is true when internal/detect.E2E matched at least
 	// one of repo.json's repositories — e2e's rule.
 	HasE2ESuite bool
+	// HasMutationTool is true when internal/detect.Mutation matched at
+	// least one of repo.json's repositories — mutation's rule, phase 7.
+	HasMutationTool bool
 }
 
 // ShouldRun implements `stage should-run KEY <stage>`: it is read-only
 // and never mutates status.json. visual-test and e2e are real as of
-// phase 6 (the plan's design decision 1); every other stage ignores in
+// phase 6, mutation as of phase 7; every other stage ignores in
 // entirely and answers run: true, exactly as it did before this type
 // existed — a dedicated test pins that this stays true regardless of
 // what in carries, so a future phase's own field additions cannot
@@ -76,6 +76,8 @@ func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 		return in.HasFrontendFiles, skipRuleFor(stage)
 	case StageE2E:
 		return in.HasAppFiles && in.HasE2ESuite, skipRuleFor(stage)
+	case StageMutation:
+		return in.HasAppFiles && in.HasMutationTool, skipRuleFor(stage)
 	default:
 		return true, skipRuleFor(stage)
 	}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="mutmut" tests="3" failures="1">
+  <testcase classname="pkg/add.py" name="1" line="4"></testcase>
+  <testcase classname="pkg/add.py" name="2" line="9">
+    <failure message="survived">mutant 2 survived: pkg/add.py:9</failure>
+  </testcase>
+  <testcase classname="pkg/add.py" name="3" line="15"></testcase>
+</testsuite>

@@ -12,10 +12,13 @@ import (
 // phase 1; every later phase that adds a Row for a tool adds its hint
 // here in the same PR.
 var CommandHints = map[string]string{
-	"git":    "git prepare|checkout-base|checkout-branch|diff|commit|push KEY — never call git directly",
-	"go":     "test run KEY — never call go test directly",
-	"npx":    "test run KEY (jest) or e2e run KEY (playwright) — never call npx directly",
-	"pytest": "test run KEY — never call pytest directly",
+	"git":      "git prepare|checkout-base|checkout-branch|diff|commit|push KEY — never call git directly",
+	"go":       "test run KEY — never call go test directly",
+	"npx":      "test run KEY (jest), e2e run KEY (playwright) or mutation run KEY (stryker) — never call npx directly",
+	"pytest":   "test run KEY — never call pytest directly",
+	"gremlins": "mutation run KEY — never call gremlins directly",
+	"mutmut":   "mutation run KEY — never call mutmut directly",
+	"mvn":      "mutation run KEY — never call mvn directly",
 }
 
 // NotAllowed builds the exec_not_allowed error (exit 2) for argv, which

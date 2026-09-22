@@ -19,6 +19,10 @@
           "total": { "type": "integer", "minimum": 0 },
           "passed": { "type": "integer", "minimum": 0 },
           "failed": { "type": "integer", "minimum": 0 },
+          "tree_hash": {
+            "type": "string",
+            "description": "sha256 of this repository's diff text against base, as of this write. mutation run (phase 7) compares its own current computation against this to decide whether to re-run the suite before mutation testing. Optional: a repository's entry written before phase 7 (or by a caller that skips the check) simply has none."
+          },
           "failures": {
             "type": "array",
             "items": {

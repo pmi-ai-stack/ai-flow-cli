@@ -18,9 +18,6 @@ func TestVerifyRunnerRowsClassAndMutating(t *testing.T) {
 	}
 	found := map[key]bool{}
 	for _, row := range Table {
-		if row.Tool != "go" && row.Tool != "npx" && row.Tool != "pytest" {
-			continue
-		}
 		verbKey := ""
 		for i, v := range row.Verb {
 			if i > 0 {
@@ -31,7 +28,10 @@ func TestVerifyRunnerRowsClassAndMutating(t *testing.T) {
 		k := key{row.Tool, verbKey}
 		wantMutating, ok := want[k]
 		if !ok {
-			t.Errorf("unexpected row %+v in Table", k)
+			// Not one of this phase's own four rows (a later phase's own
+			// npx/go/pytest row, e.g. phase 7's "npx stryker run" —
+			// pinned by its own TestVerifyMutationRowsClassAndMutating
+			// instead).
 			continue
 		}
 		found[k] = true

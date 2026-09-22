@@ -104,6 +104,23 @@ func (d Defaults) TestTimeout() time.Duration {
 	return time.Duration(d.TestTimeoutMinutes) * time.Minute
 }
 
+// ResolveMutationThreshold returns repo's effective mutation score
+// threshold: team's own repo_settings override when one is configured
+// (a zero MutationThreshold means "not set" — 10-data-types.md's own
+// convention for an unset integer field, same as GuardIdleHours), else
+// cfg.Defaults.MutationThreshold. Matches the spec's own example
+// exactly: "Team Beta"'s repo_settings names 90 for
+// acme.billing.api specifically, while every other repository falls
+// through to defaults.mutation_threshold (80 there).
+func ResolveMutationThreshold(cfg *Config, team, repo string) int {
+	if t, ok := cfg.Routing.Teams[team]; ok {
+		if rs, ok := t.RepoSettings[repo]; ok && rs.MutationThreshold != 0 {
+			return rs.MutationThreshold
+		}
+	}
+	return cfg.Defaults.MutationThreshold
+}
+
 // GuardIdleDuration is GuardIdleHours as a time.Duration — what the
 // guard (phase 9) actually compares an idle active.json entry against.
 func (d Defaults) GuardIdleDuration() time.Duration {

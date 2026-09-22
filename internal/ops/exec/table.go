@@ -56,6 +56,15 @@ var Table = []Row{
 	{Tool: "npx", Verb: []string{"jest"}, Class: ClassNone},
 	{Tool: "pytest", Verb: []string{}, Class: ClassNone},
 	{Tool: "npx", Verb: []string{"playwright", "test"}, Class: ClassNone},
+
+	// Phase 7 adds internal/mutation's four tools — same class: none
+	// reasoning as phase 6's runners: each touches only the worktree
+	// (build caches, node_modules) and writes only a report.
+	{Tool: "gremlins", Verb: []string{"unleash"}, Class: ClassNone},
+	{Tool: "npx", Verb: []string{"stryker", "run"}, Class: ClassNone},
+	{Tool: "mutmut", Verb: []string{"run"}, Class: ClassNone},
+	{Tool: "mutmut", Verb: []string{"junitxml"}, Class: ClassNone},
+	{Tool: "mvn", Verb: []string{"org.pitest:pitest-maven:mutationCoverage"}, Class: ClassNone},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

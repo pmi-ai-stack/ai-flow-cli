@@ -15,11 +15,12 @@ func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 	}
 }
 
-// TestShouldRunStillDeferredStagesAlwaysRun pins the plan's design
-// decision 2: the seven skip rules phase 6 does not own must keep
-// answering run: true, and must do so regardless of what
-// ShouldRunInput carries — a future phase adding its own fields to the
-// struct must not accidentally change a rule it does not own yet.
+// TestShouldRunStillDeferredStagesAlwaysRun pins phase 6's design
+// decision 2, now covering the six skip rules still deferred after
+// phase 7: they must keep answering run: true, and must do so
+// regardless of what ShouldRunInput carries — a future phase adding
+// its own fields to the struct must not accidentally change a rule it
+// does not own yet.
 func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 	want := map[Stage]string{
 		StageRenderDrift: "no_changed_target",
@@ -28,12 +29,11 @@ func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 		StageImpact:      "dry_run_skipped",
 		StageRollback:    "changeset_empty",
 		StageInfraTest:   "no_changed_target_or_no_harness",
-		StageMutation:    "no_app_files_or_no_mutation_tool",
 	}
 	inputs := []ShouldRunInput{
 		{},
-		{HasFrontendFiles: true, HasAppFiles: true, HasE2ESuite: true},
-		{HasFrontendFiles: false, HasAppFiles: true, HasE2ESuite: false},
+		{HasFrontendFiles: true, HasAppFiles: true, HasE2ESuite: true, HasMutationTool: true},
+		{HasFrontendFiles: false, HasAppFiles: true, HasE2ESuite: false, HasMutationTool: false},
 	}
 	for stage, rule := range want {
 		for _, in := range inputs {
@@ -93,6 +93,33 @@ func TestShouldRunE2E(t *testing.T) {
 			}
 			if rule != "no_app_files_or_no_e2e_suite" {
 				t.Errorf("rule = %q, want no_app_files_or_no_e2e_suite", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunMutation pins mutation's real rule (phase 7):
+// no_app_files_or_no_mutation_tool — both HasAppFiles and
+// HasMutationTool must be true for the stage to run.
+func TestShouldRunMutation(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"app files and tool", ShouldRunInput{HasAppFiles: true, HasMutationTool: true}, true},
+		{"app files, no tool", ShouldRunInput{HasAppFiles: true, HasMutationTool: false}, false},
+		{"no app files, tool present", ShouldRunInput{HasAppFiles: false, HasMutationTool: true}, false},
+		{"neither", ShouldRunInput{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageMutation, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(mutation, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_app_files_or_no_mutation_tool" {
+				t.Errorf("rule = %q, want no_app_files_or_no_mutation_tool", rule)
 			}
 		})
 	}

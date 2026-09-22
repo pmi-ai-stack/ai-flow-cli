@@ -34,3 +34,24 @@ func TestDedupSortedReturnsNilForNoResults(t *testing.T) {
 		t.Errorf("DedupSorted([\"\"]) = %v, want nil", got)
 	}
 }
+
+func TestHasPathSegment(t *testing.T) {
+	cases := []struct {
+		name     string
+		path     string
+		segments []string
+		want     bool
+	}{
+		{"whole segment matches", "app/tests/foo.py", []string{"tests"}, true},
+		{"substring is not a match", "app/testset/foo.py", []string{"tests"}, false},
+		{"matches any of several segments", "src/test/java/Foo.java", []string{"tests", "test"}, true},
+		{"no match", "src/main/java/Foo.java", []string{"tests", "test"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := HasPathSegment(c.path, c.segments...); got != c.want {
+				t.Errorf("HasPathSegment(%q, %v) = %v, want %v", c.path, c.segments, got, c.want)
+			}
+		})
+	}
+}

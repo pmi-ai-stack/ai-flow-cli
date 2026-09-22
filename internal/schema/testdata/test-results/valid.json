@@ -1,6 +1,7 @@
 {
   "repositories": [
     { "repo": "acme.billing.api", "runner": "go test", "total": 10, "passed": 9, "failed": 1,
+      "tree_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "failures": [ { "name": "TestFoo", "message": "expected 1, got 2" } ] }
   ]
 }

@@ -81,14 +81,14 @@ func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Statu
 }
 
 // buildShouldRunInput computes handoff.ShouldRunInput for stage — the
-// plan's design decision 7. Every stage but visual-test and e2e
-// ignores the input entirely (see handoff.ShouldRun's own switch), so
-// this returns the zero value for them without doing any detection
-// work at all: internal/detect.E2E's filesystem probing is worth
-// skipping for the fourteen stage/command calls per ticket that don't
-// need it.
+// phase-6 plan's design decision 7, extended by phase 7 for mutation.
+// Every stage but visual-test, e2e and mutation ignores the input
+// entirely (see handoff.ShouldRun's own switch), so this returns the
+// zero value for them without doing any detection work at all:
+// internal/detect.E2E/Mutation's filesystem probing is worth skipping
+// for the thirteen stage/command calls per ticket that don't need it.
 func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.ShouldRunInput, error) {
-	if stage != handoff.StageVisualTest && stage != handoff.StageE2E {
+	if stage != handoff.StageVisualTest && stage != handoff.StageE2E && stage != handoff.StageMutation {
 		return handoff.ShouldRunInput{}, nil
 	}
 
@@ -113,12 +113,29 @@ func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.Shou
 		HasFrontendFiles: detect.Frontend(artifact.InScopeFiles),
 		HasAppFiles:      len(detect.AppFiles(artifact.InScopeFiles, nil)) > 0,
 	}
-	for _, r := range artifact.Repositories {
-		if _, ok, err := detect.E2E(toDetectRepo(r)); err != nil {
-			return handoff.ShouldRunInput{}, err
-		} else if ok {
-			in.HasE2ESuite = true
-			break
+	// Only the one per-repo filesystem probe stage actually needs runs —
+	// e2e's own rule never reads HasMutationTool, and mutation's never
+	// reads HasE2ESuite (handoff.ShouldRun's switch), so running both
+	// loops for every call would cost real I/O (os.Stat/os.ReadDir per
+	// repository) for a field the caller is about to discard.
+	switch stage {
+	case handoff.StageE2E:
+		for _, r := range artifact.Repositories {
+			if _, ok, err := detect.E2E(toDetectRepo(r)); err != nil {
+				return handoff.ShouldRunInput{}, err
+			} else if ok {
+				in.HasE2ESuite = true
+				break
+			}
+		}
+	case handoff.StageMutation:
+		for _, r := range artifact.Repositories {
+			if _, ok, err := detect.Mutation(toDetectRepo(r)); err != nil {
+				return handoff.ShouldRunInput{}, err
+			} else if ok {
+				in.HasMutationTool = true
+				break
+			}
 		}
 	}
 	return in, nil

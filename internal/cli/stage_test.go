@@ -28,17 +28,26 @@ func writeFixture(t *testing.T, home, key, artifact, filename string) {
 	}
 }
 
-// amendRepoJSONForVisualAndE2E rewrites home/key/repo.json (already
-// written from the shared schema fixture) so that
-// internal/detect.Frontend and internal/detect.E2E both find a match:
-// a frontend-recognizable path added to in_scope_files, and the first
-// repository's local_path repointed at a fresh temp directory carrying
-// a real playwright.config.js.
-func amendRepoJSONForVisualAndE2E(t *testing.T, home, key string) {
+// amendRepoJSONForVisualE2EAndMutation rewrites home/key/repo.json
+// (already written from the shared schema fixture) so that
+// internal/detect.Frontend, internal/detect.E2E and
+// internal/detect.Mutation all find a match: a frontend-recognizable
+// path added to in_scope_files, and the first repository's local_path
+// repointed at a fresh temp directory carrying a real
+// playwright.config.js and a go.mod.
+func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
 	t.Helper()
 	repoDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repoDir, "playwright.config.js"), []byte("module.exports = {}\n"), 0o600); err != nil {
 		t.Fatalf("write playwright.config.js: %v", err)
+	}
+	// Phase 7: this repository also needs a detectable mutation tool
+	// (detect.Mutation), else the mutation stage legitimately auto-skips
+	// here too, the same reasoning as this function's own doc comment
+	// already gives for visual-test/e2e — go.mod is the first marker
+	// detect.Mutation checks, matching "gremlins".
+	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module example.com/acme\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("write go.mod: %v", err)
 	}
 
 	path := filepath.Join(home, key, "repo.json")
@@ -155,17 +164,19 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 		}
 		if s.stage == "locate" {
 			// This test drives every stage to completion, including
-			// visual-test and e2e — real as of phase 6. The shared
-			// schema fixture repo.json (internal/schema/testdata/repo/
-			// valid.json) carries neither a frontend file nor a
-			// repository with a detectable e2e suite (it is also phase
-			// 2's plain schema-validity fixture, which cares about
-			// neither), so both stages would legitimately auto-skip
-			// here and never reach "running" for `stage complete` to
-			// act on. Amending in place with a frontend file and a real
-			// playwright.config.js keeps this test proving the full
-			// sixteen-stage walk end to end, not just fifteen of them.
-			amendRepoJSONForVisualAndE2E(t, home, key)
+			// visual-test, e2e (real as of phase 6) and mutation (real
+			// as of phase 7). The shared schema fixture repo.json
+			// (internal/schema/testdata/repo/valid.json) carries neither
+			// a frontend file nor a repository with a detectable e2e
+			// suite or mutation tool (it is also phase 2's plain
+			// schema-validity fixture, which cares about none of these),
+			// so all three stages would legitimately auto-skip here and
+			// never reach "running" for `stage complete` to act on.
+			// Amending in place with a frontend file, a real
+			// playwright.config.js and a go.mod keeps this test proving
+			// the full sixteen-stage walk end to end, not just thirteen
+			// of them.
+			amendRepoJSONForVisualE2EAndMutation(t, home, key)
 		}
 		env := runStage(t, home, 0, "complete", key, s.stage)
 

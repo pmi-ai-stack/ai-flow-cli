@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mutations>
+  <mutation detected="true" status="KILLED">
+    <sourceFile>Foo.java</sourceFile>
+    <mutatedClass>com.acme.Foo</mutatedClass>
+    <mutatedMethod>bar</mutatedMethod>
+    <lineNumber>42</lineNumber>
+    <mutator>org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator</mutator>
+  </mutation>
+  <mutation detected="true" status="KILLED">
+    <sourceFile>Foo.java</sourceFile>
+    <mutatedClass>com.acme.Foo</mutatedClass>
+    <mutatedMethod>baz</mutatedMethod>
+    <lineNumber>50</lineNumber>
+    <mutator>org.pitest.mutationtest.engine.gregor.mutators.ReturnValsMutator</mutator>
+  </mutation>
+</mutations>

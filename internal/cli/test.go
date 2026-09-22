@@ -18,13 +18,18 @@ type testResultsFailure struct {
 }
 
 // testResultsRepo mirrors test-results.schema.json's repositories[]
-// item exactly.
+// item exactly. TreeHash is set only by mutation run's own pre-check
+// (internal/cli/mutation.go's ensureMutationTargetsTestsGreen) — never
+// by `test run` itself (the plan's phase-7 design decision 7), so it
+// stays empty (and omitted, via omitempty) on every artifact this file
+// writes.
 type testResultsRepo struct {
 	Repo     string               `json:"repo"`
 	Runner   string               `json:"runner"`
 	Total    int                  `json:"total"`
 	Passed   int                  `json:"passed"`
 	Failed   int                  `json:"failed"`
+	TreeHash string               `json:"tree_hash,omitempty"`
 	Failures []testResultsFailure `json:"failures"`
 }
 

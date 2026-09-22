@@ -209,6 +209,12 @@ func needsInputFor(err error, key string) *envelope.NeedsInput {
 			Question:   "One or more repositories' base branch has local commits not on origin; resolve locally.",
 			ResumeWith: "git prepare " + key,
 		}
+	case "mutation_below_threshold":
+		return &envelope.NeedsInput{
+			Question:   "Mutation score is below threshold for one or more repositories. Add tests and re-run, or accept with a reason?",
+			Options:    envErr.Details,
+			ResumeWith: "mutation summarize " + key + " --accept --reason \"…\"",
+		}
 	default:
 		return nil
 	}
