@@ -94,6 +94,9 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newStatusCmd(cio))
 	root.AddCommand(newStageCmd(cio))
 	root.AddCommand(newTicketCmd(cio))
+	root.AddCommand(newRepoCmd(cio))
+	root.AddCommand(newGitCmd(cio))
+	root.AddCommand(newPRCmd(cio))
 
 	return root
 }
@@ -123,6 +126,13 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 				envErr = &envelope.Error{Code: "internal", Message: err.Error()}
 			}
 			env = envelope.Fail(name, envErr)
+			// A handler that returns a non-nil error may also populate
+			// Outcome.NeedsInput — phase 5's first consumer is
+			// routing_ambiguous, dirty_worktree and base_diverged,
+			// which are exit 4 *and* carry a question/options/
+			// resume_with on the same envelope (envelope.PrintHuman
+			// already expects this — see its own !e.OK branch).
+			env.NeedsInput = outcome.NeedsInput
 			ec, ok := envelope.ExitCodeFor(envErr.Code)
 			if !ok {
 				ec = envelope.ExitInternal

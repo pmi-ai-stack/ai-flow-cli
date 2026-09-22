@@ -55,7 +55,50 @@ func TestRecordActiveRoundTrip(t *testing.T) {
 		t.Error("AllowlistHash must not be empty")
 	}
 	if a.RepoRoots == nil || a.ToolConfigFiles == nil {
-		t.Error("RepoRoots/ToolConfigFiles should be empty slices, not nil, until phases 5/14 populate them")
+		t.Error("RepoRoots/ToolConfigFiles should be empty slices, not nil, before repo.json exists / until phase 14 populates ToolConfigFiles")
+	}
+}
+
+// TestRecordActivePopulatesRepoRootsFromRepoJSON proves phase 5's
+// contribution: once repo.json exists (written by `repo locate`),
+// RecordActive reads its repositories[].local_path back into
+// RepoRoots, sorted and deduped.
+func TestRecordActivePopulatesRepoRootsFromRepoJSON(t *testing.T) {
+	home := t.TempDir()
+	type repoEntry struct {
+		Name             string `json:"name"`
+		LocalPath        string `json:"local_path"`
+		InstructionsFile string `json:"instructions_file"`
+	}
+	repo := &struct {
+		Team         string      `json:"team"`
+		Repositories []repoEntry `json:"repositories"`
+	}{
+		Team: "Team Beta",
+		Repositories: []repoEntry{
+			{Name: "acme.billing.web", LocalPath: "/home/dev/projects/acme.billing.web", InstructionsFile: "AGENTS.md"},
+			{Name: "acme.billing.api", LocalPath: "/home/dev/projects/acme.billing.api", InstructionsFile: "AGENTS.md"},
+		},
+	}
+	if _, err := WriteArtifact(TicketDir(home, "PROJ-1"), "repo.json", "repo", repo); err != nil {
+		t.Fatalf("WriteArtifact repo.json: %v", err)
+	}
+
+	if err := RecordActive(home, "PROJ-1", StageLocate); err != nil {
+		t.Fatalf("RecordActive: %v", err)
+	}
+	a, err := LoadActive(home)
+	if err != nil {
+		t.Fatalf("LoadActive: %v", err)
+	}
+	want := []string{"/home/dev/projects/acme.billing.api", "/home/dev/projects/acme.billing.web"}
+	if len(a.RepoRoots) != len(want) {
+		t.Fatalf("RepoRoots = %v, want %v", a.RepoRoots, want)
+	}
+	for i, w := range want {
+		if a.RepoRoots[i] != w {
+			t.Errorf("RepoRoots[%d] = %q, want %q (sorted)", i, a.RepoRoots[i], w)
+		}
 	}
 }
 

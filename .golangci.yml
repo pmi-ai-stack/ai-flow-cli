@@ -90,6 +90,10 @@ linters:
         linters: [gochecknoglobals] # primaryArtifacts/schemaArtifactNames are lookup tables, not mutable state
       - path: ^internal/cli/ticket\.go$
         linters: [gochecknoglobals] # imageExtensions is a lookup table, not mutable state
+      - path: ^internal/cli/git\.go$
+        linters: [gochecknoglobals] # newExecer is the injectable Execer constructor by design — tests reassign it, mirroring handoff/clock.go's Now
+      - path: ^internal/cli/pr\.go$
+        linters: [gochecknoglobals] # newGitHubTransport is the injectable http.RoundTripper source by design — tests reassign it, mirroring handoff/clock.go's Now
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

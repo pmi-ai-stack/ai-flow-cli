@@ -11,7 +11,9 @@ import (
 // equivalent operation, named in the exec_not_allowed denial. Empty in
 // phase 1; every later phase that adds a Row for a tool adds its hint
 // here in the same PR.
-var CommandHints = map[string]string{}
+var CommandHints = map[string]string{
+	"git": "git prepare|checkout-base|checkout-branch|diff|commit|push KEY — never call git directly",
+}
 
 // NotAllowed builds the exec_not_allowed error (exit 2) for argv, which
 // matched no allowlist row. The message names the equivalent ai-flow

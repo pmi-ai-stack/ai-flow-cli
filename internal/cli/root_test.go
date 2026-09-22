@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
 var fixedBuildInfo = BuildInfo{Version: "1.2.3", Commit: "abc123", Date: "2026-09-21T00:00:00Z"}
@@ -156,5 +158,71 @@ func TestGlobalFlagsReachContext(t *testing.T) {
 	}
 	if !captured.Human {
 		t.Error("Human = false, want true")
+	}
+}
+
+// TestWrapCarriesNeedsInputOnErrorPath proves the phase-5 fix to wrap:
+// a handler returning both a non-nil *envelope.Error and a populated
+// Outcome.NeedsInput gets both on the printed envelope — the shape
+// routing_ambiguous, dirty_worktree and base_diverged all need.
+// Before this fix, needs_input was only ever copied from Outcome on
+// the success path.
+func TestWrapCarriesNeedsInputOnErrorPath(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	exitCode := -1
+	root := NewRoot(fixedBuildInfo, &stdout, &stderr, &exitCode)
+
+	root.AddCommand(&cobra.Command{
+		Use: "needs-input-for-test",
+		RunE: wrap("needs-input-for-test", &stdout, &exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
+			return Outcome{
+				NeedsInput: &envelope.NeedsInput{
+					Question:   "Which repositories does PROJ-1 touch?",
+					Options:    []string{"acme.billing.api", "acme.billing.web"},
+					ResumeWith: "repo confirm PROJ-1 --repos <REPO>",
+				},
+			}, &envelope.Error{Code: "routing_ambiguous", Message: "routing is ambiguous"}
+		}),
+	})
+	root.SetArgs([]string{"needs-input-for-test"})
+
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if exitCode != 4 {
+		t.Errorf("exitCode = %d, want 4", exitCode)
+	}
+
+	var env struct {
+		OK         bool `json:"ok"`
+		NeedsInput *struct {
+			Question   string   `json:"question"`
+			Options    []string `json:"options"`
+			ResumeWith string   `json:"resume_with"`
+		} `json:"needs_input"`
+		Error *struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if env.OK {
+		t.Error("ok = true, want false")
+	}
+	if env.Error == nil || env.Error.Code != "routing_ambiguous" {
+		t.Errorf("error = %+v, want code routing_ambiguous", env.Error)
+	}
+	if env.NeedsInput == nil {
+		t.Fatal("needs_input = null, want it populated alongside the error")
+	}
+	if env.NeedsInput.Question != "Which repositories does PROJ-1 touch?" {
+		t.Errorf("needs_input.question = %q", env.NeedsInput.Question)
+	}
+	if len(env.NeedsInput.Options) != 2 {
+		t.Errorf("needs_input.options = %v, want 2 entries", env.NeedsInput.Options)
+	}
+	if env.NeedsInput.ResumeWith != "repo confirm PROJ-1 --repos <REPO>" {
+		t.Errorf("needs_input.resume_with = %q", env.NeedsInput.ResumeWith)
 	}
 }

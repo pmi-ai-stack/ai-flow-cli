@@ -1,0 +1,103 @@
+package exec
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	osexec "os/exec"
+	"strings"
+	"time"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+)
+
+// RunOpts carries a subprocess's working directory, extra environment
+// variables (appended to the inherited environment, never replacing
+// it) and its timeout. A zero Timeout means no timeout is applied —
+// every production call site sets one from config.ops.tool_timeout_minutes.
+type RunOpts struct {
+	Dir     string
+	Env     []string
+	Timeout time.Duration
+}
+
+// Output is a subprocess's captured, redacted result. It is returned
+// alongside a non-nil error on a non-zero exit (not just on success),
+// so a caller that needs to tell "the tool reported an expected
+// negative result" (e.g. a ref that does not exist yet) from a real
+// failure can inspect ExitCode without re-parsing Stderr.
+type Output struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+// Execer is how every package outside this one runs a subprocess.
+// internal/ops/exec is the only package allowed to import os/exec
+// (TestNoOsExecOutsideExecPackage) — Execer is the seam that lets a
+// caller's own tests inject a fake instead of running a real tool.
+type Execer interface {
+	Run(ctx context.Context, tool string, args []string, opts RunOpts) (Output, error)
+}
+
+// Runner is the production Execer: every call is matched against an
+// allowlist first — a miss is exec_not_allowed and no subprocess ever
+// starts — then run with output captured and redacted before it ever
+// leaves this package.
+type Runner struct {
+	Allowlist *Allowlist
+	Redact    *redact.Redactor
+}
+
+var _ Execer = (*Runner)(nil)
+
+// NewRunner builds the production Runner: Table as the allowlist,
+// secrets discovered from the real process environment.
+func NewRunner() *Runner {
+	return &Runner{Allowlist: NewAllowlist(Table...), Redact: redact.New(os.Environ())}
+}
+
+// Run matches tool+args against r.Allowlist, denies with
+// exec_not_allowed on a miss, else runs it with opts.Dir and
+// opts.Timeout, capturing and redacting stdout/stderr. A non-zero exit
+// is reported as a tool_failed *envelope.Error carrying the redacted
+// stderr, with Output still populated (see Output's own doc comment).
+func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOpts) (Output, error) {
+	argv := append([]string{tool}, args...)
+	if _, ok := r.Allowlist.Match(argv); !ok {
+		return Output{}, NotAllowed(argv)
+	}
+
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
+	}
+
+	cmd := osexec.CommandContext(ctx, tool, args...) // tool+args are matched against the allowlist above first (G204 excluded module-wide)
+	cmd.Dir = opts.Dir
+	if len(opts.Env) > 0 {
+		cmd.Env = append(os.Environ(), opts.Env...)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	runErr := cmd.Run()
+	out := Output{
+		Stdout: r.Redact.String(stdout.String()),
+		Stderr: r.Redact.String(stderr.String()),
+	}
+	if cmd.ProcessState != nil {
+		out.ExitCode = cmd.ProcessState.ExitCode()
+	}
+	if runErr != nil {
+		return out, &envelope.Error{
+			Code:    "tool_failed",
+			Message: fmt.Sprintf("%s: %v: %s", strings.Join(argv, " "), runErr, strings.TrimSpace(out.Stderr)),
+		}
+	}
+	return out, nil
+}

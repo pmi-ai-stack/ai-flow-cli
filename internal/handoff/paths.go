@@ -13,6 +13,12 @@ func StatusPath(home, key string) string {
 	return filepath.Join(TicketDir(home, key), "status.json")
 }
 
+// RepoPath returns a ticket's repo.json path — written by `repo
+// locate`/`repo confirm` and updated in place by `repo scope`.
+func RepoPath(home, key string) string {
+	return filepath.Join(TicketDir(home, key), "repo.json")
+}
+
 // TicketEventsPath returns a ticket's own events.jsonl path.
 func TicketEventsPath(home, key string) string {
 	return filepath.Join(TicketDir(home, key), "events.jsonl")
