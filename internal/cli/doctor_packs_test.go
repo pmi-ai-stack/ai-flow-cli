@@ -34,17 +34,7 @@ func TestDoctor_ConfiguredSourceReportsSyncStateAndValidity(t *testing.T) {
 	home := t.TempDir()
 	packDir := t.TempDir()
 	writeFileTest(t, filepath.Join(packDir, "standards.json"), `{"schema_version":1,"id":"local-pack","version":"1.0.0","sections":[],"checks":[]}`)
-
-	cfg := `{
-  "schema_version": 1,
-  "tracker": { "provider": "jira", "base_url": "https://example.atlassian.net", "statuses": { "todo": ["To Do"], "in_progress": "In Progress", "in_review": "In Review" }, "bug_types": ["Bug"], "comment_limit": 5 },
-  "host": { "provider": "github", "default_base_branch": "main", "draft_prs": false },
-  "routing": { "project_key_map": {}, "keyword_to_repo": {}, "teams": {} },
-  "defaults": { "worktree": false, "viewport": "1440x900", "mutation_threshold": 80, "mutation_max_rounds": 3, "mutation_timeout_minutes": 20, "test_timeout_minutes": 20, "guard_idle_hours": 8 },
-  "standards": { "sources": [{ "id": "local-pack", "repo": "` + jsonEscape(packDir) + `", "ref": "local" }], "guidance_budget_tokens": 6000 },
-  "ops": { "environments": { "dev": { "tier": "nonprod" } }, "target_map": {}, "default_environment": "dev", "risk_gate": 40, "risk": { "action_weight": {}, "kind_weight": {}, "tier_multiplier": {}, "drift_penalty": 5, "offline_penalty": 10 }, "protected_kinds": [], "e2e": { "enabled": false, "sandbox_environment": "" }, "tool_timeout_minutes": 30 }
-}`
-	writeFileTest(t, filepath.Join(home, "config.json"), cfg)
+	writeFileTest(t, filepath.Join(home, "config.json"), configJSONWithLocalStandardsSource(packDir))
 
 	before := runDoctor(t, home)
 	if len(before.Packs) != 1 || before.Packs[0].Synced {

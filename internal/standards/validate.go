@@ -3,6 +3,7 @@ package standards
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
@@ -65,11 +66,11 @@ func Validate(dir string, allowedTools []string) (Result, error) {
 				violations = append(violations, fmt.Sprintf("check %s: config %q does not exist under %s", c.ID, c.Config, dir))
 			}
 		}
-		if !toolAllowed(c.Tool, allowedTools) {
+		if !slices.Contains(allowedTools, c.Tool) {
 			sawCheckRunnerMissing = true
 			violations = append(violations, fmt.Sprintf("check %s: tool %q has no internal/ops/exec allowlist row", c.ID, c.Tool))
 		}
-		if c.Kind == "lint" && isRenderingValidator(c.Tool) {
+		if c.Kind == "lint" && slices.Contains(renderingValidatorTools, c.Tool) {
 			violations = append(violations, fmt.Sprintf("check %s: kind \"lint\" names rendering validator %q, which belongs to render-drift/dry-run", c.ID, c.Tool))
 		}
 	}
@@ -107,22 +108,4 @@ func allowlistTools(rows []exec.Row) []string {
 		}
 	}
 	return tools
-}
-
-func toolAllowed(tool string, allowed []string) bool {
-	for _, t := range allowed {
-		if t == tool {
-			return true
-		}
-	}
-	return false
-}
-
-func isRenderingValidator(tool string) bool {
-	for _, t := range renderingValidatorTools {
-		if t == tool {
-			return true
-		}
-	}
-	return false
 }

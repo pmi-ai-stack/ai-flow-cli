@@ -89,13 +89,13 @@ func TestStandardsExport_RefusesNonEmptyDestination(t *testing.T) {
 	}
 }
 
-func TestStandardsSync_LocalSourceAndSimulate(t *testing.T) {
-	home := t.TempDir()
-	writeValidDoctorConfig(t, home) // empty standards.sources — overwritten below with a local org source
-
-	packDir := t.TempDir()
-	writeFileTest(t, filepath.Join(packDir, "standards.json"), `{"schema_version":1,"id":"local-pack","version":"1.0.0","sections":[],"checks":[]}`)
-	cfg := `{
+// configJSONWithLocalStandardsSource returns a config.json body naming
+// one org standards source, id "local-pack" at ref "local", pointing at
+// packDir — the fixture doctor_packs_test.go's own sync-state tests
+// share verbatim, rather than each hand-duplicating the full config
+// shape for a one-field difference.
+func configJSONWithLocalStandardsSource(packDir string) string {
+	return `{
   "schema_version": 1,
   "tracker": { "provider": "jira", "base_url": "https://example.atlassian.net", "statuses": { "todo": ["To Do"], "in_progress": "In Progress", "in_review": "In Review" }, "bug_types": ["Bug"], "comment_limit": 5 },
   "host": { "provider": "github", "default_base_branch": "main", "draft_prs": false },
@@ -104,7 +104,15 @@ func TestStandardsSync_LocalSourceAndSimulate(t *testing.T) {
   "standards": { "sources": [{ "id": "local-pack", "repo": "` + jsonEscape(packDir) + `", "ref": "local" }], "guidance_budget_tokens": 6000 },
   "ops": { "environments": { "dev": { "tier": "nonprod" } }, "target_map": {}, "default_environment": "dev", "risk_gate": 40, "risk": { "action_weight": {}, "kind_weight": {}, "tier_multiplier": {}, "drift_penalty": 5, "offline_penalty": 10 }, "protected_kinds": [], "e2e": { "enabled": false, "sandbox_environment": "" }, "tool_timeout_minutes": 30 }
 }`
-	writeFileTest(t, filepath.Join(home, "config.json"), cfg)
+}
+
+func TestStandardsSync_LocalSourceAndSimulate(t *testing.T) {
+	home := t.TempDir()
+	writeValidDoctorConfig(t, home) // empty standards.sources — overwritten below with a local org source
+
+	packDir := t.TempDir()
+	writeFileTest(t, filepath.Join(packDir, "standards.json"), `{"schema_version":1,"id":"local-pack","version":"1.0.0","sections":[],"checks":[]}`)
+	writeFileTest(t, filepath.Join(home, "config.json"), configJSONWithLocalStandardsSource(packDir))
 
 	// --simulate touches neither filesystem nor network.
 	stdout, _, exitCode := runRoot(t, "standards", "sync", "--home", home, "--simulate")

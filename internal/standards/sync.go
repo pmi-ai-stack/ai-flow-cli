@@ -19,6 +19,7 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 )
 
 // RefKind classifies a source's Ref, decided by asking the remote
@@ -114,10 +115,7 @@ type SyncOptions struct {
 // is still returned alongside the error so the caller can report what
 // did succeed.
 func Sync(opts SyncOptions) ([]SyncedSource, error) {
-	now := opts.Now
-	if now == nil {
-		now = defaultClock
-	}
+	now := clockOrDefault(opts.Now)
 
 	var results []SyncedSource
 	for _, src := range opts.Sources {
@@ -139,7 +137,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 
 	if isLocalPath(src.Repo) {
 		if err := copyLocalPack(src.Repo, cacheDir); err != nil {
-			return SyncedSource{}, &envelope.Error{Code: "pack_unreachable", Message: fmt.Sprintf("%s: %v", src.ID, err)}
+			return SyncedSource{}, packUnreachable(src.ID, err)
 		}
 		if err := writeSyncMeta(metaPath, now(), RefKindLocal); err != nil {
 			return SyncedSource{}, err
@@ -147,7 +145,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 		return SyncedSource{ID: src.ID, Ref: src.Ref, RefKind: RefKindLocal, Path: cacheDir}, nil
 	}
 
-	if meta, err := readSyncMeta(metaPath); err == nil && dirExists(cacheDir) {
+	if meta, err := readSyncMeta(metaPath); err == nil && meta != nil && dirExists(cacheDir) {
 		switch RefKind(meta.RefKind) {
 		case RefKindTag, RefKindCommit:
 			return SyncedSource{ID: src.ID, Ref: src.Ref, RefKind: RefKind(meta.RefKind), Path: cacheDir, Skipped: true, SkippedReason: "pinned ref already synced"}, nil
@@ -155,17 +153,15 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 			if syncedAt, perr := time.Parse(time.RFC3339, meta.SyncedAt); perr == nil && now().Sub(syncedAt) < branchReSyncAfter {
 				return SyncedSource{ID: src.ID, Ref: src.Ref, RefKind: RefKindBranch, Path: cacheDir, Skipped: true, SkippedReason: "branch ref synced within the last day"}, nil
 			}
-		case RefKindLocal:
-			// A source cannot change kind across runs without an id or
-			// ref change, since CacheDir/SyncMetaPath are keyed on
-			// both — unreachable in practice, handled for completeness.
 		}
+		// RefKindLocal never reaches this switch: a local source returns
+		// early above, before any cache-meta read.
 	}
 
 	auth := authFor(src.Repo, token)
 	kind, refName, err := classifyRef(src.Repo, src.Ref, auth)
 	if err != nil {
-		return SyncedSource{}, &envelope.Error{Code: "pack_unreachable", Message: fmt.Sprintf("%s: %v", src.ID, err)}
+		return SyncedSource{}, packUnreachable(src.ID, err)
 	}
 
 	if err := os.RemoveAll(cacheDir); err != nil {
@@ -173,7 +169,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 	}
 
 	if err := cloneAt(cacheDir, src.Repo, src.Ref, kind, refName, auth); err != nil {
-		return SyncedSource{}, &envelope.Error{Code: "pack_unreachable", Message: fmt.Sprintf("%s: %v", src.ID, err)}
+		return SyncedSource{}, packUnreachable(src.ID, err)
 	}
 	// Strip .git so the cached tree is pack content only — the same
 	// tree a local-path sync of identical content would produce (see
@@ -246,11 +242,20 @@ func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceN
 			return err
 		}
 		return wt.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(ref)})
-	case RefKindLocal:
-		return fmt.Errorf("standards: cloneAt called with RefKindLocal, which never reaches the network path")
 	default:
+		// RefKindLocal never reaches cloneAt (syncOne returns early for
+		// a local source, before classifyRef/cloneAt are ever called);
+		// this arm exists only for a kind classifyRef could never
+		// actually produce.
 		return fmt.Errorf("standards: unknown ref kind %q", kind)
 	}
+}
+
+// packUnreachable builds the pack_unreachable envelope error every
+// syncOne failure path returns — one shape, one place, rather than
+// three identical composite literals.
+func packUnreachable(id string, err error) error {
+	return &envelope.Error{Code: "pack_unreachable", Message: fmt.Sprintf("%s: %v", id, err)}
 }
 
 // authFor returns http.BasicAuth for an https:// source when token is
@@ -315,28 +320,34 @@ type syncMeta struct {
 	RefKind  string `json:"ref_kind"`
 }
 
+// writeSyncMeta and readSyncMeta go through internal/handoff's own
+// atomic-write/tolerant-read helpers (WriteRaw, ReadArtifact) — the
+// same temp-file-then-rename write every other JSON sidecar in this
+// codebase uses, rather than a second, non-atomic os.WriteFile of its
+// own. syncMeta carries no schema (it is not one of the seventeen
+// handoff artifacts), matching active.json's own use of WriteRaw.
 func writeSyncMeta(path string, at time.Time, kind RefKind) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("standards: create %s: %w", filepath.Dir(path), err)
-	}
-	data, err := json.MarshalIndent(syncMeta{SyncedAt: at.UTC().Format(time.RFC3339), RefKind: string(kind)}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("standards: marshal sync meta: %w", err)
-	}
-	if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
+	meta := syncMeta{SyncedAt: at.UTC().Format(time.RFC3339), RefKind: string(kind)}
+	if _, err := handoff.WriteRaw(filepath.Dir(path), filepath.Base(path), meta); err != nil {
 		return fmt.Errorf("standards: write %s: %w", path, err)
 	}
 	return nil
 }
 
+// readSyncMeta returns (nil, nil) when path does not exist yet —
+// ReadArtifact's own convention — and (nil, error) only for a real read
+// or parse failure.
 func readSyncMeta(path string) (*syncMeta, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // G304: path is always built from --home + a config-declared source id/ref, not attacker-controlled
+	data, err := handoff.ReadArtifact(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("standards: read %s: %w", path, err)
+	}
+	if data == nil {
+		return nil, nil
 	}
 	var m syncMeta
 	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("standards: parse %s: %w", path, err)
 	}
 	return &m, nil
 }
@@ -360,16 +371,14 @@ type Status struct {
 // for time.Now in tests, exactly like SyncOptions.Now; nil means
 // time.Now.
 func StatusOf(home, id, ref string, now func() time.Time) Status {
-	if now == nil {
-		now = defaultClock
-	}
+	now = clockOrDefault(now)
 	if !dirExists(CacheDir(home, id, ref)) {
 		return Status{}
 	}
 	meta, err := readSyncMeta(SyncMetaPath(home, id, ref))
-	if err != nil {
-		// Cached but no readable sync meta — a source restored from
-		// elsewhere, or the sidecar predates this field. Report as
+	if err != nil || meta == nil {
+		// Cached but no readable/existing sync meta — a source restored
+		// from elsewhere, or the sidecar predates this field. Report as
 		// cached with an unknown ref kind rather than failing.
 		return Status{Cached: true}
 	}
