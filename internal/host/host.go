@@ -25,4 +25,8 @@ type Host interface {
 	// returns it (Reused: true), or creates one titled title with body
 	// body, draft per draft, and returns that (Reused: false).
 	EnsurePR(ctx context.Context, owner, repo, base, branch, title, body string, draft bool) (*PullRequest, error)
+	// Reachable performs the cheapest authenticated call the provider
+	// offers, to prove the configured credentials actually work —
+	// doctor's own need, mirroring tracker.Tracker.Reachable.
+	Reachable(ctx context.Context) error
 }

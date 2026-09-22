@@ -20,14 +20,23 @@ func jsonResponse(status int, body string) *http.Response {
 	return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}
 }
 
+// useScriptedTransport swaps *target for the duration of the test,
+// restoring the original afterward — the shared body behind
+// useScriptedGitHub and doctor_test.go's useScriptedJira, both of which
+// swap their own package-level http.RoundTripper source var the same
+// way useScriptedExecer swaps newExecer.
+func useScriptedTransport(t *testing.T, target *func() http.RoundTripper, handler func(r *http.Request) (*http.Response, error)) {
+	t.Helper()
+	orig := *target
+	*target = func() http.RoundTripper { return roundTripFunc(handler) }
+	t.Cleanup(func() { *target = orig })
+}
+
 // useScriptedGitHub swaps newGitHubTransport for the duration of the
-// test, restoring the real one afterward — the same injectable pattern
-// useScriptedExecer uses for newExecer.
+// test, restoring the real one afterward.
 func useScriptedGitHub(t *testing.T, handler func(r *http.Request) (*http.Response, error)) {
 	t.Helper()
-	orig := newGitHubTransport
-	newGitHubTransport = func() http.RoundTripper { return roundTripFunc(handler) }
-	t.Cleanup(func() { newGitHubTransport = orig })
+	useScriptedTransport(t, &newGitHubTransport, handler)
 }
 
 func setUpPRFixture(t *testing.T) (home, ticketDir string) {
@@ -91,12 +100,24 @@ func TestPRCreate_CreatesAndWritesShipResults(t *testing.T) {
 	useScriptedExecer(t, se)
 
 	var postCount int
+	var postedBody string
 	useScriptedGitHub(t, func(r *http.Request) (*http.Response, error) {
 		switch {
 		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/repos/acme/billing-api/pulls"):
 			return jsonResponse(200, "[]"), nil
 		case r.Method == "POST" && r.URL.Path == "/repos/acme/billing-api/pulls":
 			postCount++
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			var reqBody struct {
+				Body string `json:"body"`
+			}
+			if err := json.Unmarshal(raw, &reqBody); err != nil {
+				t.Fatalf("request body not valid JSON: %v", err)
+			}
+			postedBody = reqBody.Body
 			return jsonResponse(201, `{"number":7,"html_url":"https://github.com/acme/billing-api/pull/7","draft":false}`), nil
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
@@ -110,6 +131,15 @@ func TestPRCreate_CreatesAndWritesShipResults(t *testing.T) {
 	}
 	if postCount != 1 {
 		t.Errorf("POST called %d times, want 1", postCount)
+	}
+	if !strings.Contains(postedBody, "body text") {
+		t.Errorf("PR body dropped the agent-authored pr-body.md content:\n%s", postedBody)
+	}
+	if !strings.Contains(postedBody, "## ai-flow summary") || !strings.Contains(postedBody, "acme.billing.api") {
+		t.Errorf("PR body missing the generated summary block:\n%s", postedBody)
+	}
+	if strings.Contains(postedBody, "plan.md") {
+		t.Error("PR body links plan.md, which is never part of the git repository a hosted PR is read from")
 	}
 
 	data, err := os.ReadFile(filepath.Join(ticketDir, "ship-results.json"))

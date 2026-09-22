@@ -102,6 +102,8 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newE2ECmd(cio))
 	root.AddCommand(newVisualCmd(cio))
 	root.AddCommand(newMutationCmd(cio))
+	root.AddCommand(newSummaryCmd(cio))
+	root.AddCommand(newDoctorCmd(cio))
 
 	return root
 }

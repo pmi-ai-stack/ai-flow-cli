@@ -91,8 +91,8 @@ func TestLoadAppliesGuardIdleHoursDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got.Defaults.GuardIdleHours != defaultGuardIdleHours {
-		t.Errorf("GuardIdleHours = %d, want backfilled default %d", got.Defaults.GuardIdleHours, defaultGuardIdleHours)
+	if got.Defaults.GuardIdleHours != DefaultGuardIdleHours {
+		t.Errorf("GuardIdleHours = %d, want backfilled default %d", got.Defaults.GuardIdleHours, DefaultGuardIdleHours)
 	}
 }
 

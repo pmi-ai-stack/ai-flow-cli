@@ -65,6 +65,10 @@ var catalog = []CommandSpec{
 	{Name: "mutation scope", TicketScoped: true},
 	{Name: "mutation run", TicketScoped: true},
 	{Name: "mutation summarize", TicketScoped: true, Flags: []string{"equivalent", "reason", "accept"}},
+
+	// Phase 8.
+	{Name: "summary render", TicketScoped: true},
+	{Name: "doctor", TicketScoped: false},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

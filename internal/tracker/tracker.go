@@ -68,4 +68,14 @@ type Tracker interface {
 	// dir, returning the filenames written, in issue.Attachments'
 	// order.
 	DownloadAttachments(ctx context.Context, issue *Issue, dir string) ([]string, error)
+	// Reachable performs the cheapest authenticated call the provider
+	// offers, to prove the configured credentials actually work.
+	// doctor's own need: it has no ticket key to scope a real Fetch to
+	// (doctor is one of the spec's commands that take no key).
+	Reachable(ctx context.Context) error
+	// Statuses returns every status name configured across the
+	// tracker's own workflow(s) — doctor's source of truth for
+	// verifying config.tracker.statuses' names actually exist there
+	// (the inherited question phase 4 left for this phase to resolve).
+	Statuses(ctx context.Context) ([]string, error)
 }

@@ -22,6 +22,7 @@ func TestCatalogTicketScopedCommandsHaveKeyFirst(t *testing.T) {
 		"detect languages", "detect runners", "detect mutation", "detect e2e", "detect frontend",
 		"test run", "e2e run", "visual run", "visual judge",
 		"mutation scope", "mutation run", "mutation summarize",
+		"summary render",
 	}
 	for _, name := range ticketScoped {
 		if !found[name] {

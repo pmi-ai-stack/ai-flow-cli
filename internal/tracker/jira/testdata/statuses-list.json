@@ -1,0 +1,7 @@
+[
+  { "id": "1", "name": "To Do" },
+  { "id": "2", "name": "Backlog" },
+  { "id": "3", "name": "In Progress" },
+  { "id": "4", "name": "In Review" },
+  { "id": "5", "name": "Done" }
+]

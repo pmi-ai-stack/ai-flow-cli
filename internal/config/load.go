@@ -11,9 +11,12 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
-// defaultGuardIdleHours is applied when config.defaults.guard_idle_hours
-// is absent or zero (see Config.GuardIdleHours's doc comment).
-const defaultGuardIdleHours = 8
+// DefaultGuardIdleHours is applied when config.defaults.guard_idle_hours
+// is absent or zero (see Config.GuardIdleHours's doc comment). Exported
+// so a caller that cannot load config.json at all (doctor, when it is
+// missing or invalid) can still apply the same default doctor would see
+// once it does load, instead of restating the literal.
+const DefaultGuardIdleHours = 8
 
 // ResolvePath returns the config.json path Load and Init use: configFlag
 // verbatim when non-empty (the --config flag), else
@@ -89,6 +92,6 @@ func decode(data []byte) (*Config, error) {
 
 func applyDefaults(cfg *Config) {
 	if cfg.Defaults.GuardIdleHours == 0 {
-		cfg.Defaults.GuardIdleHours = defaultGuardIdleHours
+		cfg.Defaults.GuardIdleHours = DefaultGuardIdleHours
 	}
 }

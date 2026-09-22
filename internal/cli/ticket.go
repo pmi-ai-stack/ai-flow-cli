@@ -84,6 +84,13 @@ func inTodoClass(status string, todo []string) bool {
 	return slices.Contains(todo, status)
 }
 
+// newJiraTransport is buildTracker's http.RoundTripper source —
+// mirrors pr.go's newGitHubTransport exactly: a package-level var so a
+// test can substitute a fixture transport instead of ever making a
+// real HTTP call (doctor's own cli-level test is the first to need
+// this for Jira; pr_test.go already relies on the GitHub equivalent).
+var newJiraTransport = func() http.RoundTripper { return http.DefaultTransport }
+
 // buildTracker reads AI_FLOW_JIRA_EMAIL/AI_FLOW_JIRA_TOKEN and builds a
 // jira.Client. Read here, never inside the jira package itself
 // (internal/tracker/jira's own doc comment); missing either variable
@@ -108,7 +115,7 @@ func buildTracker(cmd *cobra.Command, f Flags) (*jira.Client, *config.Config, er
 		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
 	}
 
-	return jira.New(cfg.Tracker, email, token, http.DefaultTransport, verbose), cfg, nil
+	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose), cfg, nil
 }
 
 // redactErr passes a *envelope.Error's Message/Details through

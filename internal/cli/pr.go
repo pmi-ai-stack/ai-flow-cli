@@ -16,6 +16,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host/github"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/render"
 )
 
 func newPRCmd(cio cmdIO) *cobra.Command {
@@ -33,19 +34,26 @@ func newPRCmd(cio cmdIO) *cobra.Command {
 // real HTTP call.
 var newGitHubTransport = func() http.RoundTripper { return http.DefaultTransport }
 
-// buildHost reads AI_FLOW_GITHUB_TOKEN, else GITHUB_TOKEN, else
-// GH_TOKEN (design decision 13) — none set is host_auth before any
-// HTTP call, read here exactly like buildTracker reads the Jira
-// variables (phase 4): the provider package itself never touches
-// os.Getenv.
+// githubToken reads AI_FLOW_GITHUB_TOKEN, else GITHUB_TOKEN, else
+// GH_TOKEN (design decision 13) — the one place this fallback chain is
+// spelled out; buildHost and doctor's host probe both call it, rather
+// than each restating the three-variable precedence by hand.
+func githubToken() string {
+	if v := os.Getenv("AI_FLOW_GITHUB_TOKEN"); v != "" {
+		return v
+	}
+	if v := os.Getenv("GITHUB_TOKEN"); v != "" {
+		return v
+	}
+	return os.Getenv("GH_TOKEN")
+}
+
+// buildHost builds a host.Host from githubToken() — none set is
+// host_auth before any HTTP call, read here exactly like buildTracker
+// reads the Jira variables (phase 4): the provider package itself
+// never touches os.Getenv.
 func buildHost(cmd *cobra.Command, f Flags) (host.Host, error) {
-	token := os.Getenv("AI_FLOW_GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
+	token := githubToken()
 	if token == "" {
 		return nil, &envelope.Error{
 			Code:    "host_auth",
@@ -58,6 +66,19 @@ func buildHost(cmd *cobra.Command, f Flags) (host.Host, error) {
 		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
 	}
 	return github.New(token, newGitHubTransport(), verbose), nil
+}
+
+// toRenderRepositories converts repo.json's own repository shape to
+// render.Repository's trimmed one (Name/LocalPath only) — the two
+// carry the same fields for this purpose, so pr create can build
+// render.Data from the repo.json it already has in memory instead of
+// asking render.Load to re-read and re-decode the file.
+func toRenderRepositories(repos []repoArtifactRepository) []render.Repository {
+	out := make([]render.Repository, len(repos))
+	for i, r := range repos {
+		out[i] = render.Repository{Name: r.Name, LocalPath: r.LocalPath}
+	}
+	return out
 }
 
 // shipResultPR mirrors one item of ship-results.schema.json's
@@ -177,6 +198,20 @@ func newPRCreateCmd(cio cmdIO) *cobra.Command {
 			if err != nil {
 				return Outcome{}, err
 			}
+			// "pr-body.md plus the generated summary block" (the
+			// catalog's own words) — render.PRBlock shares its
+			// section renderer with summary render's output.md, so
+			// the two can never drift. artifact.Repositories is
+			// already in memory (read above for the --simulate
+			// preview too), so this builds render.Data from it
+			// directly rather than having render.Load re-read and
+			// re-decode repo.json a second time in this same call.
+			mutation, accepted, err := render.LoadMutation(ticketDir)
+			if err != nil {
+				return Outcome{}, err
+			}
+			renderData := render.Data{Key: key, Repositories: toRenderRepositories(artifact.Repositories), Mutation: mutation, Accepted: accepted}
+			body += "\n\n" + render.PRBlock(renderData)
 
 			// Loaded once, then kept in memory across the loop and
 			// written after every repository — not reloaded from disk

@@ -104,6 +104,8 @@ linters:
         linters: [gochecknoglobals] # screenPathSegments is a lookup table, not mutable state
       - path: ^internal/cli/mutation\.go$
         linters: [gochecknoglobals] # mutationTools is a lookup table, not mutable state
+      - path: ^internal/cli/doctor\.go$
+        linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:
