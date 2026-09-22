@@ -120,6 +120,12 @@ linters:
         linters: [gochecknoglobals] # requiredEvalScenarios is a lookup table, not mutable state
       - path: ^internal/skills/lint/addon\.go$
         linters: [gochecknoglobals] # addonSections is a lookup table, not mutable state
+      - path: ^internal/skills/evals/evals\.go$
+        linters: [gochecknoglobals] # requiredKinds is a lookup table, not mutable state
+      - path: ^internal/skills/evals/host\.go$
+        linters: [gochecknoglobals] # Runners is a lookup table (the host-name -> HostRunner registry), not mutable state
+      - path: ^internal/skills/evals/order\.go$
+        linters: [gochecknoglobals] # commandNames is a sync.OnceValue-memoized lookup table, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

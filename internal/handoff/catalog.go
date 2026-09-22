@@ -19,6 +19,14 @@ type CommandSpec struct {
 	Positional []string
 	// Flags names every recognized flag, without its leading "--".
 	Flags []string
+	// SkipToolRunEvent is true for a command internal/cli/root.go's wrap
+	// must not log its generic ToolRunEvent for: the five state-changing
+	// `stage *` commands already append their own, strictly richer
+	// StageTransitionEvent for the identical call, and `stage
+	// should-run` changes nothing at all (a read-only preview) — either
+	// way, a second, less specific events.jsonl line would be redundant
+	// or wrong, not merely duplicate.
+	SkipToolRunEvent bool
 }
 
 // catalog is Catalog's backing data: every command that exists at the
@@ -30,12 +38,12 @@ var catalog = []CommandSpec{
 	{Name: "config init", TicketScoped: false},
 	{Name: "config validate", TicketScoped: false},
 	{Name: "status", TicketScoped: true},
-	{Name: "stage should-run", TicketScoped: true, Positional: []string{"stage"}},
-	{Name: "stage start", TicketScoped: true, Positional: []string{"stage"}},
-	{Name: "stage complete", TicketScoped: true, Positional: []string{"stage"}, Flags: []string{"fail"}},
-	{Name: "stage approve", TicketScoped: true, Positional: []string{"stage"}},
-	{Name: "stage skip", TicketScoped: true, Positional: []string{"stage"}, Flags: []string{"reason"}},
-	{Name: "stage reset", TicketScoped: true, Positional: []string{"stage"}},
+	{Name: "stage should-run", TicketScoped: true, Positional: []string{"stage"}, SkipToolRunEvent: true},
+	{Name: "stage start", TicketScoped: true, Positional: []string{"stage"}, SkipToolRunEvent: true},
+	{Name: "stage complete", TicketScoped: true, Positional: []string{"stage"}, Flags: []string{"fail"}, SkipToolRunEvent: true},
+	{Name: "stage approve", TicketScoped: true, Positional: []string{"stage"}, SkipToolRunEvent: true},
+	{Name: "stage skip", TicketScoped: true, Positional: []string{"stage"}, Flags: []string{"reason"}, SkipToolRunEvent: true},
+	{Name: "stage reset", TicketScoped: true, Positional: []string{"stage"}, SkipToolRunEvent: true},
 	{Name: "ticket fetch", TicketScoped: true},
 	{Name: "ticket update", TicketScoped: true, Flags: []string{"status", "comment", "marker"}},
 	{Name: "ticket show", TicketScoped: true},
@@ -79,10 +87,42 @@ var catalog = []CommandSpec{
 	// Phase 10.
 	{Name: "skills lint", TicketScoped: false, Positional: []string{"dir"}},
 	{Name: "skills install", TicketScoped: false, Flags: []string{"from", "into"}},
+
+	// Phase 11.
+	{Name: "skills evals", TicketScoped: false, Positional: []string{"dir"}, Flags: []string{"skill", "host", "model", "out"}},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always
 // a fresh copy.
 func Catalog() []CommandSpec {
 	return slices.Clone(catalog)
+}
+
+// IsTicketScoped reports whether name (a Catalog() command name, e.g.
+// "mutation run") is ticket-scoped, per Catalog()'s own TicketScoped
+// field. A name Catalog() does not list at all reports false — never
+// an error — since internal/cli/root.go's wrap calls this for every
+// command including ones outside this package's own knowledge (a
+// caller bug there is not this function's to detect).
+func IsTicketScoped(name string) bool {
+	for _, c := range catalog {
+		if c.Name == name {
+			return c.TicketScoped
+		}
+	}
+	return false
+}
+
+// SkipToolRunEvent reports whether name (a Catalog() command name)
+// must not get wrap's generic ToolRunEvent, per Catalog()'s own
+// SkipToolRunEvent field. A name Catalog() does not list at all
+// reports false, the same tolerant-of-unknown-names shape
+// IsTicketScoped already uses.
+func SkipToolRunEvent(name string) bool {
+	for _, c := range catalog {
+		if c.Name == name {
+			return c.SkipToolRunEvent
+		}
+	}
+	return false
 }

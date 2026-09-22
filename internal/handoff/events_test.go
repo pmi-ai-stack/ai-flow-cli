@@ -39,6 +39,16 @@ func TestAppendEventWritesOneJSONLine(t *testing.T) {
 	}
 }
 
+func TestToolRunEvent(t *testing.T) {
+	e := ToolRunEvent("mutation run")
+	if e.Type != "tool_run" || e.Command != "mutation run" {
+		t.Errorf("ToolRunEvent = %+v", e)
+	}
+	if e.Stage != "" || e.From != "" || e.To != "" {
+		t.Errorf("ToolRunEvent must carry no stage-transition fields, got %+v", e)
+	}
+}
+
 func TestAppendEventRecordsSkipReason(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")

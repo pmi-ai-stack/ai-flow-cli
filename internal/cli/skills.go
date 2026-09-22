@@ -18,6 +18,7 @@ func newSkillsCmd(cio cmdIO) *cobra.Command {
 	}
 	cmd.AddCommand(newSkillsLintCmd(cio))
 	cmd.AddCommand(newSkillsInstallCmd(cio))
+	cmd.AddCommand(newSkillsEvalsCmd(cio))
 	return cmd
 }
 

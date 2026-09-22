@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 )
 
 // BuildInfo carries version metadata injected at link time via -X, with
@@ -159,6 +160,18 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 				env.Warnings = outcome.Warnings
 			}
 			*exitCode = int(envelope.ExitOK)
+
+			// events.jsonl's "tool runs" category (Handoff directory's
+			// own words) — see the phase 11 plan's design decision 1.
+			// Catalog()'s own SkipToolRunEvent field, not a name
+			// convention re-derived here, decides which commands already
+			// have a richer event of their own. Best-effort: a failure
+			// here never turns a successful command into a failing
+			// envelope, since this event is additive telemetry, not a
+			// documented side effect in the exit-code contract.
+			if !f.Simulate && len(args) > 0 && handoff.IsTicketScoped(name) && !handoff.SkipToolRunEvent(name) {
+				_ = handoff.AppendEvent(handoff.TicketEventsPath(f.Home, args[0]), handoff.ToolRunEvent(name))
+			}
 		}
 
 		if f.Human {

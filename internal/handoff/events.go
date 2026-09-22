@@ -9,6 +9,18 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 )
 
+// The four event types an events.jsonl line's own Type field carries —
+// exported so a reader (internal/skills/evals's own call-order
+// assertion, in particular) matches against the same constants these
+// builders write, rather than a second, independently hand-typed copy
+// of the same literal.
+const (
+	EventTypeStageTransition = "stage_transition"
+	EventTypeSessionStart    = "session_start"
+	EventTypeToolRun         = "tool_run"
+	EventTypeGuardDecision   = "guard_decision"
+)
+
 // Event is one line of an events.jsonl file: the append-only
 // wall-clock log of a ticket's stage transitions (and, from later
 // phases, tool runs and guard decisions). Unlike every other artifact
@@ -70,7 +82,7 @@ func AppendEvent(path string, e Event) error {
 // `stage skip`.
 func StageTransitionEvent(stage Stage, from, to State, command, reason string) Event {
 	return Event{
-		Type:    "stage_transition",
+		Type:    EventTypeStageTransition,
 		Stage:   string(stage),
 		From:    string(from),
 		To:      string(to),
@@ -86,12 +98,25 @@ func StageTransitionEvent(stage Stage, from, to State, command, reason string) E
 // plugin_root, cli_version }" (ts is At, set by AppendEvent).
 func SessionStartEvent(host, hostVersion, pluginRoot, cliVersion string) Event {
 	return Event{
-		Type:        "session_start",
+		Type:        EventTypeSessionStart,
 		Host:        host,
 		HostVersion: hostVersion,
 		PluginRoot:  pluginRoot,
 		CLIVersion:  cliVersion,
 	}
+}
+
+// ToolRunEvent builds a "tool_run" Event — the Handoff directory
+// table's own words for events.jsonl ("this ticket's stage
+// transitions, tool runs and guard decisions") name this category, but
+// no phase before phase 11 ever wrote one: every ticket-scoped
+// command's successful completion appends one from
+// internal/cli/root.go's wrap, with command exactly the Catalog() name
+// the command was invoked with, unless Catalog()'s own
+// SkipToolRunEvent marks it as already covered by a richer event (see
+// the phase 11 plan's design decision 1).
+func ToolRunEvent(command string) Event {
+	return Event{Type: EventTypeToolRun, Command: command}
 }
 
 // GuardDecisionEvent builds a "guard_decision" Event — `hook guard`'s
@@ -103,7 +128,7 @@ func SessionStartEvent(host, hostVersion, pluginRoot, cliVersion string) Event {
 // decision was made about.
 func GuardDecisionEvent(host, reason, command string, allow bool) Event {
 	return Event{
-		Type:    "guard_decision",
+		Type:    EventTypeGuardDecision,
 		Host:    host,
 		Reason:  reason,
 		Command: command,

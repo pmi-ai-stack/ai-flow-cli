@@ -1,8 +1,11 @@
-// Package exectest provides a scripted exec.Execer test double, shared
-// by every package that needs to prove its subprocess calls without
-// ever running a real one — found during phase 5's /simplify pass,
-// when internal/gitops and internal/cli had each grown their own
-// independent copy of the same double. Mirrors
+// Package exectest provides scripted test doubles — Scripted for
+// exec.Execer, UnlistedScripted for exec.UnlistedRunner — shared by
+// every package that needs to prove its subprocess calls without ever
+// running a real one. Scripted was found during phase 5's /simplify
+// pass, when internal/gitops and internal/cli had each grown their own
+// independent copy of the same double; UnlistedScripted was added the
+// same way during phase 11's, when internal/skills/evals and
+// internal/cli had each grown their own copy of *that* double. Mirrors
 // internal/handoff/handofftest's own pattern: a plain (non-_test.go)
 // package so it can be imported from another package's tests.
 package exectest

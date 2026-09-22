@@ -1,0 +1,10 @@
+{
+  "key": "PROJ-1",
+  "stages": [
+    { "stage": "fetch", "state": "pass" },
+    { "stage": "locate", "state": "pass" },
+    { "stage": "plan", "state": "pass" },
+    { "stage": "implement", "state": "pass" },
+    { "stage": "mutation", "state": "running" }
+  ]
+}

@@ -60,3 +60,30 @@ func TestCatalogReturnsACopy(t *testing.T) {
 		t.Error("Catalog() did not return a fresh copy")
 	}
 }
+
+func TestIsTicketScoped(t *testing.T) {
+	for _, c := range Catalog() {
+		if got := IsTicketScoped(c.Name); got != c.TicketScoped {
+			t.Errorf("IsTicketScoped(%q) = %v, want %v (Catalog()'s own TicketScoped)", c.Name, got, c.TicketScoped)
+		}
+	}
+	if IsTicketScoped("no-such-command") {
+		t.Error("IsTicketScoped of an unknown name must be false, not an error")
+	}
+}
+
+func TestSkipToolRunEvent(t *testing.T) {
+	for _, c := range Catalog() {
+		if got := SkipToolRunEvent(c.Name); got != c.SkipToolRunEvent {
+			t.Errorf("SkipToolRunEvent(%q) = %v, want %v (Catalog()'s own SkipToolRunEvent)", c.Name, got, c.SkipToolRunEvent)
+		}
+		// Every "stage *" row must set it — the property this field
+		// exists to make explicit, not just a naming convention.
+		if strings.HasPrefix(c.Name, "stage ") && !c.SkipToolRunEvent {
+			t.Errorf("Catalog entry %q: SkipToolRunEvent = false, want true for every stage command", c.Name)
+		}
+	}
+	if SkipToolRunEvent("no-such-command") {
+		t.Error("SkipToolRunEvent of an unknown name must be false, not an error")
+	}
+}
