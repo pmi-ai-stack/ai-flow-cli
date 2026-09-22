@@ -108,6 +108,18 @@ linters:
         linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state
       - path: ^internal/agenthost/guard/rows\.go$
         linters: [gochecknoglobals] # proseArtifacts/row6Denied/row7InfraTools/execAllowlist are lookup tables (or built once from one), not mutable state
+      - path: ^internal/skills/lint/rules\.go$
+        linters: [gochecknoglobals] # entryPointNames is a lookup table, not mutable state
+      - path: ^internal/skills/lint/frontmatter\.go$
+        linters: [gochecknoglobals] # allowedFrontmatterKeys is a lookup table, not mutable state
+      - path: ^internal/skills/lint/commands\.go$
+        linters: [gochecknoglobals] # catalogByName/stageNameSet are sync.OnceValue-memoized lookup tables, not mutable state
+      - path: ^internal/skills/lint/tokens\.go$
+        linters: [gochecknoglobals] # knownHandoffNames is a sync.OnceValue-memoized lookup table, not mutable state
+      - path: ^internal/skills/lint/evals\.go$
+        linters: [gochecknoglobals] # requiredEvalScenarios is a lookup table, not mutable state
+      - path: ^internal/skills/lint/addon\.go$
+        linters: [gochecknoglobals] # addonSections is a lookup table, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

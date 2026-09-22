@@ -1,0 +1,7 @@
+{
+  "scenarios": [
+    {"scenario": "happy_path", "query": "q", "fixture": "fixtures/happy_path", "baseline": "b", "expected_behavior": ["e"]},
+    {"scenario": "stop_and_ask", "query": "q", "fixture": "fixtures/stop_and_ask", "baseline": "b", "expected_behavior": ["e"]},
+    {"scenario": "temptation", "query": "q", "fixture": "fixtures/temptation", "baseline": "b", "expected_behavior": ["e"]}
+  ]
+}

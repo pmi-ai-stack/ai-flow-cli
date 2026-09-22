@@ -1,0 +1,19 @@
+{
+  "terms": [
+    {
+      "term": "ticket",
+      "definition": "The unit of work identified by KEY.",
+      "avoid": ["issue", "task", "story"]
+    },
+    {
+      "term": "skill",
+      "definition": "An Agent Skills document the host loads by name.",
+      "avoid": ["prompt", "workflow", "command"]
+    },
+    {
+      "term": "changeset",
+      "definition": "The normalized representation of what a target's render would do.",
+      "avoid": ["diff", "plan"]
+    }
+  ]
+}

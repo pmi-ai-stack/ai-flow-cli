@@ -1,4 +1,6 @@
 {
   "name": "plan-solution",
-  "description": "Reads the ticket, asks clarifying questions, proposes at least two options and writes plan.md."
+  "description": "Reads the ticket, asks clarifying questions, proposes at least two options and writes plan.md. Loaded by the develop orchestrator at the plan stage; not for direct use.",
+  "license": "MIT",
+  "compatibility": "Requires the ai-flow CLI on PATH and a git checkout of the in-scope repositories."
 }

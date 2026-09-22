@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/skill-frontmatter.schema.json",
   "title": "skill-frontmatter",
-  "description": "SKILL.md frontmatter — deliberately minimal in phase 2 (name, description only). Phase 10's internal/skills/lint owns the full portable-skill-profile rule set: license, the fixed compatibility sentence, disable-model-invocation on entry points only, and rejecting every other field including allowed-tools.",
+  "description": "SKILL.md frontmatter — the full portable skill profile (phase 10). name/description are also checked for directory-equality and sentence form, which no per-file schema can express; disable-model-invocation's placement rule (true on develop/ship only, absent elsewhere) is likewise a lint-only rule, since a schema validating one file at a time cannot know the skill's own name. internal/skills/lint enforces every rule with its own Go checks (see that package's own doc comment for why it does not call this schema at runtime) and this file is the one machine-readable statement of the profile's shape for any other caller.",
   "type": "object",
-  "required": ["name", "description"],
-  "additionalProperties": true,
+  "required": ["name", "description", "license", "compatibility"],
+  "additionalProperties": false,
   "properties": {
     "name": {
       "type": "string",
@@ -15,6 +15,15 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 600
+    },
+    "license": {
+      "const": "MIT"
+    },
+    "compatibility": {
+      "const": "Requires the ai-flow CLI on PATH and a git checkout of the in-scope repositories."
+    },
+    "disable-model-invocation": {
+      "const": true
     }
   }
 }
