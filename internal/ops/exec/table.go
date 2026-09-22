@@ -45,6 +45,17 @@ var Table = []Row{
 	{Tool: "git", Verb: []string{"add"}, Mutating: true, Class: ClassRepoWrite},
 	{Tool: "git", Verb: []string{"commit"}, Mutating: true, Class: ClassRepoWrite},
 	{Tool: "git", Verb: []string{"push"}, Mutating: true, Class: ClassRepoWrite},
+
+	// Phase 6 adds the CLI's first class: none rows — internal/verify's
+	// unit and e2e runners. None of these mutates anything outside the
+	// worktree (build caches, node_modules, __pycache__) or writes
+	// anything but a report ClassNone's own doc comment already
+	// describes, so none needed a dry-run flag, an ephemeral class or
+	// the repo_write publishing gate git's own mutating rows use.
+	{Tool: "go", Verb: []string{"test"}, Class: ClassNone},
+	{Tool: "npx", Verb: []string{"jest"}, Class: ClassNone},
+	{Tool: "pytest", Verb: []string{}, Class: ClassNone},
+	{Tool: "npx", Verb: []string{"playwright", "test"}, Class: ClassNone},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

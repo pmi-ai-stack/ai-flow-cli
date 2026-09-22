@@ -1,0 +1,39 @@
+{
+  "suites": [
+    {
+      "title": "login",
+      "specs": [
+        {
+          "title": "logs in with valid credentials",
+          "tests": [
+            { "results": [{ "status": "passed" }] }
+          ]
+        },
+        {
+          "title": "rejects invalid credentials",
+          "tests": [
+            {
+              "results": [
+                { "status": "failed", "error": { "message": "expected error banner to be visible" } }
+              ]
+            }
+          ]
+        }
+      ],
+      "suites": [
+        {
+          "title": "password reset",
+          "specs": [
+            {
+              "title": "sends a reset email",
+              "tests": [
+                { "results": [{ "status": "skipped" }] }
+              ]
+            }
+          ],
+          "suites": []
+        }
+      ]
+    }
+  ]
+}

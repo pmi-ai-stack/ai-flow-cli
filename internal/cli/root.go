@@ -97,6 +97,10 @@ func NewRoot(bi BuildInfo, stdout, stderr io.Writer, exitCode *int) *cobra.Comma
 	root.AddCommand(newRepoCmd(cio))
 	root.AddCommand(newGitCmd(cio))
 	root.AddCommand(newPRCmd(cio))
+	root.AddCommand(newDetectCmd(cio))
+	root.AddCommand(newTestCmd(cio))
+	root.AddCommand(newE2ECmd(cio))
+	root.AddCommand(newVisualCmd(cio))
 
 	return root
 }

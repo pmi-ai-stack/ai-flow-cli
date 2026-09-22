@@ -5,7 +5,7 @@ import "testing"
 func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 	never := []Stage{StageFetch, StageLocate, StagePlan, StageImplement, StageReview, StageOutput, StageShip}
 	for _, stage := range never {
-		run, rule := ShouldRun(stage)
+		run, rule := ShouldRun(stage, ShouldRunInput{})
 		if !run {
 			t.Errorf("ShouldRun(%s) run = false, want true", stage)
 		}
@@ -15,7 +15,12 @@ func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 	}
 }
 
-func TestShouldRunDeferredStagesRunWithCodedRule(t *testing.T) {
+// TestShouldRunStillDeferredStagesAlwaysRun pins the plan's design
+// decision 2: the seven skip rules phase 6 does not own must keep
+// answering run: true, and must do so regardless of what
+// ShouldRunInput carries — a future phase adding its own fields to the
+// struct must not accidentally change a rule it does not own yet.
+func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 	want := map[Stage]string{
 		StageRenderDrift: "no_changed_target",
 		StageChecks:      "no_check_applies",
@@ -24,17 +29,72 @@ func TestShouldRunDeferredStagesRunWithCodedRule(t *testing.T) {
 		StageRollback:    "changeset_empty",
 		StageInfraTest:   "no_changed_target_or_no_harness",
 		StageMutation:    "no_app_files_or_no_mutation_tool",
-		StageVisualTest:  "no_frontend_files",
-		StageE2E:         "no_app_files_or_no_e2e_suite",
+	}
+	inputs := []ShouldRunInput{
+		{},
+		{HasFrontendFiles: true, HasAppFiles: true, HasE2ESuite: true},
+		{HasFrontendFiles: false, HasAppFiles: true, HasE2ESuite: false},
 	}
 	for stage, rule := range want {
-		run, gotRule := ShouldRun(stage)
-		if !run {
-			t.Errorf("ShouldRun(%s) run = false, want true (never silently skip before the rule is wired)", stage)
+		for _, in := range inputs {
+			run, gotRule := ShouldRun(stage, in)
+			if !run {
+				t.Errorf("ShouldRun(%s, %+v) run = false, want true (never silently skip before the rule is wired)", stage, in)
+			}
+			if gotRule != rule {
+				t.Errorf("ShouldRun(%s, %+v) rule = %q, want %q", stage, in, gotRule, rule)
+			}
 		}
-		if gotRule != rule {
-			t.Errorf("ShouldRun(%s) rule = %q, want %q", stage, gotRule, rule)
-		}
+	}
+}
+
+// TestShouldRunVisualTest pins visual-test's real rule: no_frontend_files.
+func TestShouldRunVisualTest(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"has frontend files", ShouldRunInput{HasFrontendFiles: true}, true},
+		{"no frontend files", ShouldRunInput{HasFrontendFiles: false}, false},
+		{"frontend files, irrelevant e2e fields set too", ShouldRunInput{HasFrontendFiles: true, HasAppFiles: true, HasE2ESuite: true}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageVisualTest, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(visual-test, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_frontend_files" {
+				t.Errorf("rule = %q, want no_frontend_files", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunE2E pins e2e's real rule: no_app_files_or_no_e2e_suite —
+// both HasAppFiles and HasE2ESuite must be true for the stage to run.
+func TestShouldRunE2E(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"app files and suite", ShouldRunInput{HasAppFiles: true, HasE2ESuite: true}, true},
+		{"app files, no suite", ShouldRunInput{HasAppFiles: true, HasE2ESuite: false}, false},
+		{"no app files, suite present", ShouldRunInput{HasAppFiles: false, HasE2ESuite: true}, false},
+		{"neither", ShouldRunInput{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageE2E, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(e2e, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_app_files_or_no_e2e_suite" {
+				t.Errorf("rule = %q, want no_app_files_or_no_e2e_suite", rule)
+			}
+		})
 	}
 }
 
@@ -43,7 +103,7 @@ func TestShouldRunDeferredStagesRunWithCodedRule(t *testing.T) {
 // renamed or added in one table and not the other.
 func TestEveryStageHasASkipRuleAnswer(t *testing.T) {
 	for _, stage := range Stages() {
-		_, rule := ShouldRun(stage)
+		_, rule := ShouldRun(stage, ShouldRunInput{})
 		def, ok := StageTableEntry(stage)
 		if !ok {
 			t.Fatalf("StageTableEntry(%s) not found", stage)

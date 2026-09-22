@@ -37,7 +37,7 @@ func wantStageNotAllowed(t *testing.T, err error) {
 
 func TestStartFromPendingGateNoneGoesToRunning(t *testing.T) {
 	s := freshEntry(StageImplement, StatePending)
-	if err := Start(s, StageImplement); err != nil {
+	if err := Start(s, StageImplement, ShouldRunInput{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if got := s.Entry(StageImplement).State; got != StateRunning {
@@ -49,7 +49,7 @@ func TestStartFromPendingGatePostGoesToRunning(t *testing.T) {
 	// A post-gate stage's gate fires at complete time, not start time —
 	// starting it behaves exactly like a gate-none stage.
 	s := freshEntry(StagePlan, StatePending)
-	if err := Start(s, StagePlan); err != nil {
+	if err := Start(s, StagePlan, ShouldRunInput{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if got := s.Entry(StagePlan).State; got != StateRunning {
@@ -59,7 +59,7 @@ func TestStartFromPendingGatePostGoesToRunning(t *testing.T) {
 
 func TestStartFromPendingGatePreGoesToAwaitingApproval(t *testing.T) {
 	s := freshEntry(StageShip, StatePending)
-	if err := Start(s, StageShip); err != nil {
+	if err := Start(s, StageShip, ShouldRunInput{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if got := s.Entry(StageShip).State; got != StateAwaitingApproval {
@@ -70,7 +70,7 @@ func TestStartFromPendingGatePreGoesToAwaitingApproval(t *testing.T) {
 func TestStartFromAwaitingApprovalIsARevision(t *testing.T) {
 	for _, stage := range []Stage{StagePlan, StageShip} { // post-gate and pre-gate
 		s := freshEntry(stage, StateAwaitingApproval)
-		if err := Start(s, stage); err != nil {
+		if err := Start(s, stage, ShouldRunInput{}); err != nil {
 			t.Fatalf("Start(%s): %v", stage, err)
 		}
 		if got := s.Entry(stage).State; got != StateRunning {
@@ -85,7 +85,7 @@ func TestStartRefusedFromEveryOtherState(t *testing.T) {
 			continue
 		}
 		s := freshEntry(StageImplement, st)
-		wantStageNotAllowed(t, Start(s, StageImplement))
+		wantStageNotAllowed(t, Start(s, StageImplement, ShouldRunInput{}))
 	}
 }
 

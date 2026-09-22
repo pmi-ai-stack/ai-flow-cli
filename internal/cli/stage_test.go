@@ -28,6 +28,43 @@ func writeFixture(t *testing.T, home, key, artifact, filename string) {
 	}
 }
 
+// amendRepoJSONForVisualAndE2E rewrites home/key/repo.json (already
+// written from the shared schema fixture) so that
+// internal/detect.Frontend and internal/detect.E2E both find a match:
+// a frontend-recognizable path added to in_scope_files, and the first
+// repository's local_path repointed at a fresh temp directory carrying
+// a real playwright.config.js.
+func amendRepoJSONForVisualAndE2E(t *testing.T, home, key string) {
+	t.Helper()
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "playwright.config.js"), []byte("module.exports = {}\n"), 0o600); err != nil {
+		t.Fatalf("write playwright.config.js: %v", err)
+	}
+
+	path := filepath.Join(home, key, "repo.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	var artifact repoArtifact
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		t.Fatalf("decode repo.json: %v", err)
+	}
+	artifact.InScopeFiles = append(artifact.InScopeFiles, "web/src/App.tsx")
+	if len(artifact.Repositories) == 0 {
+		t.Fatal("repo.json fixture has no repositories")
+	}
+	artifact.Repositories[0].LocalPath = repoDir
+
+	out, err := json.MarshalIndent(artifact, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal repo.json: %v", err)
+	}
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		t.Fatalf("write repo.json: %v", err)
+	}
+}
+
 func writeMarkdown(t *testing.T, home, key, filename string) {
 	t.Helper()
 	dir := filepath.Join(home, key)
@@ -115,6 +152,20 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 			writeFixture(t, home, key, s.artifact, s.filename)
 		} else {
 			writeMarkdown(t, home, key, s.filename)
+		}
+		if s.stage == "locate" {
+			// This test drives every stage to completion, including
+			// visual-test and e2e — real as of phase 6. The shared
+			// schema fixture repo.json (internal/schema/testdata/repo/
+			// valid.json) carries neither a frontend file nor a
+			// repository with a detectable e2e suite (it is also phase
+			// 2's plain schema-validity fixture, which cares about
+			// neither), so both stages would legitimately auto-skip
+			// here and never reach "running" for `stage complete` to
+			// act on. Amending in place with a frontend file and a real
+			// playwright.config.js keeps this test proving the full
+			// sixteen-stage walk end to end, not just fifteen of them.
+			amendRepoJSONForVisualAndE2E(t, home, key)
 		}
 		env := runStage(t, home, 0, "complete", key, s.stage)
 
@@ -462,5 +513,100 @@ func TestStageShouldRun(t *testing.T) {
 	// should-run must never write status.json — it is read-only.
 	if _, err := os.Stat(filepath.Join(home, "PROJ-1", "status.json")); !os.IsNotExist(err) {
 		t.Error("stage should-run wrote status.json, but it must never mutate anything")
+	}
+}
+
+// shouldRunEnvelope decodes `stage should-run`'s result.
+type shouldRunEnvelope struct {
+	Result struct {
+		Stage string `json:"stage"`
+		Rule  string `json:"rule"`
+		Run   bool   `json:"run"`
+	} `json:"result"`
+}
+
+func decodeShouldRun(t *testing.T, raw []byte) shouldRunEnvelope {
+	t.Helper()
+	var env shouldRunEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, raw)
+	}
+	return env
+}
+
+// TestStageShouldRunVisualTestReal proves the plan's own Done-when line
+// against real fixture repo.jsons — visual-test's rule (no_frontend_files)
+// is real as of phase 6, not the phase-3 stub.
+func TestStageShouldRunVisualTestReal(t *testing.T) {
+	home := t.TempDir()
+	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"go-svc", fixtureRepoPath(t, "go")}}, []string{"main.go"})
+	stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", "visual-test", "--home", home)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+	}
+	env := decodeShouldRun(t, stdout.Bytes())
+	if env.Result.Run {
+		t.Error("run = true, want false (no frontend files in scope)")
+	}
+	if env.Result.Rule != "no_frontend_files" {
+		t.Errorf("rule = %q, want no_frontend_files", env.Result.Rule)
+	}
+
+	home2 := t.TempDir()
+	writeRepoJSONFixture(t, home2, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
+	stdout2, _, exitCode2 := runRoot(t, "stage", "should-run", "PROJ-1", "visual-test", "--home", home2)
+	if exitCode2 != 0 {
+		t.Fatalf("exitCode = %d\n%s", exitCode2, stdout2.String())
+	}
+	env2 := decodeShouldRun(t, stdout2.Bytes())
+	if !env2.Result.Run {
+		t.Error("run = false, want true (a frontend file is in scope)")
+	}
+}
+
+// TestStageShouldRunE2EReal proves the plan's own Done-when line for
+// e2e's rule (no_app_files_or_no_e2e_suite).
+func TestStageShouldRunE2EReal(t *testing.T) {
+	home := t.TempDir()
+	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"go-svc", fixtureRepoPath(t, "go")}}, []string{"main.go"})
+	stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", "e2e", "--home", home)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+	}
+	env := decodeShouldRun(t, stdout.Bytes())
+	if env.Result.Run {
+		t.Error("run = true, want false (no e2e suite detected)")
+	}
+	if env.Result.Rule != "no_app_files_or_no_e2e_suite" {
+		t.Errorf("rule = %q, want no_app_files_or_no_e2e_suite", env.Result.Rule)
+	}
+
+	home2 := t.TempDir()
+	writeRepoJSONFixture(t, home2, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
+	stdout2, _, exitCode2 := runRoot(t, "stage", "should-run", "PROJ-1", "e2e", "--home", home2)
+	if exitCode2 != 0 {
+		t.Fatalf("exitCode = %d\n%s", exitCode2, stdout2.String())
+	}
+	env2 := decodeShouldRun(t, stdout2.Bytes())
+	if !env2.Result.Run {
+		t.Error("run = false, want true (app files present and a suite is detected)")
+	}
+}
+
+// TestStageShouldRunOtherStagesIgnoreRepoContent proves the seven
+// stages phase 6 does not own stay run: true regardless of repo.json's
+// content — a regression test for the plan's design decision 2.
+func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
+	home := t.TempDir()
+	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
+	for _, stage := range []string{"render-drift", "checks", "dry-run", "impact", "rollback", "infra-test", "mutation"} {
+		stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
+		if exitCode != 0 {
+			t.Fatalf("stage %s: exitCode = %d\n%s", stage, exitCode, stdout.String())
+		}
+		env := decodeShouldRun(t, stdout.Bytes())
+		if !env.Result.Run {
+			t.Errorf("stage %s: run = false, want true (still stubbed)", stage)
+		}
 	}
 }

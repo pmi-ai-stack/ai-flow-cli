@@ -22,12 +22,13 @@ func stageNotAllowed(cmd string, stage Stage, got State) error {
 // per "Resume and redo" ("stage start from awaiting_approval is
 // reserved for the developer asking for changes"); the approval field
 // is untouched since it is already nil. Any other starting state is
-// refused.
-func Start(s *Status, stage Stage) error {
+// refused. in is ShouldRun's own input — the zero value for every
+// stage but visual-test and e2e (see ShouldRunInput's doc comment).
+func Start(s *Status, stage Stage, in ShouldRunInput) error {
 	e := s.Entry(stage)
 	switch e.State {
 	case StatePending:
-		if run, _ := ShouldRun(stage); !run {
+		if run, _ := ShouldRun(stage, in); !run {
 			e.State = StateSkipped
 			return nil
 		}

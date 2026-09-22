@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/routing"
@@ -61,6 +62,35 @@ func namesOf[T any](items []T, name func(T) string) []string {
 		out[i] = name(item)
 	}
 	return out
+}
+
+// toDetectRepo converts one repo.json repository to the shape every
+// internal/detect function reads — shared by every command that hands
+// a single repository to internal/detect (git.go's own callers stay on
+// gitops, which takes a bare local_path, not a detect.Repo).
+func toDetectRepo(r repoArtifactRepository) detect.Repo {
+	return detect.Repo{Name: r.Name, LocalPath: r.LocalPath}
+}
+
+// filterReposByName narrows repos to the one named name, or returns
+// every repo unchanged when name is empty — the --repo flag's shared
+// shape across `git diff`/`test run`. usage (exit 2), not tool_missing,
+// when name matches nothing: an unknown --repo value is a developer
+// mistake, not a missing tool.
+func filterReposByName(repos []repoArtifactRepository, name string) ([]repoArtifactRepository, error) {
+	if name == "" {
+		return repos, nil
+	}
+	var matched []repoArtifactRepository
+	for _, r := range repos {
+		if r.Name == name {
+			matched = append(matched, r)
+		}
+	}
+	if len(matched) == 0 {
+		return nil, &envelope.Error{Code: "usage", Message: "--repo " + name + " is not one of repo.json's repositories"}
+	}
+	return matched, nil
 }
 
 // loadTicket reads ticketDir's ticket.json — missing_artifact if it
@@ -129,7 +159,10 @@ func driveCLIOnlyStage(f Flags, key string, stage handoff.Stage, command string)
 
 	switch from {
 	case handoff.StatePending:
-		if err := handoff.Start(st, stage); err != nil {
+		// ShouldRunInput{} — a CLI-only stage (fetch, locate, output)
+		// never reads it; handoff.ShouldRun's default branch answers
+		// run: true regardless (see its own doc comment).
+		if err := handoff.Start(st, stage, handoff.ShouldRunInput{}); err != nil {
 			return err
 		}
 	case handoff.StateRunning:

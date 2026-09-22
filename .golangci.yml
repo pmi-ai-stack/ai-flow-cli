@@ -94,6 +94,14 @@ linters:
         linters: [gochecknoglobals] # newExecer is the injectable Execer constructor by design — tests reassign it, mirroring handoff/clock.go's Now
       - path: ^internal/cli/pr\.go$
         linters: [gochecknoglobals] # newGitHubTransport is the injectable http.RoundTripper source by design — tests reassign it, mirroring handoff/clock.go's Now
+      - path: ^internal/cli/visual\.go$
+        linters: [gochecknoglobals] # newUnlistedRunner is the injectable exec.UnlistedRunner constructor by design — tests reassign it, mirroring git.go's newExecer
+      - path: ^internal/detect/frontend\.go$
+        linters: [gochecknoglobals] # frontendExtensions/frontendPathSegments are lookup tables, not mutable state
+      - path: ^internal/detect/appfiles\.go$
+        linters: [gochecknoglobals] # documentationExtensions/documentationBasenamePrefixes are lookup tables, not mutable state
+      - path: ^internal/verify/visual/screens\.go$
+        linters: [gochecknoglobals] # screenPathSegments is a lookup table, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

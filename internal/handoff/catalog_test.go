@@ -19,6 +19,8 @@ func TestCatalogTicketScopedCommandsHaveKeyFirst(t *testing.T) {
 		"repo locate", "repo confirm", "repo scope",
 		"git prepare", "git checkout-base", "git checkout-branch", "git diff", "git commit", "git push",
 		"pr create",
+		"detect languages", "detect runners", "detect mutation", "detect e2e", "detect frontend",
+		"test run", "e2e run", "visual run", "visual judge",
 	}
 	for _, name := range ticketScoped {
 		if !found[name] {

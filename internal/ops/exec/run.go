@@ -3,6 +3,7 @@ package exec
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	osexec "os/exec"
@@ -32,6 +33,18 @@ type Output struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
+}
+
+// IsToolFailed reports whether err is the tool_failed error Run (or
+// RunUnlisted) returns for a non-zero exit — the signal a caller uses
+// to tell "the tool ran and reported a real result" (Output is still
+// populated, see Output's own doc comment) from "the tool never ran at
+// all" (e.g. exec_not_allowed), which needs different handling: a
+// runner that exits non-zero because its own suite failed should still
+// have its Output parsed, not be treated as an internal CLI error.
+func IsToolFailed(err error) bool {
+	var envErr *envelope.Error
+	return errors.As(err, &envErr) && envErr.Code == "tool_failed"
 }
 
 // Execer is how every package outside this one runs a subprocess.

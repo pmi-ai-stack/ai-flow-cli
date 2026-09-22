@@ -1,0 +1,7 @@
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example.com/fixture","Test":"TestAdd"}
+{"Time":"2026-01-01T00:00:00Z","Action":"pass","Package":"example.com/fixture","Test":"TestAdd","Elapsed":0}
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example.com/fixture","Test":"TestSubtract"}
+{"Time":"2026-01-01T00:00:00Z","Action":"output","Package":"example.com/fixture","Test":"TestSubtract","Output":"    add_test.go:12: expected 0, got 1\n"}
+{"Time":"2026-01-01T00:00:00Z","Action":"output","Package":"example.com/fixture","Test":"TestSubtract","Output":"--- FAIL: TestSubtract (0.00s)\n"}
+{"Time":"2026-01-01T00:00:00Z","Action":"fail","Package":"example.com/fixture","Test":"TestSubtract","Elapsed":0}
+{"Time":"2026-01-01T00:00:00Z","Action":"fail","Package":"example.com/fixture","Elapsed":0}

@@ -49,6 +49,17 @@ var catalog = []CommandSpec{
 	{Name: "git commit", TicketScoped: true},
 	{Name: "git push", TicketScoped: true},
 	{Name: "pr create", TicketScoped: true},
+
+	// Phase 6.
+	{Name: "detect languages", TicketScoped: true},
+	{Name: "detect runners", TicketScoped: true},
+	{Name: "detect mutation", TicketScoped: true},
+	{Name: "detect e2e", TicketScoped: true},
+	{Name: "detect frontend", TicketScoped: true},
+	{Name: "test run", TicketScoped: true, Flags: []string{"repo"}},
+	{Name: "e2e run", TicketScoped: true, Flags: []string{"case"}},
+	{Name: "visual run", TicketScoped: true, Flags: []string{"screen"}},
+	{Name: "visual judge", TicketScoped: true, Flags: []string{"screen", "verdict", "reason"}},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

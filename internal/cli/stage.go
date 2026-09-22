@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/schema"
@@ -79,17 +80,66 @@ func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Statu
 	return handoff.AppendEvent(handoff.TicketEventsPath(home, key), handoff.StageTransitionEvent(stage, from, to, command, reason))
 }
 
+// buildShouldRunInput computes handoff.ShouldRunInput for stage — the
+// plan's design decision 7. Every stage but visual-test and e2e
+// ignores the input entirely (see handoff.ShouldRun's own switch), so
+// this returns the zero value for them without doing any detection
+// work at all: internal/detect.E2E's filesystem probing is worth
+// skipping for the fourteen stage/command calls per ticket that don't
+// need it.
+func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.ShouldRunInput, error) {
+	if stage != handoff.StageVisualTest && stage != handoff.StageE2E {
+		return handoff.ShouldRunInput{}, nil
+	}
+
+	ticketDir := handoff.TicketDir(f.Home, key)
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "repo.json"))
+	if err != nil {
+		return handoff.ShouldRunInput{}, err
+	}
+	if data == nil {
+		// No repo.json yet — true before `locate` completes, long before
+		// either real stage is reachable; the zero value (run: false) is
+		// harmless since nothing calls Start/ShouldRun for these two
+		// stages that early in practice.
+		return handoff.ShouldRunInput{}, nil
+	}
+	var artifact repoArtifact
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return handoff.ShouldRunInput{}, fmt.Errorf("cli: decode repo.json: %w", err)
+	}
+
+	in := handoff.ShouldRunInput{
+		HasFrontendFiles: detect.Frontend(artifact.InScopeFiles),
+		HasAppFiles:      len(detect.AppFiles(artifact.InScopeFiles, nil)) > 0,
+	}
+	for _, r := range artifact.Repositories {
+		if _, ok, err := detect.E2E(toDetectRepo(r)); err != nil {
+			return handoff.ShouldRunInput{}, err
+		} else if ok {
+			in.HasE2ESuite = true
+			break
+		}
+	}
+	return in, nil
+}
+
 func newStageShouldRunCmd(cio cmdIO) *cobra.Command {
 	return &cobra.Command{
 		Use:   "should-run KEY STAGE",
 		Short: "Print whether a stage should run, without changing anything",
 		Args:  cobra.ExactArgs(2),
 		RunE: wrap("stage should-run", cio.stdout, cio.exitCode, func(cmd *cobra.Command, args []string) (Outcome, error) {
-			_, stage, err := parseKeyStage(args)
+			key, stage, err := parseKeyStage(args)
 			if err != nil {
 				return Outcome{}, err
 			}
-			run, rule := handoff.ShouldRun(stage)
+			f := FlagsFrom(cmd.Context())
+			in, err := buildShouldRunInput(f, key, stage)
+			if err != nil {
+				return Outcome{}, err
+			}
+			run, rule := handoff.ShouldRun(stage, in)
 			return Outcome{Result: shouldRunResult{Stage: string(stage), Rule: rule, Run: run}}, nil
 		}),
 	}
@@ -113,7 +163,11 @@ func newStageStartCmd(cio cmdIO) *cobra.Command {
 			}
 			from := st.Entry(stage).State
 
-			if err := handoff.Start(st, stage); err != nil {
+			in, err := buildShouldRunInput(f, key, stage)
+			if err != nil {
+				return Outcome{}, err
+			}
+			if err := handoff.Start(st, stage, in); err != nil {
 				return Outcome{}, err
 			}
 			to := st.Entry(stage).State

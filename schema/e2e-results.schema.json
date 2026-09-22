@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/e2e-results.schema.json",
   "title": "e2e-results",
-  "description": "~/.ai-flow/<KEY>/e2e-results.json — minimal placeholder; phase 6 owns the full shape.",
+  "description": "~/.ai-flow/<KEY>/e2e-results.json — normalized e2e results from `e2e run`, including the case-name baseline `new_cases` is computed against.",
   "type": "object",
   "required": ["total", "passed", "failed"],
   "additionalProperties": false,
@@ -11,6 +11,7 @@
     "passed": { "type": "integer", "minimum": 0 },
     "failed": { "type": "integer", "minimum": 0 },
     "new_cases": { "type": "array", "items": { "type": "string" } },
+    "case_names": { "type": "array", "items": { "type": "string" } },
     "failures": {
       "type": "array",
       "items": {

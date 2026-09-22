@@ -234,17 +234,9 @@ func newGitDiffCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, err
 			}
 
-			targets := artifact.Repositories
-			if repoFlag != "" {
-				targets = nil
-				for _, r := range artifact.Repositories {
-					if r.Name == repoFlag {
-						targets = append(targets, r)
-					}
-				}
-				if len(targets) == 0 {
-					return Outcome{}, &envelope.Error{Code: "usage", Message: "--repo " + repoFlag + " is not one of repo.json's repositories"}
-				}
+			targets, err := filterReposByName(artifact.Repositories, repoFlag)
+			if err != nil {
+				return Outcome{}, err
 			}
 
 			g := buildGitOps(cfg)

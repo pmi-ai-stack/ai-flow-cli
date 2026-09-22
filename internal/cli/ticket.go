@@ -177,7 +177,7 @@ func driveFetchStage(f Flags, key string) error {
 
 	switch from {
 	case handoff.StatePending:
-		if err := handoff.Start(st, handoff.StageFetch); err != nil {
+		if err := handoff.Start(st, handoff.StageFetch, handoff.ShouldRunInput{}); err != nil {
 			return err
 		}
 	case handoff.StateRunning:

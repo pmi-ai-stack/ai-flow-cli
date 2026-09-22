@@ -88,9 +88,21 @@ func TestVerbMatchingEmptyArgv(t *testing.T) {
 	}
 }
 
+// withCommandHints swaps the package-level CommandHints for hints for
+// the duration of t, restoring the real value on cleanup — every test
+// in this package that reads CommandHints (git_rows_test.go,
+// verify_rows_test.go) depends on it surviving whichever test in this
+// file ran first, so a bare reset to an empty map here would corrupt
+// every later test's view of it.
+func withCommandHints(t *testing.T, hints map[string]string) {
+	t.Helper()
+	original := CommandHints
+	CommandHints = hints
+	t.Cleanup(func() { CommandHints = original })
+}
+
 func TestExecNotAllowedNamesCommand(t *testing.T) {
-	CommandHints = map[string]string{"terraform": "ops dry-run KEY --target T"}
-	t.Cleanup(func() { CommandHints = map[string]string{} })
+	withCommandHints(t, map[string]string{"terraform": "ops dry-run KEY --target T"})
 
 	err := NotAllowed([]string{"terraform", "apply"})
 	if err.Code != "exec_not_allowed" {
@@ -105,7 +117,7 @@ func TestExecNotAllowedNamesCommand(t *testing.T) {
 }
 
 func TestExecNotAllowedNoHint(t *testing.T) {
-	CommandHints = map[string]string{}
+	withCommandHints(t, map[string]string{})
 	err := NotAllowed([]string{"some-random-tool", "do-a-thing"})
 	if err.Code != "exec_not_allowed" {
 		t.Errorf("code = %q, want exec_not_allowed", err.Code)

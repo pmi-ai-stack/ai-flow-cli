@@ -1,0 +1,18 @@
+{
+  "numTotalTests": 2,
+  "numPassedTests": 1,
+  "numFailedTests": 1,
+  "testResults": [
+    {
+      "assertionResults": [
+        { "fullName": "adds numbers", "title": "adds numbers", "status": "passed" },
+        {
+          "fullName": "subtracts numbers",
+          "title": "subtracts numbers",
+          "status": "failed",
+          "failureMessages": ["Error: expected 0 to be 1"]
+        }
+      ]
+    }
+  ]
+}

@@ -27,10 +27,20 @@ type Call struct {
 // exactly the calls it expects and fails loudly (via t.Fatalf) on
 // anything unregistered — the assertion mechanism for "no such call
 // happened" cases.
+// failure pairs an OnFail-registered error with the Output to return
+// alongside it — a tool that exited non-zero still produced captured
+// output (exec.Runner.Run's own documented behaviour, see its doc
+// comment), which internal/verify/unit's Run relies on to parse a
+// failing suite's report rather than only ever seeing a clean exit.
+type failure struct {
+	out exec.Output
+	err error
+}
+
 type Scripted struct {
 	t         *testing.T
 	responses map[string]exec.Output
-	fail      map[string]error
+	fail      map[string]failure
 	Calls     []Call
 }
 
@@ -39,7 +49,7 @@ var _ exec.Execer = (*Scripted)(nil)
 // New builds an empty Scripted double.
 func New(t *testing.T) *Scripted {
 	t.Helper()
-	return &Scripted{t: t, responses: map[string]exec.Output{}, fail: map[string]error{}}
+	return &Scripted{t: t, responses: map[string]exec.Output{}, fail: map[string]failure{}}
 }
 
 func key(tool string, args []string) string {
@@ -52,9 +62,19 @@ func (s *Scripted) On(tool string, args []string, out exec.Output) *Scripted {
 	return s
 }
 
-// OnFail registers err as the response for tool+args.
+// OnFail registers err as the response for tool+args, with an empty
+// Output — the shape a call that never even started (e.g.
+// exec_not_allowed) returns.
 func (s *Scripted) OnFail(tool string, args []string, err error) *Scripted {
-	s.fail[key(tool, args)] = err
+	s.fail[key(tool, args)] = failure{out: exec.Output{ExitCode: 1}, err: err}
+	return s
+}
+
+// OnFailWithOutput registers both out and err as tool+args's response —
+// a tool that ran, produced real captured output, and still exited
+// non-zero (a test runner whose suite failed is the paradigm case).
+func (s *Scripted) OnFailWithOutput(tool string, args []string, out exec.Output, err error) *Scripted {
+	s.fail[key(tool, args)] = failure{out: out, err: err}
 	return s
 }
 
@@ -63,8 +83,8 @@ func (s *Scripted) Run(_ context.Context, tool string, args []string, opts exec.
 	s.t.Helper()
 	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir})
 	k := key(tool, args)
-	if err, ok := s.fail[k]; ok {
-		return exec.Output{ExitCode: 1}, err
+	if f, ok := s.fail[k]; ok {
+		return f.out, f.err
 	}
 	if out, ok := s.responses[k]; ok {
 		return out, nil

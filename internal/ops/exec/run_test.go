@@ -2,14 +2,31 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 )
+
+func TestIsToolFailed(t *testing.T) {
+	if !IsToolFailed(&envelope.Error{Code: "tool_failed", Message: "boom"}) {
+		t.Error("IsToolFailed(tool_failed) = false, want true")
+	}
+	if IsToolFailed(&envelope.Error{Code: "exec_not_allowed", Message: "nope"}) {
+		t.Error("IsToolFailed(exec_not_allowed) = true, want false")
+	}
+	if IsToolFailed(errors.New("not an envelope.Error at all")) {
+		t.Error("IsToolFailed(plain error) = true, want false")
+	}
+	if IsToolFailed(nil) {
+		t.Error("IsToolFailed(nil) = true, want false")
+	}
+}
 
 // testRunner builds a Runner over rows with no real secrets discovered
 // (tests pass their own fake environ where redaction matters).

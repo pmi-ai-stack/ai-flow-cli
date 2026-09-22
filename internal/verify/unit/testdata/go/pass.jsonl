@@ -1,0 +1,4 @@
+{"Time":"2026-01-01T00:00:00Z","Action":"run","Package":"example.com/fixture","Test":"TestAdd"}
+{"Time":"2026-01-01T00:00:00Z","Action":"output","Package":"example.com/fixture","Test":"TestAdd","Output":"=== RUN   TestAdd\n"}
+{"Time":"2026-01-01T00:00:00Z","Action":"pass","Package":"example.com/fixture","Test":"TestAdd","Elapsed":0}
+{"Time":"2026-01-01T00:00:00Z","Action":"pass","Package":"example.com/fixture","Elapsed":0}
