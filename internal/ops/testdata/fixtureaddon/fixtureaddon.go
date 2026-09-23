@@ -13,10 +13,15 @@ package fixtureaddon
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 )
 
 // Addon is the fixture. Zero value is usable directly (New just sets
@@ -28,6 +33,14 @@ type Addon struct {
 	// Paths is every target path (relative to a repo's own checkout
 	// root) this fixture claims, one Target per entry.
 	Paths []string
+	// SensitiveFiles names files (by base name) whose whole content
+	// Render marks as a redact.MarkedValue — phase 19's own way of
+	// proving the real/redacted split without a real tool.
+	SensitiveFiles []string
+	// RenderCalls counts real Render invocations — phase 19's proof
+	// that a cache hit never calls it a second time for the same
+	// content.
+	RenderCalls int
 }
 
 var _ ops.Addon = (*Addon)(nil)
@@ -66,8 +79,39 @@ func (a *Addon) Detect(_ detect.Repo, changed []string) ([]ops.Target, error) {
 	return targets, nil
 }
 
-func (a *Addon) Render(_ context.Context, _ ops.Target, _ ops.Ref, _ string) (*ops.Rendered, error) {
-	return &ops.Rendered{}, nil
+// Render copies every regular file directly under t.Path (the
+// call-scoped, resolved-to-absolute source directory internal/ops/
+// render passes — see the phase-18 doc comment on Addon.Detect and
+// the phase-19 plan's own design decision on this) into out, and
+// marks the whole content of any file named in a.SensitiveFiles —
+// enough to exercise the real/redacted split, memoization and
+// cross-ticket cache sharing without a real tool. Mimics the
+// capability matrix's own "kubectl: copy" the most closely of the six
+// real addons.
+func (a *Addon) Render(_ context.Context, t ops.Target, _ ops.Ref, out string) (*ops.Rendered, error) {
+	a.RenderCalls++
+
+	entries, err := os.ReadDir(t.Path)
+	if err != nil {
+		return nil, fmt.Errorf("fixtureaddon: read %s: %w", t.Path, err)
+	}
+	var marked []redact.MarkedValue
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(t.Path, e.Name())) //nolint:gosec // G304: t.Path is a test-fixture source directory, not attacker-controlled
+		if err != nil {
+			return nil, fmt.Errorf("fixtureaddon: read %s: %w", e.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(out, e.Name()), data, 0o600); err != nil {
+			return nil, fmt.Errorf("fixtureaddon: write %s: %w", e.Name(), err)
+		}
+		if slices.Contains(a.SensitiveFiles, e.Name()) {
+			marked = append(marked, redact.MarkedValue{Pointer: e.Name(), Value: string(data)})
+		}
+	}
+	return &ops.Rendered{Dir: out, Marked: marked}, nil
 }
 
 func (a *Addon) Validate(_ context.Context, _ *ops.Rendered) ([]ops.Finding, error) {

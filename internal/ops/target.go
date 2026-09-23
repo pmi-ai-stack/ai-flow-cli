@@ -42,3 +42,13 @@ const (
 	ScopeRepo = "repo"
 	ScopeDiff = "diff"
 )
+
+// TargetKey is a target's canonical string identity: "<repo>:<path>" —
+// config.ops.target_map's own documented key shape (the spec's config
+// example: "acme.k8s-config:overlays/eu-prod"), already reused by
+// internal/ops/envs.Bind. Used to match `--target T` on every
+// per-target OPS command from phase 19 on, and as the "target" string
+// phase 20's render-drift-results.json/dryrun-results.json record.
+func TargetKey(t Target) string {
+	return t.Repo + ":" + t.Path
+}
