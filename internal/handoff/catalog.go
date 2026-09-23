@@ -105,6 +105,11 @@ var catalog = []CommandSpec{
 	// is never invoked from a skill (the phase-14 plan's design
 	// decision 11).
 	{Name: "standards check", TicketScoped: true, Flags: []string{"fix", "stage"}},
+
+	// Phase 18.
+	{Name: "ops detect", TicketScoped: true},
+	{Name: "ops addons", TicketScoped: false},
+	{Name: "ops allowlist", TicketScoped: false},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

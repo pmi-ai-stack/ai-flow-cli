@@ -1,6 +1,6 @@
 {
   "targets": [
-    { "addon": "terraform", "path": "infra/prod", "scope": "not-a-scope", "changed": null }
+    { "addon": "terraform", "repo": "acme.infra", "path": "infra/prod", "scope": "not-a-scope", "changed": null, "environment": null, "tier": null, "files": [] }
   ],
   "app_files": []
 }

@@ -88,6 +88,68 @@ var Table = []Row{
 	{Tool: "golangci-lint", Verb: []string{"run"}, Class: ClassNone},
 	{Tool: "checkstyle", Verb: []string{}, Class: ClassNone},
 	{Tool: "gitleaks", Verb: []string{"detect"}, Class: ClassNone},
+
+	// Phase 18 adds every OPS addon-tool row this phase's own plan can
+	// commit to without inventing an unverified invocation shape — see
+	// the phase-18 plan's design decision 8 and §1.2. No Addon
+	// implementation exists yet (terraform/kubectl land in 21/22,
+	// helm/kustomize in 26, github-actions/jenkins in 27); the
+	// allowlist is data, decoupled from any Go type, so a row needs no
+	// caller to exist yet, only a test (this file's own
+	// TestAllowlistNeverMutatesPersistentState, extended below).
+	//
+	// Deliberately absent: Jenkins's declarative-linter/get-job (Jenkins
+	// CLI reachability is an open question owned by phase 27, not this
+	// one — inventing an invocation shape now would be a guess this
+	// phase has no authority to make); kind create/delete cluster (the
+	// growing-surfaces registry credits phase 24, not 18, and no addon
+	// name lists "kind" at all — it is infra-test's own cluster, not a
+	// capability-matrix tool); conftest/checkov/trivy config/kyverno
+	// apply (policy/scan, explicitly phase 25's own line).
+	{Tool: "terraform", Verb: []string{"init"}, RequiredFlags: []string{"-backend=false"}, Class: ClassNone},
+	{Tool: "terraform", Verb: []string{"validate"}, Class: ClassNone},
+	{Tool: "tflint", Verb: []string{}, Class: ClassNone},
+	{Tool: "terraform", Verb: []string{"plan"}, RequiredFlags: []string{"-detailed-exitcode"}, Class: ClassReadOnlyLive},
+	{Tool: "terraform", Verb: []string{"plan"}, RequiredFlags: []string{"-out"}, Class: ClassReadOnlyLive},
+	{Tool: "terraform", Verb: []string{"show"}, RequiredFlags: []string{"-json"}, Class: ClassNone},
+	// Ephemeral per the Execution allowlist section's own list (line
+	// 367): only ops test run/teardown may ever reach this row — see
+	// reachability_test.go.
+	{Tool: "terraform", Verb: []string{"test"}, Mutating: true, Class: ClassEphemeral},
+
+	{Tool: "kubeconform", Verb: []string{}, Class: ClassNone},
+	{Tool: "kubectl", Verb: []string{"diff"}, Class: ClassReadOnlyLive},
+	// The dry-run flag exception (line 366): matched per row, never by
+	// name across tools — this row's own flag is "--dry-run=server".
+	{Tool: "kubectl", Verb: []string{"apply"}, RequiredFlags: []string{"--dry-run=server"}, Mutating: true, Class: ClassReadOnlyLive},
+	{Tool: "kubectl", Verb: []string{"rollout", "history"}, Class: ClassReadOnlyLive},
+	{Tool: "kuttl", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
+	{Tool: "chainsaw", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
+
+	{Tool: "helm", Verb: []string{"template"}, Class: ClassNone},
+	{Tool: "helm", Verb: []string{"lint"}, Class: ClassNone},
+	{Tool: "helm", Verb: []string{"get", "manifest"}, Class: ClassReadOnlyLive},
+	// helm diff is declared non-mutating (phase 26's own line) even
+	// though it reads a live release, since it never applies anything.
+	{Tool: "helm", Verb: []string{"diff", "upgrade"}, Class: ClassReadOnlyLive},
+	{Tool: "helm", Verb: []string{"history"}, Class: ClassReadOnlyLive},
+	{Tool: "helm", Verb: []string{"unittest"}, Class: ClassNone},
+	{Tool: "ct", Verb: []string{"lint"}, Class: ClassNone},
+	{Tool: "ct", Verb: []string{"install"}, Mutating: true, Class: ClassEphemeral},
+
+	{Tool: "kustomize", Verb: []string{"build"}, Class: ClassNone},
+
+	{Tool: "actionlint", Verb: []string{}, Class: ClassNone},
+	// act's own dry-run flag is "-n" (line 366); a free "-j <job>"
+	// alongside it still matches this row first (declared before the
+	// ephemeral row below), so "act -j JOB -n" stays the dry job-graph
+	// invocation, not the real one.
+	{Tool: "act", Verb: []string{}, RequiredFlags: []string{"-n"}, Mutating: true, Class: ClassNone},
+	// The real, opt-in job execution (line 367's own "act -j"): only
+	// reachable without "-n".
+	{Tool: "act", Verb: []string{}, RequiredFlags: []string{"-j"}, ForbiddenFlags: []string{"-n"}, Mutating: true, Class: ClassEphemeral},
+
+	{Tool: "jenkinsfile-runner", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

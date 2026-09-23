@@ -215,6 +215,12 @@ func needsInputFor(err error, key string) *envelope.NeedsInput {
 			Options:    envErr.Details,
 			ResumeWith: "mutation summarize " + key + " --accept --reason \"…\"",
 		}
+	case "env_ambiguous":
+		return &envelope.NeedsInput{
+			Question:   "A target's path matches more than one configured environment's naming convention; which one?",
+			Options:    envErr.Details,
+			ResumeWith: "ops detect " + key,
+		}
 	default:
 		return nil
 	}

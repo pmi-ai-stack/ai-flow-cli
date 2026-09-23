@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/ops-targets.schema.json",
   "title": "ops-targets",
-  "description": "~/.ai-flow/<KEY>/ops-targets.json — the OPS targets ai-flow detected. Field names are fixed by phase 18's text; semantics are owned by phase 18.",
+  "description": "~/.ai-flow/<KEY>/ops-targets.json — the OPS targets ai-flow detected. Written and owned by phase 18.",
   "type": "object",
   "required": ["targets", "app_files"],
   "additionalProperties": false,
@@ -11,9 +11,14 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["addon", "path", "scope", "changed"],
+        "required": ["addon", "repo", "path", "scope", "changed", "environment", "tier", "files"],
+        "additionalProperties": false,
         "properties": {
           "addon": { "type": "string" },
+          "repo": {
+            "type": "string",
+            "description": "The repository (repo.json's own name) this target's path is relative to — together with path, config.ops.target_map's own '<repo>:<path>' key."
+          },
           "path": { "type": "string" },
           "scope": {
             "enum": ["repo", "diff"],

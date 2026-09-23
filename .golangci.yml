@@ -113,7 +113,9 @@ linters:
       - path: ^internal/cli/mutation\.go$
         linters: [gochecknoglobals] # mutationTools is a lookup table, not mutable state
       - path: ^internal/cli/doctor\.go$
-        linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state; whichOverride is the injectable exec.Which by design, mirroring git.go's newExecer
+        linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries/addonToolBinaries are lookup tables, not mutable state; whichOverride is the injectable exec.Which by design, mirroring git.go's newExecer
+      - path: ^internal/ops/kindclass\.go$
+        linters: [gochecknoglobals] # kindClasses is a lookup table, not mutable state
       - path: ^internal/cli/checks\.go$
         linters: [gochecknoglobals] # ticketOnlyKinds is a lookup table, not mutable state
       - path: ^internal/render/data\.go$

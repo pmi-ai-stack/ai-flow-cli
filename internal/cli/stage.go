@@ -15,6 +15,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/schema"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
@@ -190,6 +191,10 @@ func newStageStartCmd(cio cmdIO) *cobra.Command {
 			}
 			to := st.Entry(stage).State
 
+			if err := resolveOpsDetectForStart(f, key, stage, to); err != nil {
+				return Outcome{NeedsInput: needsInputFor(err, key)}, err
+			}
+
 			warnings, err := resolveStandardsForStart(f, key, stage, to)
 			if err != nil {
 				return Outcome{}, err
@@ -257,6 +262,65 @@ func resolveStandardsForStart(f Flags, key string, stage handoff.Stage, to hando
 	return e.Warnings(), nil
 }
 
+// resolveOpsDetectForStart runs `ops detect` at scope "repo" when
+// `plan` is the stage actually starting — the spec's own "at plan the
+// skill therefore sees every target in the repository." Skipped under
+// the same conditions resolveStandardsForStart already documents:
+// repo.json absent, the stage not actually starting, or --simulate.
+func resolveOpsDetectForStart(f Flags, key string, stage handoff.Stage, to handoff.State) error {
+	if stage != handoff.StagePlan || to != handoff.StateRunning || f.Simulate {
+		return nil
+	}
+	ticketDir := handoff.TicketDir(f.Home, key)
+	if _, err := os.Stat(handoff.RepoPath(f.Home, key)); err != nil {
+		return nil //nolint:nilerr // an absent repo.json is "not resolvable yet", not a failure
+	}
+
+	cfg, err := config.Load(f.Home, f.Config)
+	if err != nil {
+		return err
+	}
+	artifact, err := loadRepoArtifact(ticketDir)
+	if err != nil {
+		return err
+	}
+	result, err := runOpsDetect(cfg, artifact, ops.ScopeRepo)
+	if err != nil {
+		return err
+	}
+	_, err = handoff.WriteArtifact(ticketDir, "ops-targets.json", "ops-targets", result)
+	return err
+}
+
+// resolveOpsDetectForComplete runs `ops detect` at scope "diff" when
+// `implement` completes successfully — the spec's own "at dry-run the
+// targets are diff-scoped." Skipped on the --fail path (nothing new to
+// report) and for every other stage.
+func resolveOpsDetectForComplete(f Flags, key string, stage handoff.Stage, failFlag bool) error {
+	if stage != handoff.StageImplement || failFlag {
+		return nil
+	}
+	ticketDir := handoff.TicketDir(f.Home, key)
+	if _, err := os.Stat(handoff.RepoPath(f.Home, key)); err != nil {
+		return nil //nolint:nilerr // the stage machine does not enforce pipeline order; an absent repo.json means nothing to detect against yet
+	}
+
+	cfg, err := config.Load(f.Home, f.Config)
+	if err != nil {
+		return err
+	}
+	artifact, err := loadRepoArtifact(ticketDir)
+	if err != nil {
+		return err
+	}
+	result, err := runOpsDetect(cfg, artifact, ops.ScopeDiff)
+	if err != nil {
+		return err
+	}
+	_, err = handoff.WriteArtifact(ticketDir, "ops-targets.json", "ops-targets", result)
+	return err
+}
+
 func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 	var failFlag bool
 	cmd := &cobra.Command{
@@ -309,6 +373,10 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, err
 			}
 			to := st.Entry(stage).State
+
+			if err := resolveOpsDetectForComplete(f, key, stage, failFlag); err != nil {
+				return Outcome{NeedsInput: needsInputFor(err, key)}, err
+			}
 
 			if err := finalizeTransition(f.Home, key, stage, st, "stage complete", from, to, ""); err != nil {
 				return Outcome{}, err

@@ -273,6 +273,40 @@ func TestDoctor_GitAndRunnerPresence(t *testing.T) {
 	}
 }
 
+// TestDoctor_AddonBinaries is the phase-18 growing-surfaces "addon
+// binaries" line: doctor names every tool this phase's own allowlist
+// rows name, and reports whether each is on PATH.
+func TestDoctor_AddonBinaries(t *testing.T) {
+	dir := t.TempDir()
+	name := "terraform"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil { // throwaway PATH fixture
+		t.Fatalf("WriteFile: %v", err)
+	}
+	t.Setenv("PATH", dir)
+
+	home := t.TempDir()
+	got := runDoctor(t, home)
+
+	if len(got.AddonBinaries) != len(addonToolBinaries) {
+		t.Fatalf("AddonBinaries has %d entries, want %d (%v)", len(got.AddonBinaries), len(addonToolBinaries), addonToolBinaries)
+	}
+	for _, tool := range got.AddonBinaries {
+		switch tool.Name {
+		case "terraform":
+			if !tool.Found {
+				t.Error("AddonBinaries[terraform].Found = false, want true")
+			}
+		case "kubectl":
+			if tool.Found {
+				t.Error("AddonBinaries[kubectl].Found = true against a sandboxed PATH with only terraform on it")
+			}
+		}
+	}
+}
+
 func TestDoctor_NoActiveTicket(t *testing.T) {
 	home := t.TempDir()
 	got := runDoctor(t, home)

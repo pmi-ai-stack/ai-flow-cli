@@ -130,6 +130,7 @@ type doctorResult struct {
 	Git             doctorTool             `json:"git"`
 	TestRunners     []doctorTool           `json:"test_runners"`
 	MutationTools   []doctorTool           `json:"mutation_tools"`
+	AddonBinaries   []doctorTool           `json:"addon_binaries"`
 	Active          *doctorActive          `json:"active"`
 	LastSessionHost *string                `json:"last_session_host"`
 	Hosts           []doctorHostReport     `json:"hosts"`
@@ -160,6 +161,19 @@ type doctorMissingCheckRunner struct {
 // detection-free reading of "test and mutation runners" available.
 var testRunnerBinaries = []string{"go", "npx", "pytest"}
 var mutationToolBinaries = []string{"gremlins", "npx", "mutmut", "mvn"}
+
+// addonToolBinaries is the phase-18 growing-surfaces "addon binaries"
+// line: every tool name this phase's own internal/ops/exec.Table rows
+// name, deduped, so `doctor` reports which of them are missing before
+// a real Addon (phase 21 onward) ever tries to run one. terraform's
+// `tflint`, kubectl's `kubeconform`, helm's `ct`, and the two purely
+// local tools (kustomize, actionlint, act) are all named here even
+// though no addon calls them yet — matching table.go's own "the
+// allowlist is data, decoupled from any Go type" reasoning.
+var addonToolBinaries = []string{
+	"terraform", "tflint", "kubectl", "kubeconform", "kuttl", "chainsaw",
+	"helm", "ct", "kustomize", "actionlint", "act", "jenkinsfile-runner",
+}
 
 func newDoctorCmd(cio cmdIO) *cobra.Command {
 	return &cobra.Command{
@@ -199,6 +213,7 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 
 			result.TestRunners = doctorProbeTools(testRunnerBinaries)
 			result.MutationTools = doctorProbeTools(mutationToolBinaries)
+			result.AddonBinaries = doctorProbeTools(addonToolBinaries)
 
 			active, activeWarnings, err := doctorProbeActive(f.Home, cfg)
 			if err != nil {
