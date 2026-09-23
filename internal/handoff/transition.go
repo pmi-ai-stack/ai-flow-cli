@@ -143,3 +143,13 @@ func Reset(s *Status, stage Stage) error {
 func ImplementOrLater(stage Stage) bool {
 	return pipelineIndex(stage) >= pipelineIndex(StageImplement)
 }
+
+// PlanOrLater reports whether stage's pipeline position is plan's or
+// later — the boundary standards resolution sits behind (phase 13).
+// fetch and locate run before repo.json exists, and repo.json is what
+// the repo layer, the detected languages and the waivers are all read
+// from; StageTable already names standards.json/guidance.md as plan's
+// own artifacts, so this is the table's boundary, not a new one.
+func PlanOrLater(stage Stage) bool {
+	return pipelineIndex(stage) >= pipelineIndex(StagePlan)
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "waivers": [
+    { "check_id": "go.lint", "reason": "no expiry is a silent permanent suppression", "author": "dev", "created": "2026-09-01T10:00:00Z" }
+  ]
+}

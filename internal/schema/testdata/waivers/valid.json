@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "waivers": [
+    { "check_id": "go.lint", "reason": "the linter's exhaustruct rule fights this repository's option structs", "author": "dev", "created": "2026-09-01T10:00:00Z", "expires": "2026-12-01T00:00:00Z" }
+  ]
+}

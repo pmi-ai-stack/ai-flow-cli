@@ -17,9 +17,23 @@
     "checks": {
       "type": "array",
       "items": { "$ref": "#/$defs/check" }
+    },
+    "overrides": {
+      "type": "array",
+      "description": "Declares, with a reason, every less-specific `must` section or check id this pack replaces. Only meaningful in a more specific layer's manifest (a repository's own pack replacing a team or org entry, a team's replacing an org one): without a declaration here the less specific entry wins and the conflict is reported at resolve time. Replacing a `should` or a `may` needs no declaration.",
+      "items": { "$ref": "#/$defs/override" }
     }
   },
   "$defs": {
+    "override": {
+      "type": "object",
+      "required": ["id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
     "appliesTo": {
       "type": "object",
       "additionalProperties": false,
@@ -42,12 +56,16 @@
     },
     "check": {
       "type": "object",
-      "required": ["id", "kind", "tool", "severity"],
+      "required": ["id", "kind", "severity"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "kind": { "enum": ["format", "lint", "policy", "scan", "dependency", "secrets", "layout", "docs", "commit", "pr"] },
-        "tool": { "type": "string", "minLength": 1 },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The external binary this check runs. Absent for a built-in runner — the spec's Checks table documents `dependency`, `layout`, `docs`, `commit` and `pr` as built-in (its own manifest example has `{ \"id\": \"commit.conventional\", \"kind\": \"commit\", \"severity\": \"must\" }` with no tool at all), and a check with no tool has no allowlist row to be missing."
+        },
         "config": { "type": "string" },
         "severity": { "enum": ["must", "should", "may"] },
         "input": { "enum": ["source", "render"], "default": "source" },

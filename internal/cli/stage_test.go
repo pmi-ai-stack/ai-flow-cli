@@ -49,7 +49,26 @@ func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
 	if err := os.WriteFile(filepath.Join(repoDir, "go.mod"), []byte("module example.com/acme\n\ngo 1.27\n"), 0o600); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
+	// Phase 13: every in-scope repository must carry an AGENTS.md or a
+	// CLAUDE.md — the standards resolver injects it verbatim as the
+	// repo.instructions section, and a repository with neither is exit 4
+	// missing_repo_instructions. The shared schema fixture's local_path
+	// points at a directory that does not exist, so `stage start plan`
+	// onward would legitimately refuse without this.
+	writeStubInstructions(t, repoDir)
 
+	amendRepoJSON(t, home, key, func(a *repoArtifact) {
+		a.InScopeFiles = append(a.InScopeFiles, "web/src/App.tsx")
+		a.Repositories[0].LocalPath = repoDir
+	})
+}
+
+// amendRepoJSON rewrites key's repo.json in place through mutate — the
+// read/decode/encode/write half both this file's fixture helpers need.
+// It guarantees at least one repository before calling mutate, so
+// callers can index Repositories[0] without re-checking.
+func amendRepoJSON(t *testing.T, home, key string, mutate func(*repoArtifact)) {
+	t.Helper()
 	path := filepath.Join(home, key, "repo.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -59,11 +78,10 @@ func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
 	if err := json.Unmarshal(data, &artifact); err != nil {
 		t.Fatalf("decode repo.json: %v", err)
 	}
-	artifact.InScopeFiles = append(artifact.InScopeFiles, "web/src/App.tsx")
 	if len(artifact.Repositories) == 0 {
 		t.Fatal("repo.json fixture has no repositories")
 	}
-	artifact.Repositories[0].LocalPath = repoDir
+	mutate(&artifact)
 
 	out, err := json.MarshalIndent(artifact, "", "  ")
 	if err != nil {
@@ -71,6 +89,29 @@ func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
 	}
 	if err := os.WriteFile(path, out, 0o600); err != nil {
 		t.Fatalf("write repo.json: %v", err)
+	}
+}
+
+// materializeRepoCheckout points key's repo.json at a real temporary
+// directory carrying an AGENTS.md, so the phase-13 standards resolver
+// (which `stage start` runs from the plan stage onward) can read the
+// repo.instructions section it injects verbatim. The shared schema
+// fixture's own local_path is "~/projects/acme.billing.api", which
+// exists nowhere.
+func materializeRepoCheckout(t *testing.T, home, key string) string {
+	t.Helper()
+	repoDir := t.TempDir()
+	writeStubInstructions(t, repoDir)
+	amendRepoJSON(t, home, key, func(a *repoArtifact) { a.Repositories[0].LocalPath = repoDir })
+	return repoDir
+}
+
+// writeStubInstructions gives a fixture checkout the AGENTS.md the
+// phase-13 standards resolver requires of every in-scope repository.
+func writeStubInstructions(t *testing.T, repoDir string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(repoDir, "AGENTS.md"), []byte("# acme.billing.api\n\nStub instructions.\n"), 0o600); err != nil {
+		t.Fatalf("write AGENTS.md: %v", err)
 	}
 }
 
@@ -424,6 +465,7 @@ func TestStageResetCascadesAndRemovesRenderPlans(t *testing.T) {
 
 	runStage(t, home, 0, "start", key, "locate")
 	writeFixture(t, home, key, "repo", "repo.json")
+	materializeRepoCheckout(t, home, key)
 	runStage(t, home, 0, "complete", key, "locate")
 
 	runStage(t, home, 0, "start", key, "plan")

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "waivers": [
+    { "check_id": "org.deps", "reason": "the pinned upgrade lands in PROJ-9", "author": "dev",
+      "created": "2026-01-01T00:00:00Z", "expires": "2026-12-01T00:00:00Z" },
+    { "check_id": "org.lint", "reason": "expired on purpose, so the resolver re-fires it", "author": "dev",
+      "created": "2025-01-01T00:00:00Z", "expires": "2025-06-01T00:00:00Z" }
+  ]
+}

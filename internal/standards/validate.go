@@ -66,7 +66,11 @@ func Validate(dir string, allowedTools []string) (Result, error) {
 				violations = append(violations, fmt.Sprintf("check %s: config %q does not exist under %s", c.ID, c.Config, dir))
 			}
 		}
-		if !slices.Contains(allowedTools, c.Tool) {
+		// A check with no tool at all is a built-in runner (the spec's
+		// Checks table documents dependency, layout, docs, commit and
+		// pr that way) — there is no binary for the allowlist to be
+		// missing a row for.
+		if c.Tool != "" && !slices.Contains(allowedTools, c.Tool) {
 			sawCheckRunnerMissing = true
 			violations = append(violations, fmt.Sprintf("check %s: tool %q has no internal/ops/exec allowlist row", c.ID, c.Tool))
 		}

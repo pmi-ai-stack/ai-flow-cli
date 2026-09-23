@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "platform-team",
+  "version": "1.4.0",
+  "sections": [
+    { "id": "org.logging", "path": "guidance/logging.md", "severity": "should",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "team.testing", "path": "guidance/testing.md", "severity": "should",
+      "applies_to": { "stages": ["implement", "review"] } }
+  ],
+  "checks": []
+}

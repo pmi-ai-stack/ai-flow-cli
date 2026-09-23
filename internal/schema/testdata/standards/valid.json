@@ -1,14 +1,32 @@
 {
-  "resolution_hash": "abc123",
+  "resolution_hash": "sha256:9f2a1c4de0b7",
   "sources": [
-    { "id": "acme-org", "repo": "https://github.com/acme/standards", "ref": "v3.2.0", "layer": "org" }
+    { "id": "acme-org", "repo": "https://github.com/acme/standards", "ref": "v3.2.0", "layer": "org", "version": "3.2.0", "commit": "a1b2c3d4", "fingerprint": "sha256:1111" },
+    { "id": "acme.billing.api", "ref": "workdir", "layer": "repo", "commit": "", "fingerprint": "sha256:2222" }
   ],
   "languages": ["go"],
   "addons": [],
+  "budget": {
+    "tokens": 6000,
+    "per_stage": [
+      { "stage": "implement", "kept": ["go.errors", "repo.instructions"], "dropped": ["org.naming"], "must_overflow_bytes": 0 }
+    ]
+  },
   "sections": [
-    { "id": "org.security", "layer": "org", "overridden_by": null }
+    { "id": "repo.instructions", "layer": "repo", "severity": "must", "path": "AGENTS.md", "applies_to": { "stages": ["implement", "review"] }, "overridden_by": null },
+    { "id": "go.errors", "layer": "org", "severity": "must", "path": "languages/go/guidance/errors.md", "applies_to": { "languages": ["go"], "stages": ["implement", "review"] }, "overridden_by": null },
+    { "id": "org.naming", "layer": "org", "severity": "should", "path": "org/guidance/naming.md", "overridden_by": null, "dropped_from": ["implement"] },
+    { "id": "org.logging", "layer": "org", "severity": "should", "path": "org/guidance/logging.md", "overridden_by": "repo", "override_reason": "this service logs through the platform sidecar" }
   ],
   "checks": [
-    { "id": "org.gofmt", "layer": "org", "waived": false, "dropped_from": ["may"] }
+    { "id": "go.lint", "layer": "org", "kind": "lint", "tool": "golangci-lint", "config": "languages/go/checks/golangci.yml", "severity": "must", "input": "source", "applies_to": { "languages": ["go"] }, "overridden_by": null, "waived": false },
+    { "id": "org.secrets", "layer": "org", "kind": "secrets", "tool": "gitleaks", "severity": "must", "overridden_by": null, "waived": false },
+    { "id": "org.deps", "layer": "org", "kind": "dependency", "severity": "should", "overridden_by": null, "waived": true, "waiver": { "check_id": "org.deps", "reason": "pinned upgrade lands in PROJ-9", "author": "dev", "created": "2026-09-01T10:00:00Z", "expires": "2026-12-01T00:00:00Z", "expired": false, "repo": "acme.billing.api" } }
+  ],
+  "conflicts": [
+    { "id": "org.security", "kind": "section", "rule": "override_not_declared", "winner": "org", "loser": "repo" }
+  ],
+  "waivers": [
+    { "check_id": "org.deps", "reason": "pinned upgrade lands in PROJ-9", "author": "dev", "created": "2026-09-01T10:00:00Z", "expires": "2026-12-01T00:00:00Z", "expired": false, "repo": "acme.billing.api" }
   ]
 }

@@ -35,22 +35,39 @@ type Section struct {
 // Check is one standards.json checks[] entry: one tool run the CLI
 // performs, once internal/standards/check runners exist (phase 14).
 type Check struct {
-	ID        string    `json:"id"`
-	Kind      string    `json:"kind"`
-	Tool      string    `json:"tool"`
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+	// Tool is the external binary this check runs, or empty for a
+	// built-in runner — the spec's Checks table documents dependency,
+	// layout, docs, commit and pr as built-in, and its own manifest
+	// example spells `{ "id": "commit.conventional", "kind": "commit",
+	// "severity": "must" }` with no tool at all.
+	Tool      string    `json:"tool,omitempty"`
 	Config    string    `json:"config,omitempty"`
 	Severity  string    `json:"severity"`
 	Input     string    `json:"input,omitempty"` // "source" (default) or "render"
 	AppliesTo AppliesTo `json:"applies_to,omitempty"`
 }
 
+// Override is one standards.json overrides[] entry: this pack
+// declares, with a reason, that it replaces a less specific layer's
+// `must` section or check of that id. Without a declaration the less
+// specific entry wins and the conflict is reported at resolve time
+// (see resolve.go); replacing a `should` or a `may` needs no
+// declaration at all.
+type Override struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
 // Manifest is one pack's standards.json, unmarshalled.
 type Manifest struct {
-	SchemaVersion int       `json:"schema_version"`
-	ID            string    `json:"id"`
-	Version       string    `json:"version"`
-	Sections      []Section `json:"sections"`
-	Checks        []Check   `json:"checks"`
+	SchemaVersion int        `json:"schema_version"`
+	ID            string     `json:"id"`
+	Version       string     `json:"version"`
+	Sections      []Section  `json:"sections"`
+	Checks        []Check    `json:"checks"`
+	Overrides     []Override `json:"overrides,omitempty"`
 }
 
 // Load reads dir/standards.json, validates it against the embedded

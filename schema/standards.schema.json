@@ -2,53 +2,175 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/standards.schema.json",
   "title": "standards",
-  "description": "~/.ai-flow/<KEY>/standards.json — the resolved standards layering for one ticket. Nested shapes are minimal placeholders in phase 2; phase 13 (the resolver) owns and tightens them.",
+  "description": "~/.ai-flow/<KEY>/standards.json — the resolved standards layering for one ticket, written by `standards resolve` and refreshed by `stage start` when the resolution hash moves. Stage-independent: one resolution covers every stage, and each section records the stages the budget dropped it from (dropped_from[]); guidance.md is the per-stage rendering of this same resolution.",
   "type": "object",
-  "required": ["resolution_hash", "sources", "languages", "addons", "sections", "checks"],
+  "required": ["resolution_hash", "sources", "languages", "addons", "budget", "sections", "checks"],
   "additionalProperties": false,
   "properties": {
-    "resolution_hash": { "type": "string", "minLength": 1 },
+    "resolution_hash": {
+      "type": "string",
+      "minLength": 1,
+      "description": "sha256 over (budget, languages, addons, pack identity, waivers). `standards resolve` is idempotent on this value."
+    },
     "sources": {
       "type": "array",
+      "description": "Every pack that contributed, in layer order (org, team, repo).",
       "items": {
         "type": "object",
-        "required": ["id", "repo", "ref", "layer"],
+        "required": ["id", "ref", "layer", "fingerprint"],
+        "additionalProperties": false,
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "minLength": 1 },
           "repo": { "type": "string" },
-          "ref": { "type": "string" },
-          "layer": { "enum": ["org", "team", "repo"] }
+          "ref": { "type": "string", "minLength": 1 },
+          "layer": { "enum": ["org", "team", "repo"] },
+          "version": { "type": "string" },
+          "commit": {
+            "type": "string",
+            "description": "The git commit this pack was synced at, \"embedded\" for the embedded reference pack, or empty for a local-path pack that has no commit."
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1,
+            "description": "sha256 over the pack tree's sorted path→content digests — what actually moves the resolution hash when pack content changes under a pinned ref."
+          }
         }
       }
     },
     "languages": { "type": "array", "items": { "type": "string" } },
     "addons": { "type": "array", "items": { "type": "string" } },
+    "budget": {
+      "type": "object",
+      "required": ["tokens", "per_stage"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "config.standards.guidance_budget_tokens; 0 means unbudgeted (nothing is ever dropped)."
+        },
+        "per_stage": {
+          "type": "array",
+          "description": "One entry per stage that has any applicable section, in pipeline order.",
+          "items": {
+            "type": "object",
+            "required": ["stage", "kept", "dropped", "must_overflow_bytes"],
+            "additionalProperties": false,
+            "properties": {
+              "stage": { "type": "string", "minLength": 1 },
+              "kept": { "type": "array", "items": { "type": "string" } },
+              "dropped": { "type": "array", "items": { "type": "string" } },
+              "must_overflow_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "How far the must set alone exceeded the budget, in bytes. Nothing truncates a must; this records the overflow so guidance.md and doctor can report it."
+              }
+            }
+          }
+        }
+      }
+    },
     "sections": {
       "type": "array",
+      "description": "Every section from every layer, in (severity, layer, id) order. An entry with overridden_by set is shadowed by a more specific layer and contributes nothing; the effective set is the entries whose overridden_by is null.",
       "items": {
         "type": "object",
-        "required": ["id", "layer"],
+        "required": ["id", "layer", "severity", "path", "overridden_by"],
+        "additionalProperties": false,
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "minLength": 1 },
           "layer": { "enum": ["org", "team", "repo"] },
-          "overridden_by": { "type": ["string", "null"] }
+          "severity": { "enum": ["must", "should", "may"] },
+          "path": { "type": "string", "minLength": 1 },
+          "applies_to": { "$ref": "#/$defs/appliesTo" },
+          "overridden_by": {
+            "type": ["string", "null"],
+            "description": "The layer that replaced this entry, or null when this entry is the effective one."
+          },
+          "override_reason": {
+            "type": "string",
+            "description": "The reason the overriding manifest declared for replacing this entry, when it declared one."
+          },
+          "conflict": {
+            "enum": ["override_not_declared"],
+            "description": "Set on the entry that lost because it tried to replace a less specific must without an overrides[] declaration."
+          },
+          "dropped_from": {
+            "type": "array",
+            "description": "The stages the token budget dropped this section from.",
+            "items": { "type": "string" }
+          }
         }
       }
     },
     "checks": {
       "type": "array",
+      "description": "Every check from every layer, in (layer, id) order, with the same overridden_by shadowing rule as sections.",
       "items": {
         "type": "object",
-        "required": ["id", "layer", "waived"],
+        "required": ["id", "layer", "kind", "severity", "overridden_by", "waived"],
+        "additionalProperties": false,
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "minLength": 1 },
           "layer": { "enum": ["org", "team", "repo"] },
+          "kind": { "enum": ["format", "lint", "policy", "scan", "dependency", "secrets", "layout", "docs", "commit", "pr"] },
+          "tool": { "type": "string" },
+          "config": { "type": "string" },
+          "severity": { "enum": ["must", "should", "may"] },
+          "input": { "enum": ["source", "render"] },
+          "applies_to": { "$ref": "#/$defs/appliesTo" },
+          "overridden_by": { "type": ["string", "null"] },
+          "override_reason": { "type": "string" },
+          "conflict": { "enum": ["override_not_declared"] },
           "waived": { "type": "boolean" },
-          "dropped_from": {
-            "type": "array",
-            "items": { "enum": ["should", "may"] }
-          }
+          "waiver": { "$ref": "#/$defs/waiverRecord" }
         }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "description": "Every resolve-time conflict, reported rather than failed: a more specific layer tried to replace a less specific must without declaring it.",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "rule", "winner", "loser"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["section", "check"] },
+          "rule": { "enum": ["override_not_declared"] },
+          "winner": { "enum": ["org", "team", "repo"] },
+          "loser": { "enum": ["org", "team", "repo"] }
+        }
+      }
+    },
+    "waivers": {
+      "type": "array",
+      "description": "Every waiver read from every in-scope repository's .ai-flow/waivers.json, expired ones included (an expired waiver re-fires, and is recorded here with expired: true).",
+      "items": { "$ref": "#/$defs/waiverRecord" }
+    }
+  },
+  "$defs": {
+    "appliesTo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "addons": { "type": "array", "items": { "type": "string" } },
+        "stages": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "waiverRecord": {
+      "type": "object",
+      "required": ["check_id", "reason", "author", "created", "expires", "expired"],
+      "additionalProperties": false,
+      "properties": {
+        "check_id": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "author": { "type": "string", "minLength": 1 },
+        "created": { "type": "string", "minLength": 1 },
+        "expires": { "type": "string", "minLength": 1 },
+        "expired": { "type": "boolean" },
+        "repo": { "type": "string" }
       }
     }
   }

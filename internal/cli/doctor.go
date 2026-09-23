@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"sort"
@@ -101,6 +102,26 @@ type doctorPackReport struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// doctorGuidanceBudget is the active ticket's guidance-budget health —
+// phase 13's own doctor line ("doctor reports it" for the must-overflow
+// case). Per ticket rather than global, because the budget is only ever
+// exceeded by a *resolution*, and a resolution belongs to a ticket;
+// the active ticket is the only one doctor already knows about.
+type doctorGuidanceBudget struct {
+	Key    string                      `json:"key"`
+	Tokens int                         `json:"tokens"`
+	Stages []doctorGuidanceBudgetStage `json:"stages"`
+}
+
+// doctorGuidanceBudgetStage is one stage whose must sections alone
+// overflowed the budget. Stages that fit are not listed: doctor reports
+// findings, not an inventory.
+type doctorGuidanceBudgetStage struct {
+	Stage             string `json:"stage"`
+	MustOverflowBytes int    `json:"must_overflow_bytes"`
+	Dropped           int    `json:"dropped"`
+}
+
 type doctorResult struct {
 	Config          doctorConfig           `json:"config"`
 	EnvVars         []doctorEnvVar         `json:"env_vars"`
@@ -114,6 +135,7 @@ type doctorResult struct {
 	Hosts           []doctorHostReport     `json:"hosts"`
 	HookSelftest    []doctorSelftestReport `json:"hook_selftest"`
 	Packs           []doctorPackReport     `json:"packs"`
+	GuidanceBudget  *doctorGuidanceBudget  `json:"guidance_budget"`
 }
 
 // testRunnerBinaries and mutationToolBinaries are the fixed tables
@@ -187,6 +209,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			var packsWarnings []string
 			result.Packs, packsWarnings = doctorProbePacks(f.Home, cfg)
 			warnings = append(warnings, packsWarnings...)
+
+			var budgetWarnings []string
+			result.GuidanceBudget, budgetWarnings = doctorProbeGuidanceBudget(f.Home, result.Active)
+			warnings = append(warnings, budgetWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -524,4 +550,40 @@ func doctorProbePacks(home string, cfg *config.Config) ([]doctorPackReport, []st
 		reports = append(reports, r)
 	}
 	return reports, warnings
+}
+
+// doctorProbeGuidanceBudget reads the active ticket's standards.json
+// and reports every stage whose `must` sections alone exceeded
+// config.standards.guidance_budget_tokens — the spec's "guidance.md
+// still carries every must section, records `Budget exceeded by must
+// sections:` with the overflow in bytes, and doctor reports it."
+//
+// No active ticket, no standards.json yet, or a standards.json this
+// binary cannot parse all report nothing: doctor's own philosophy is
+// findings-as-data and never failing, and "there is nothing resolved
+// to check" is not a finding.
+func doctorProbeGuidanceBudget(home string, active *doctorActive) (*doctorGuidanceBudget, []string) {
+	if active == nil {
+		return nil, nil
+	}
+
+	a, err := standards.ReadArtifact(handoff.TicketDir(home, active.Key))
+	if err != nil || a == nil {
+		return nil, nil
+	}
+
+	report := &doctorGuidanceBudget{Key: active.Key, Tokens: a.Budget.Tokens, Stages: []doctorGuidanceBudgetStage{}}
+	var warnings []string
+	for _, ps := range a.Budget.PerStage {
+		if ps.MustOverflowBytes == 0 {
+			continue
+		}
+		report.Stages = append(report.Stages, doctorGuidanceBudgetStage{
+			Stage: ps.Stage, MustOverflowBytes: ps.MustOverflowBytes, Dropped: len(ps.Dropped),
+		})
+		warnings = append(warnings, fmt.Sprintf(
+			"%s: the %s stage's must sections exceed guidance_budget_tokens by %d bytes; nothing is truncated, but every should and may is dropped",
+			active.Key, ps.Stage, ps.MustOverflowBytes))
+	}
+	return report, warnings
 }

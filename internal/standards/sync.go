@@ -139,7 +139,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 		if err := copyLocalPack(src.Repo, cacheDir); err != nil {
 			return SyncedSource{}, packUnreachable(src.ID, err)
 		}
-		if err := writeSyncMeta(metaPath, now(), RefKindLocal); err != nil {
+		if err := writeSyncMeta(metaPath, now(), RefKindLocal, ""); err != nil {
 			return SyncedSource{}, err
 		}
 		return SyncedSource{ID: src.ID, Ref: src.Ref, RefKind: RefKindLocal, Path: cacheDir}, nil
@@ -168,7 +168,8 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 		return SyncedSource{}, fmt.Errorf("standards: remove stale cache %s: %w", cacheDir, err)
 	}
 
-	if err := cloneAt(cacheDir, src.Repo, src.Ref, kind, refName, auth); err != nil {
+	commit, err := cloneAt(cacheDir, src.Repo, src.Ref, kind, refName, auth)
+	if err != nil {
 		return SyncedSource{}, packUnreachable(src.ID, err)
 	}
 	// Strip .git so the cached tree is pack content only — the same
@@ -178,7 +179,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 		return SyncedSource{}, fmt.Errorf("standards: remove %s/.git: %w", cacheDir, err)
 	}
 
-	if err := writeSyncMeta(metaPath, now(), kind); err != nil {
+	if err := writeSyncMeta(metaPath, now(), kind, commit); err != nil {
 		return SyncedSource{}, err
 	}
 	return SyncedSource{ID: src.ID, Ref: src.Ref, RefKind: kind, Path: cacheDir}, nil
@@ -214,16 +215,16 @@ func classifyRef(repoURL, ref string, auth transport.AuthMethod) (RefKind, plumb
 	return "", "", fmt.Errorf("ref %q is neither a tag nor a branch on %s, and is not shaped like a commit hash", ref, repoURL)
 }
 
-// cloneAt materializes ref (already classified as kind) into dir. A
-// tag or branch clones shallow and single-branch, straight to that
-// ref; a commit clones the default branch in full and checks the
-// commit out, since a shallow clone cannot target an arbitrary
-// historical commit without server-side support this package does not
-// assume.
-func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceName, auth transport.AuthMethod) error {
+// cloneAt materializes ref (already classified as kind) into dir and
+// returns the commit hash it landed on. A tag or branch clones shallow
+// and single-branch, straight to that ref; a commit clones the default
+// branch in full and checks the commit out, since a shallow clone
+// cannot target an arbitrary historical commit without server-side
+// support this package does not assume.
+func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceName, auth transport.AuthMethod) (string, error) {
 	switch kind {
 	case RefKindTag, RefKindBranch:
-		_, err := git.PlainClone(dir, false, &git.CloneOptions{
+		repo, err := git.PlainClone(dir, false, &git.CloneOptions{
 			URL:           repoURL,
 			Auth:          auth,
 			ReferenceName: refName,
@@ -231,24 +232,43 @@ func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceN
 			Depth:         1,
 			Tags:          git.NoTags,
 		})
-		return err
+		if err != nil {
+			return "", err
+		}
+		return headCommit(repo)
 	case RefKindCommit:
 		repo, err := git.PlainClone(dir, false, &git.CloneOptions{URL: repoURL, Auth: auth})
 		if err != nil {
-			return err
+			return "", err
 		}
 		wt, err := repo.Worktree()
 		if err != nil {
-			return err
+			return "", err
 		}
-		return wt.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(ref)})
+		if err := wt.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(ref)}); err != nil {
+			return "", err
+		}
+		return headCommit(repo)
 	default:
 		// RefKindLocal never reaches cloneAt (syncOne returns early for
 		// a local source, before classifyRef/cloneAt are ever called);
 		// this arm exists only for a kind classifyRef could never
 		// actually produce.
-		return fmt.Errorf("standards: unknown ref kind %q", kind)
+		return "", fmt.Errorf("standards: unknown ref kind %q", kind)
 	}
+}
+
+// headCommit reports repo's checked-out commit. A clone that succeeded
+// always has one, so a failure here is a broken go-git invariant, not
+// a state a caller can recover from differently — it is still returned
+// as an error rather than panicking, since cloneAt's own contract is
+// "return an error."
+func headCommit(repo *git.Repository) (string, error) {
+	head, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("resolve HEAD after clone: %w", err)
+	}
+	return head.Hash().String(), nil
 }
 
 // packUnreachable builds the pack_unreachable envelope error every
@@ -318,6 +338,12 @@ func copyLocalPack(src, dst string) error {
 type syncMeta struct {
 	SyncedAt string `json:"synced_at"`
 	RefKind  string `json:"ref_kind"`
+	// Commit is the git commit the clone actually landed on — needed by
+	// the resolver (phase 13), whose resolution hash covers "pack
+	// commits" and whose guidance.md header names them. Empty for a
+	// local-path source, and for a sidecar written before this field
+	// existed; readSyncMeta is tolerant of both.
+	Commit string `json:"commit,omitempty"`
 }
 
 // writeSyncMeta and readSyncMeta go through internal/handoff's own
@@ -326,8 +352,8 @@ type syncMeta struct {
 // codebase uses, rather than a second, non-atomic os.WriteFile of its
 // own. syncMeta carries no schema (it is not one of the seventeen
 // handoff artifacts), matching active.json's own use of WriteRaw.
-func writeSyncMeta(path string, at time.Time, kind RefKind) error {
-	meta := syncMeta{SyncedAt: at.UTC().Format(time.RFC3339), RefKind: string(kind)}
+func writeSyncMeta(path string, at time.Time, kind RefKind, commit string) error {
+	meta := syncMeta{SyncedAt: at.UTC().Format(time.RFC3339), RefKind: string(kind), Commit: commit}
 	if _, err := handoff.WriteRaw(filepath.Dir(path), filepath.Base(path), meta); err != nil {
 		return fmt.Errorf("standards: write %s: %w", path, err)
 	}
@@ -364,6 +390,7 @@ func dirExists(path string) bool {
 type Status struct {
 	Cached  bool
 	RefKind RefKind
+	Commit  string
 	Stale   bool
 }
 
@@ -383,7 +410,7 @@ func StatusOf(home, id, ref string, now func() time.Time) Status {
 		return Status{Cached: true}
 	}
 
-	st := Status{Cached: true, RefKind: RefKind(meta.RefKind)}
+	st := Status{Cached: true, RefKind: RefKind(meta.RefKind), Commit: meta.Commit}
 	if st.RefKind == RefKindBranch {
 		syncedAt, perr := time.Parse(time.RFC3339, meta.SyncedAt)
 		st.Stale = perr != nil || now().Sub(syncedAt) >= branchReSyncAfter

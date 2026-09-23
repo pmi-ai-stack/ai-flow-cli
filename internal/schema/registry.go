@@ -10,12 +10,13 @@ import (
 var ErrUnknownArtifact = errors.New("schema: unknown artifact")
 
 // artifacts is every JSON shape this system documents, in the order
-// the spec's handoff table lists the sixteen that appear there. Two
+// the spec's handoff table lists the sixteen that appear there. Three
 // entries are not ticket handoff artifacts — "skill-frontmatter"
-// (SKILL.md frontmatter) and "pack" (a standards pack's own
-// standards.json manifest, internal/standards's, phase 12) — but are
-// registered the same way, so this list stays the one canonical
-// enumeration of every machine-readable shape ai-flow defines. An
+// (SKILL.md frontmatter), "pack" (a standards pack's own standards.json
+// manifest, phase 12) and "waivers" (a repository's own
+// .ai-flow/waivers.json, phase 13) — but are registered the same way,
+// so this list stays the one canonical enumeration of every
+// machine-readable shape ai-flow defines. An
 // artifact missing from this list has no embedded schema at all, which
 // TestAllHandoffArtifactsHaveASchema in this package's tests guards.
 var artifacts = []string{
@@ -37,6 +38,7 @@ var artifacts = []string{
 	"ship-results",
 	"skill-frontmatter",
 	"pack",
+	"waivers",
 }
 
 // Artifacts returns every embedded schema's artifact name, in table

@@ -16,6 +16,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/schema"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
 
 // stageResult is the result shape every mutating `stage` subcommand
@@ -189,12 +190,71 @@ func newStageStartCmd(cio cmdIO) *cobra.Command {
 			}
 			to := st.Entry(stage).State
 
+			warnings, err := resolveStandardsForStart(f, key, stage, to)
+			if err != nil {
+				return Outcome{}, err
+			}
+
 			if err := finalizeTransition(f.Home, key, stage, st, "stage start", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
-			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil
+			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}, Warnings: warnings}, nil
 		}),
 	}
+}
+
+// resolveStandardsForStart is `stage start`'s standards integration:
+// resolve, rewrite standards.json when the resolution hash moved, and
+// write the starting stage's own guidance.md.
+//
+// It can refuse the transition. A failure here returns before
+// finalizeTransition persists anything, so `stage start` fails with
+// nothing written — deliberately, since a stage whose skill is required
+// to read guidance.md first must not start without one. The refusals
+// it can produce are missing_repo_instructions (exit 4), pack_unreachable
+// (exit 5) and a config-load failure, all raised by the resolver itself.
+//
+// standards.json is written only on a hash change — the spec's
+// "refreshes guidance.md when the resolution hash moved" — but
+// guidance.md is written every time, because guidance is *per stage*:
+// starting review after implement must rewrite it even though nothing
+// about the resolution moved. The write is atomic and byte-stable, so
+// rewriting identical bytes is observationally a no-op.
+//
+// Skipped entirely before the plan stage: fetch and locate run before
+// repo.json exists, and repo.json is where the repo layer, the detected
+// languages and the waivers all come from. Also skipped for a stage
+// that did not actually start (skipped by its own rule, or parked at
+// awaiting_approval by a pre-gate) — there is no skill about to read a
+// guidance.md for a stage that is not running.
+func resolveStandardsForStart(f Flags, key string, stage handoff.Stage, to handoff.State) ([]string, error) {
+	if !handoff.PlanOrLater(stage) || to != handoff.StateRunning || f.Simulate {
+		return nil, nil
+	}
+	// repo.json absent means locate has not completed. The stage machine
+	// does not enforce pipeline order, so this is reachable — and a
+	// stage start that refused because of it would be a new
+	// precondition this phase has no mandate to add. Skip silently: the
+	// next start after locate resolves, and `standards resolve` itself
+	// still reports missing_artifact when called directly.
+	if _, err := os.Stat(handoff.RepoPath(f.Home, key)); err != nil {
+		return nil, nil //nolint:nilerr // an absent repo.json is "not resolvable yet", not a failure
+	}
+
+	cfg, err := config.Load(f.Home, f.Config)
+	if err != nil {
+		return nil, err
+	}
+	e, packs, _, err := resolveAndWrite(f, key, cfg)
+	defer standards.ClosePacks(packs)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := standards.WriteGuidance(handoff.TicketDir(f.Home, key), key, string(stage), e); err != nil {
+		return nil, err
+	}
+	return e.Warnings(), nil
 }
 
 func newStageCompleteCmd(cio cmdIO) *cobra.Command {

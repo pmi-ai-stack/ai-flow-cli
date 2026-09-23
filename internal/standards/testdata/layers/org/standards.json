@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "acme-org",
+  "version": "3.2.0",
+  "sections": [
+    { "id": "org.errors", "path": "guidance/errors.md", "severity": "must",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "org.security", "path": "guidance/security.md", "severity": "must",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "org.naming", "path": "guidance/naming.md", "severity": "should",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "org.logging", "path": "guidance/logging.md", "severity": "should",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "org.generics", "path": "guidance/generics.md", "severity": "may",
+      "applies_to": { "languages": ["go"], "stages": ["implement", "review"] } }
+  ],
+  "checks": [
+    { "id": "org.lint", "kind": "lint", "tool": "golangci-lint", "severity": "must",
+      "applies_to": { "languages": ["go"] } },
+    { "id": "org.deps", "kind": "dependency", "severity": "should" },
+    { "id": "org.secrets", "kind": "secrets", "tool": "gitleaks", "severity": "must" }
+  ]
+}

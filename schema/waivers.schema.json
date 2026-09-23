@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-flow.dev/schema/waivers.schema.json",
+  "title": "waivers",
+  "description": "<repo>/.ai-flow/waivers.json — a repository's own check waivers. Written only by `standards waive`, and only after the developer confirmed (exit 4 waiver_confirmation, then --confirmed). Not a ticket handoff artifact: it lives in the repository, is committed with it, and is read by every ticket that touches that repository. `expires` is required and an expired waiver re-fires; `secrets` checks cannot be waived; sections cannot be waived at all, only overridden.",
+  "type": "object",
+  "required": ["schema_version", "waivers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "waivers": {
+      "type": "array",
+      "description": "Sorted by check_id — at most one waiver per check.",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "reason", "author", "created", "expires"],
+        "additionalProperties": false,
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "author": { "type": "string", "minLength": 1 },
+          "created": {
+            "type": "string",
+            "minLength": 1,
+            "description": "RFC 3339 instant the waiver was written — one of the few real clock values in the system, and exempt from byte-stability for the same reason a status.json approval's `at` is."
+          },
+          "expires": {
+            "type": "string",
+            "minLength": 1,
+            "description": "RFC 3339 instant, or a bare YYYY-MM-DD date meaning midnight UTC that day. Required: a waiver without an expiry is a silent permanent suppression."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,10 +1,11 @@
 {
-  "resolution_hash": "abc123",
+  "resolution_hash": "sha256:9f2a1c4de0b7",
   "sources": [],
   "languages": [],
   "addons": [],
+  "budget": { "tokens": 6000, "per_stage": [] },
   "sections": [],
   "checks": [
-    { "id": "org.gofmt", "layer": "not-a-layer", "waived": false }
+    { "id": "org.gofmt", "layer": "not-a-layer", "kind": "format", "severity": "must", "overridden_by": null, "waived": false }
   ]
 }

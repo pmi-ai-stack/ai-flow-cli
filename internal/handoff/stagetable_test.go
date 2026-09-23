@@ -1,6 +1,9 @@
 package handoff
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestStageTableCoversEveryStageInOrder(t *testing.T) {
 	tbl := StageTable()
@@ -65,4 +68,21 @@ func TestStageTableEntryUnknownStage(t *testing.T) {
 	if _, ok := StageTableEntry(Stage("no-such-stage")); ok {
 		t.Error("StageTableEntry(unknown) = ok, want not found")
 	}
+}
+
+// TestGuidanceFirstAppearsAtPlan makes PlanOrLater's own doc comment
+// executable: it claims the plan stage is where guidance.md first
+// appears in this table, and PlanOrLater hard-codes StagePlan to match.
+// If a future phase moves guidance.md earlier, the predicate and its
+// justification would silently disagree — this catches that.
+func TestGuidanceFirstAppearsAtPlan(t *testing.T) {
+	for _, d := range StageTable() {
+		if slices.Contains(d.Artifacts, "guidance.md") {
+			if d.Stage != StagePlan {
+				t.Errorf("guidance.md first appears at stage %s, but PlanOrLater hard-codes %s", d.Stage, StagePlan)
+			}
+			return
+		}
+	}
+	t.Error("no stage in StageTable() names guidance.md as an artifact")
 }

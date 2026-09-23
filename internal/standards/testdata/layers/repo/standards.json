@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "acme.billing.api",
+  "version": "0.1.0",
+  "sections": [
+    { "id": "org.errors", "path": "guidance/errors.md", "severity": "must",
+      "applies_to": { "stages": ["implement", "review"] } },
+    { "id": "org.security", "path": "guidance/security.md", "severity": "must",
+      "applies_to": { "stages": ["implement", "review"] } }
+  ],
+  "checks": [],
+  "overrides": [
+    { "id": "org.errors", "reason": "this service carries trace context on every error" }
+  ]
+}
