@@ -8,7 +8,7 @@ The deterministic side of the ai-flow pipeline. One Go binary; every tracker, gi
 curl -fsSL https://raw.githubusercontent.com/pmi-ai-stack/ai-flow-cli/main/install.sh | sh
 ```
 
-Or download a release archive from the [releases page](https://github.com/pmi-ai-stack/ai-flow-cli/releases) and verify it against `checksums.txt` yourself.
+Or download a release archive from the [releases page](https://github.com/pmi-ai-stack/ai-flow-cli/releases) and verify it against `checksums.txt` yourself. `install.sh -v vX.Y.Z -d DIR` pins a specific release and install directory — this is what the [`ai-flow` plugin's `session-start.sh`](../ai-flow/hooks/session-start.sh) calls automatically, resolved against its own manifest's `cli_version` range, so most people never run this by hand.
 
 ## The contract
 
