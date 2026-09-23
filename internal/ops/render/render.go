@@ -177,3 +177,23 @@ func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
 }
+
+// Load returns the *ops.Rendered (real cache directory plus its
+// sensitivity markings) for a hash Render has already produced —
+// phase 20's own way of handing Addon.Validate/Drift/DryRun the real
+// rendering they must run against (Determinism §6: the real one is
+// only reachable through Exec, and a validator/planner subprocess is
+// part of that same trust boundary). The caller is expected to have
+// gotten hash from a prior Render call in this same invocation; Load
+// itself does not render anything and does not error when the cache
+// entry is absent (CachePath simply reads as empty in that case, the
+// same tolerant-of-absence shape ReadArtifact/readMarkings already
+// use) — it is the caller's job to have rendered first.
+func Load(home, hash string) (*ops.Rendered, error) {
+	dir := CachePath(home, hash)
+	marked, err := readMarkings(dir)
+	if err != nil {
+		return nil, err
+	}
+	return &ops.Rendered{Dir: dir, Marked: marked}, nil
+}

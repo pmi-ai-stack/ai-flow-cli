@@ -32,6 +32,24 @@ func TestNeedsInputForEnvAmbiguous(t *testing.T) {
 	}
 }
 
+// TestNeedsInputForLiveCredentialsMissing is a direct unit test of the
+// phase-20 mapping: options are the spec's own two (provide, offline),
+// resume_with is the literal `ops dry-run KEY --offline` a developer
+// answering "offline" would run.
+func TestNeedsInputForLiveCredentialsMissing(t *testing.T) {
+	err := &envelope.Error{Code: "live_credentials_missing"}
+	got := needsInputFor(err, "PROJ-1")
+	if got == nil {
+		t.Fatal("needsInputFor = nil, want a NeedsInput for live_credentials_missing")
+	}
+	if len(got.Options) != 2 || got.Options[0] != "provide" || got.Options[1] != "offline" {
+		t.Errorf("Options = %v, want [provide offline]", got.Options)
+	}
+	if got.ResumeWith != "ops dry-run PROJ-1 --offline" {
+		t.Errorf("ResumeWith = %q, want %q", got.ResumeWith, "ops dry-run PROJ-1 --offline")
+	}
+}
+
 type opsTargetsFixture struct {
 	AppFiles []string `json:"app_files"`
 	Targets  []struct {

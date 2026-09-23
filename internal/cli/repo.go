@@ -221,6 +221,12 @@ func needsInputFor(err error, key string) *envelope.NeedsInput {
 			Options:    envErr.Details,
 			ResumeWith: "ops detect " + key,
 		}
+	case "live_credentials_missing":
+		return &envelope.NeedsInput{
+			Question:   "A target's environment requires live credentials this session does not have; provide them, or compute the changeset offline?",
+			Options:    []string{"provide", "offline"},
+			ResumeWith: "ops dry-run " + key + " --offline",
+		}
 	default:
 		return nil
 	}

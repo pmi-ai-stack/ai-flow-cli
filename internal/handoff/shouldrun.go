@@ -61,15 +61,21 @@ type ShouldRunInput struct {
 	// HasMutationTool is true when internal/detect.Mutation matched at
 	// least one of repo.json's repositories — mutation's rule, phase 7.
 	HasMutationTool bool
+	// HasChangedTarget is true when ops-targets.json names any target
+	// with changed: true — render-drift's and dry-run's shared rule,
+	// phase 20 ("no_changed_target"/"no_changed_target_with_dry_run":
+	// the coded ids differ, the predicate does not).
+	HasChangedTarget bool
 }
 
 // ShouldRun implements `stage should-run KEY <stage>`: it is read-only
 // and never mutates status.json. visual-test and e2e are real as of
-// phase 6, mutation as of phase 7; every other stage ignores in
-// entirely and answers run: true, exactly as it did before this type
-// existed — a dedicated test pins that this stays true regardless of
-// what in carries, so a future phase's own field additions cannot
-// accidentally change a rule they don't own.
+// phase 6, mutation as of phase 7, render-drift and dry-run as of
+// phase 20; every other stage ignores in entirely and answers
+// run: true, exactly as it did before this type existed — a dedicated
+// test pins that this stays true regardless of what in carries, so a
+// future phase's own field additions cannot accidentally change a rule
+// they don't own.
 func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 	switch stage {
 	case StageVisualTest:
@@ -78,6 +84,8 @@ func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 		return in.HasAppFiles && in.HasE2ESuite, skipRuleFor(stage)
 	case StageMutation:
 		return in.HasAppFiles && in.HasMutationTool, skipRuleFor(stage)
+	case StageRenderDrift, StageDryRun:
+		return in.HasChangedTarget, skipRuleFor(stage)
 	default:
 		return true, skipRuleFor(stage)
 	}

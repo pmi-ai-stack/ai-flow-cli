@@ -1,5 +1,5 @@
 {
   "targets": [
-    { "target": "infra/prod", "drift": "none", "drift_resources": [], "validation": [] }
+    { "target": "infra/prod", "hash": "abc123", "drift": "none", "drift_resources": [], "validation": [] }
   ]
 }

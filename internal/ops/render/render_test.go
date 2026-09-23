@@ -212,3 +212,55 @@ func TestRenderPassesResolvedSourceDirToAddon(t *testing.T) {
 		t.Fatalf("Render: %v (addon should have received SourceDir, not the canonical relative Path)", err)
 	}
 }
+
+// TestLoadReturnsTheRealRenderingAndItsMarkings is phase 20's own first
+// caller of Load: given a hash Render already produced, Load returns
+// the *ops.Rendered (real, unredacted dir + markings) Addon.Validate/
+// Drift/DryRun need — not the redacted copy.
+func TestLoadReturnsTheRealRenderingAndItsMarkings(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	const secret = "super-secret-value"
+	writeSource(t, src, map[string]string{"secret.txt": secret})
+
+	addon := fixtureaddon.New("fixture", "infra")
+	addon.SensitiveFiles = []string{"secret.txt"}
+	res, err := render.Render(context.Background(), render.Options{
+		Addon: addon, Target: target("acme.infra", "infra"), Ref: ops.RefBranch, SourceDir: src, Home: home, Key: "PROJ-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered, err := render.Load(home, res.Hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rendered.Dir != render.CachePath(home, res.Hash) {
+		t.Errorf("Load Dir = %q, want %q", rendered.Dir, render.CachePath(home, res.Hash))
+	}
+	data, err := os.ReadFile(filepath.Join(rendered.Dir, "secret.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != secret {
+		t.Errorf("real cache content = %q, want the unredacted secret (Load reads the real rendering, not the redacted copy)", data)
+	}
+	if len(rendered.Marked) != 1 || rendered.Marked[0].Value != secret {
+		t.Errorf("Load Marked = %+v, want one entry carrying the secret value", rendered.Marked)
+	}
+}
+
+// TestLoadOfAnUnrenderedHashHasNoMarkings proves Load does not error on
+// a hash nothing has rendered yet — it simply carries no markings, the
+// same tolerant-of-absence shape readMarkings/ReadArtifact already use.
+func TestLoadOfAnUnrenderedHashHasNoMarkings(t *testing.T) {
+	home := t.TempDir()
+	rendered, err := render.Load(home, "0000000000000000000000000000000000000000000000000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rendered.Marked) != 0 {
+		t.Errorf("Marked = %+v, want none", rendered.Marked)
+	}
+}

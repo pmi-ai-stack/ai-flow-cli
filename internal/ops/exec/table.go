@@ -123,6 +123,11 @@ var Table = []Row{
 	// name across tools — this row's own flag is "--dry-run=server".
 	{Tool: "kubectl", Verb: []string{"apply"}, RequiredFlags: []string{"--dry-run=server"}, Mutating: true, Class: ClassReadOnlyLive},
 	{Tool: "kubectl", Verb: []string{"rollout", "history"}, Class: ClassReadOnlyLive},
+	// Phase 20's own doctor live probe (spec line 470: "kubectl auth
+	// can-i --list" → "read_only") — addon-independent, no capability
+	// matrix column names it, added here for the same reason phase 18's
+	// own kubectl rows above predate any kubectl addon (phase 22).
+	{Tool: "kubectl", Verb: []string{"auth", "can-i"}, RequiredFlags: []string{"--list"}, Class: ClassReadOnlyLive},
 	{Tool: "kuttl", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
 	{Tool: "chainsaw", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
 

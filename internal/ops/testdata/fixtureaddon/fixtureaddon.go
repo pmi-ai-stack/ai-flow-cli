@@ -41,6 +41,26 @@ type Addon struct {
 	// that a cache hit never calls it a second time for the same
 	// content.
 	RenderCalls int
+	// ValidateFindings, when set, is Validate's fixed answer — phase
+	// 20's own way of proving render-drift/dry-run write a target's
+	// validation[] faithfully without a real validator tool.
+	ValidateFindings []ops.Finding
+	// ValidateCalls counts real Validate invocations — phase 20's proof
+	// that dry-run skips re-validating an unchanged target.
+	ValidateCalls int
+	// DriftReport, when non-nil, is Drift's fixed answer instead of the
+	// zero-value fixed DriftNone/no-resources one.
+	DriftReport *ops.DriftReport
+	// DryRunChangeset, when non-nil, is DryRun's fixed answer instead of
+	// the zero-value fixed empty Changeset{}.
+	DryRunChangeset *ops.Changeset
+	// LiveUnreachable, when true, makes Drift and DryRun return
+	// ops.ErrLiveCredentialsMissing whenever called with a *bound* Env
+	// (env.Name != "") — simulating "this environment's live
+	// credentials do not work" without a real tool. A call made with
+	// the unbound Env (env.Name == "", phase 20's own offline signal —
+	// see internal/cli/ops.go) always succeeds regardless of this flag.
+	LiveUnreachable bool
 }
 
 var _ ops.Addon = (*Addon)(nil)
@@ -115,14 +135,27 @@ func (a *Addon) Render(_ context.Context, t ops.Target, _ ops.Ref, out string) (
 }
 
 func (a *Addon) Validate(_ context.Context, _ *ops.Rendered) ([]ops.Finding, error) {
-	return nil, nil
+	a.ValidateCalls++
+	return a.ValidateFindings, nil
 }
 
-func (a *Addon) Drift(_ context.Context, _ ops.Target, _ ops.Env, _ *ops.Rendered) (*ops.DriftReport, error) {
+func (a *Addon) Drift(_ context.Context, _ ops.Target, env ops.Env, _ *ops.Rendered) (*ops.DriftReport, error) {
+	if env.Name != "" && a.LiveUnreachable {
+		return nil, ops.ErrLiveCredentialsMissing
+	}
+	if a.DriftReport != nil {
+		return a.DriftReport, nil
+	}
 	return &ops.DriftReport{Drift: ops.DriftNone}, nil
 }
 
-func (a *Addon) DryRun(_ context.Context, _ ops.Target, _ ops.Env, _ *ops.Rendered) (*ops.Changeset, error) {
+func (a *Addon) DryRun(_ context.Context, _ ops.Target, env ops.Env, _ *ops.Rendered) (*ops.Changeset, error) {
+	if env.Name != "" && a.LiveUnreachable {
+		return nil, ops.ErrLiveCredentialsMissing
+	}
+	if a.DryRunChangeset != nil {
+		return a.DryRunChangeset, nil
+	}
 	return &ops.Changeset{}, nil
 }
 

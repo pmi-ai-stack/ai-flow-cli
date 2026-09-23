@@ -23,12 +23,10 @@ func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 // does not own yet.
 func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 	want := map[Stage]string{
-		StageRenderDrift: "no_changed_target",
-		StageChecks:      "no_check_applies",
-		StageDryRun:      "no_changed_target_with_dry_run",
-		StageImpact:      "dry_run_skipped",
-		StageRollback:    "changeset_empty",
-		StageInfraTest:   "no_changed_target_or_no_harness",
+		StageChecks:    "no_check_applies",
+		StageImpact:    "dry_run_skipped",
+		StageRollback:  "changeset_empty",
+		StageInfraTest: "no_changed_target_or_no_harness",
 	}
 	inputs := []ShouldRunInput{
 		{},
@@ -120,6 +118,55 @@ func TestShouldRunMutation(t *testing.T) {
 			}
 			if rule != "no_app_files_or_no_mutation_tool" {
 				t.Errorf("rule = %q, want no_app_files_or_no_mutation_tool", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunRenderDrift and TestShouldRunDryRun pin phase 20's real
+// rule for both stages: HasChangedTarget alone decides it, the coded
+// rule id differs per stage (skipRules' own map) even though the
+// predicate is identical.
+func TestShouldRunRenderDrift(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"changed target", ShouldRunInput{HasChangedTarget: true}, true},
+		{"no changed target", ShouldRunInput{HasChangedTarget: false}, false},
+		{"no changed target, irrelevant fields set too", ShouldRunInput{HasFrontendFiles: true, HasAppFiles: true, HasE2ESuite: true, HasMutationTool: true}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageRenderDrift, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(render-drift, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_changed_target" {
+				t.Errorf("rule = %q, want no_changed_target", rule)
+			}
+		})
+	}
+}
+
+func TestShouldRunDryRun(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"changed target", ShouldRunInput{HasChangedTarget: true}, true},
+		{"no changed target", ShouldRunInput{HasChangedTarget: false}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageDryRun, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(dry-run, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_changed_target_with_dry_run" {
+				t.Errorf("rule = %q, want no_changed_target_with_dry_run", rule)
 			}
 		})
 	}

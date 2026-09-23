@@ -25,10 +25,14 @@ type Rendered struct {
 // against a Rendered target, independent of internal/standards/check's
 // Finding (that shape is for standards checks; this one is for a
 // tool's own static validation of a rendering, e.g. tflint, kubeconform).
+// Fields are declared in JSON-key alphabetical order (target.go's own
+// documented byte-stability convention) — phase 20 is this type's first
+// real serializer (render-drift-results.json's and dryrun-results.json's
+// own "validation[]").
 type Finding struct {
-	Tool     string
-	Severity string
-	Message  string
-	File     string
-	Line     int
+	File     string `json:"file,omitempty"`
+	Line     int    `json:"line,omitempty"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+	Tool     string `json:"tool"`
 }

@@ -26,6 +26,8 @@ func newOpsCmd(cio cmdIO) *cobra.Command {
 	}
 	cmd.AddCommand(newOpsDetectCmd(cio))
 	cmd.AddCommand(newOpsRenderCmd(cio))
+	cmd.AddCommand(newOpsDriftCmd(cio))
+	cmd.AddCommand(newOpsDryRunCmd(cio))
 	cmd.AddCommand(newOpsAddonsCmd(cio))
 	cmd.AddCommand(newOpsAllowlistCmd(cio))
 	return cmd
@@ -158,6 +160,25 @@ func loadOpsTargets(ticketDir string) (*ops.DetectResult, error) {
 	return &r, nil
 }
 
+// loadOpsTargetsTolerant is loadOpsTargets without the missing_artifact
+// error: (nil, nil) when ops-targets.json has not been written yet —
+// for callers (hasChangedTarget, checkDryRunFreshness) that treat its
+// absence as "nothing to check" rather than a precondition failure.
+func loadOpsTargetsTolerant(ticketDir string) (*ops.DetectResult, error) {
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "ops-targets.json"))
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, nil
+	}
+	var r ops.DetectResult
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, fmt.Errorf("cli: decode ops-targets.json: %w", err)
+	}
+	return &r, nil
+}
+
 type opsRenderResultTarget struct {
 	Target string `json:"target"`
 	Hash   string `json:"hash"`
@@ -245,9 +266,41 @@ func parseRef(s string) (ops.Ref, error) {
 	}
 }
 
-// renderOneTarget resolves t's source directory for ref (branch:
-// repoArt's own repository LocalPath; base: gitops.BaseWorktreePath,
-// which `git prepare` always creates) and, unless simulating, runs
+// resolveTargetSourceDir resolves t's source directory for ref
+// (branch: repoArt's own repository LocalPath; base:
+// gitops.BaseWorktreePath, which `git prepare` always creates),
+// refusing with missing_artifact when repo.json names no such
+// repository, or when the resolved checkout does not exist on disk
+// (naming "git prepare" as the fix). Shared by renderOneTarget and by
+// `ops drift`/`ops dry-run`'s own per-target orchestration (phase 20)
+// — the identical resolution three call sites now need.
+func resolveTargetSourceDir(f Flags, key string, repoArt *repoArtifact, t ops.Target, ref ops.Ref) (string, error) {
+	var repo *repoArtifactRepository
+	for i, r := range repoArt.Repositories {
+		if r.Name == t.Repo {
+			repo = &repoArt.Repositories[i]
+			break
+		}
+	}
+	if repo == nil {
+		return "", &envelope.Error{Code: "missing_artifact", Message: fmt.Sprintf("repo.json names no repository %q for target %q", t.Repo, ops.TargetKey(t))}
+	}
+
+	var root string
+	switch ref {
+	case ops.RefBranch:
+		root = repo.LocalPath
+	case ops.RefBase:
+		root = gitops.BaseWorktreePath(f.Home, key, repo.Name)
+	}
+	if !dirExists(root) {
+		return "", &envelope.Error{Code: "missing_artifact", Message: fmt.Sprintf("no %s checkout at %s for %s; run git prepare first", ref, root, t.Repo)}
+	}
+	return filepath.Join(root, t.Path), nil
+}
+
+// renderOneTarget resolves t's source directory for ref via
+// resolveTargetSourceDir and, unless simulating, runs
 // internal/ops/render.Render through t's own addon, looked up in reg
 // (the caller's production call site always passes
 // ops.DefaultRegistry() — this parameter exists so this function's
@@ -266,28 +319,10 @@ func renderOneTarget(ctx context.Context, f Flags, key string, repoArt *repoArti
 		return nil, nil
 	}
 
-	var repo *repoArtifactRepository
-	for i, r := range repoArt.Repositories {
-		if r.Name == t.Repo {
-			repo = &repoArt.Repositories[i]
-			break
-		}
+	sourceDir, err := resolveTargetSourceDir(f, key, repoArt, t, ref)
+	if err != nil {
+		return nil, err
 	}
-	if repo == nil {
-		return nil, &envelope.Error{Code: "missing_artifact", Message: fmt.Sprintf("repo.json names no repository %q for target %q", t.Repo, ops.TargetKey(t))}
-	}
-
-	var root string
-	switch ref {
-	case ops.RefBranch:
-		root = repo.LocalPath
-	case ops.RefBase:
-		root = gitops.BaseWorktreePath(f.Home, key, repo.Name)
-	}
-	if !dirExists(root) {
-		return nil, &envelope.Error{Code: "missing_artifact", Message: fmt.Sprintf("no %s checkout at %s for %s; run git prepare first", ref, root, t.Repo)}
-	}
-	sourceDir := filepath.Join(root, t.Path)
 
 	if f.Simulate {
 		return &opsRenderResultTarget{Target: ops.TargetKey(t)}, nil
@@ -305,6 +340,98 @@ func renderOneTarget(ctx context.Context, f Flags, key string, repoArt *repoArti
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// changedOrOneTarget selects `ops drift`/`ops dry-run`'s own per-target
+// scope: exactly one target when targetFlag names it (regardless of
+// Changed — `ops render`'s own precedent, useful for a manual re-run),
+// else every target ops-targets.json marks changed — "at dry-run the
+// targets are diff-scoped," which render-drift, running at the same
+// pipeline position, shares.
+func changedOrOneTarget(all []ops.Target, targetFlag string) ([]ops.Target, error) {
+	if targetFlag != "" {
+		for _, t := range all {
+			if ops.TargetKey(t) == targetFlag {
+				return []ops.Target{t}, nil
+			}
+		}
+		return nil, &envelope.Error{Code: "missing_artifact", Message: fmt.Sprintf("no target %q in ops-targets.json", targetFlag)}
+	}
+	var changed []ops.Target
+	for _, t := range all {
+		if t.Changed != nil && *t.Changed {
+			changed = append(changed, t)
+		}
+	}
+	return changed, nil
+}
+
+// hasChangedTarget reports whether ticketDir's ops-targets.json (if it
+// exists) names any target with changed: true — `stage should-run`'s
+// own input for render-drift/dry-run's "no_changed_target"/
+// "no_changed_target_with_dry_run" rules. A missing ops-targets.json
+// answers false, the same tolerant-of-absence shape buildShouldRunInput
+// already uses for repo.json.
+func hasChangedTarget(f Flags, key string) (bool, error) {
+	artifact, err := loadOpsTargetsTolerant(handoff.TicketDir(f.Home, key))
+	if err != nil || artifact == nil {
+		return false, err
+	}
+	for _, t := range artifact.Targets {
+		if t.Changed != nil && *t.Changed {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// envFor builds t's live-bound Env from its own already-resolved
+// Environment/Tier fields (ops-targets.json, written by `ops detect`)
+// — reused directly rather than re-invoking internal/ops/envs.Bind,
+// since a target's binding is a pure function of config and its own
+// path, and config does not change while a ticket runs (it is
+// guarded).
+func envFor(t ops.Target) ops.Env {
+	e := ops.Env{Tier: "nonprod"}
+	if t.Tier != nil {
+		e.Tier = *t.Tier
+	}
+	if t.Environment != nil {
+		e.Name = *t.Environment
+	}
+	return e
+}
+
+// offlineEnvFor is envFor with Name always empty — `ops dry-run
+// --offline`'s own signal to every addon call that no live access
+// should be attempted (design decision 1/2 in the phase-20 plan: the
+// unbound Env already means exactly this for a target with no live
+// counterpart at all, and reusing it for an explicitly-forced offline
+// run needs no new parameter on the frozen Addon interface). Tier is
+// preserved from t, since Action.Tier always comes from the target,
+// never from Env.
+func offlineEnvFor(t ops.Target) ops.Env {
+	e := envFor(t)
+	e.Name = ""
+	return e
+}
+
+// renderForTarget resolves t's branch-or-base source directory and
+// runs internal/ops/render.Render through addon, returning the tree
+// hash Render memoized on. Shared by `ops drift` (branch and base) and
+// `ops dry-run` (branch only).
+func renderForTarget(ctx context.Context, f Flags, key string, repoArt *repoArtifact, t ops.Target, ref ops.Ref, addon ops.Addon) (string, error) {
+	sourceDir, err := resolveTargetSourceDir(f, key, repoArt, t, ref)
+	if err != nil {
+		return "", err
+	}
+	res, err := render.Render(ctx, render.Options{
+		Addon: addon, Target: t, Ref: ref, SourceDir: sourceDir, Home: f.Home, Key: key,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.Hash, nil
 }
 
 type opsAddonsResult struct {

@@ -16,6 +16,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/schema"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
@@ -83,13 +84,24 @@ func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Statu
 }
 
 // buildShouldRunInput computes handoff.ShouldRunInput for stage — the
-// phase-6 plan's design decision 7, extended by phase 7 for mutation.
-// Every stage but visual-test, e2e and mutation ignores the input
-// entirely (see handoff.ShouldRun's own switch), so this returns the
-// zero value for them without doing any detection work at all:
-// internal/detect.E2E/Mutation's filesystem probing is worth skipping
-// for the thirteen stage/command calls per ticket that don't need it.
+// phase-6 plan's design decision 7, extended by phase 7 for mutation
+// and phase 20 for render-drift/dry-run. Every stage but those five
+// ignores the input entirely (see handoff.ShouldRun's own switch), so
+// this returns the zero value for the rest without doing any detection
+// work at all: internal/detect.E2E/Mutation's filesystem probing (for
+// visual-test/e2e/mutation, via repo.json) and hasChangedTarget's own
+// read (for render-drift/dry-run, via ops-targets.json — a separate
+// data source, handled in its own early branch below) are both worth
+// skipping for every other stage/command call per ticket that doesn't
+// need either.
 func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.ShouldRunInput, error) {
+	if stage == handoff.StageRenderDrift || stage == handoff.StageDryRun {
+		has, err := hasChangedTarget(f, key)
+		if err != nil {
+			return handoff.ShouldRunInput{}, err
+		}
+		return handoff.ShouldRunInput{HasChangedTarget: has}, nil
+	}
 	if stage != handoff.StageVisualTest && stage != handoff.StageE2E && stage != handoff.StageMutation {
 		return handoff.ShouldRunInput{}, nil
 	}
@@ -321,6 +333,77 @@ func resolveOpsDetectForComplete(f Flags, key string, stage handoff.Stage, failF
 	return err
 }
 
+// checkDryRunFreshness enforces "stage complete for impact and
+// rollback refuses while any in-scope target's tree hash is newer than
+// dryrun-results.json" (Re-running a passed stage) — called from
+// `stage complete KEY impact`/`stage complete KEY rollback`, the same
+// stage-transition-gating role resolveOpsDetectForStart/
+// resolveOpsDetectForComplete already play for start/complete
+// respectively. It recomputes each changed target's *current* branch
+// tree hash from the live checkout (not the render cache, which could
+// itself be stale relative to an edit `plan-rollback` just made — the
+// phase-20 plan's design decision 6) and compares it against the hash
+// dryrun-results.json recorded for that target, refusing with
+// stage_not_allowed (the spec's own documented catch-all for a stage
+// precondition the exit-code table does not separately name) on any
+// mismatch.
+//
+// Tolerant of ops-targets.json or dryrun-results.json being entirely
+// absent — nothing to compare against yet, not this function's job to
+// require dry-run to have run (checkPrimaryArtifact already requires
+// impact/rollback's own primary artifact to exist, which in production
+// today it never does before phase 23 — see the plan's own §0.10).
+func checkDryRunFreshness(f Flags, key string) error {
+	ticketDir := handoff.TicketDir(f.Home, key)
+
+	targetsArt, err := loadOpsTargetsTolerant(ticketDir)
+	if err != nil || targetsArt == nil {
+		return err
+	}
+
+	dryRunData, err := handoff.ReadArtifact(filepath.Join(ticketDir, "dryrun-results.json"))
+	if err != nil {
+		return err
+	}
+	if dryRunData == nil {
+		return nil
+	}
+	var dryRunArt opsDryRunArtifact
+	if err := json.Unmarshal(dryRunData, &dryRunArt); err != nil {
+		return fmt.Errorf("cli: decode dryrun-results.json: %w", err)
+	}
+	hashes := make(map[string]string, len(dryRunArt.Targets))
+	for _, t := range dryRunArt.Targets {
+		hashes[t.Target] = t.Hash
+	}
+
+	repoArt, err := loadRepoArtifact(ticketDir)
+	if err != nil {
+		return err
+	}
+
+	for _, t := range targetsArt.Targets {
+		if t.Changed == nil || !*t.Changed {
+			continue
+		}
+		sourceDir, err := resolveTargetSourceDir(f, key, repoArt, t, ops.RefBranch)
+		if err != nil {
+			return err
+		}
+		hash, err := render.TreeHash(sourceDir)
+		if err != nil {
+			return err
+		}
+		if hashes[ops.TargetKey(t)] != hash {
+			return &envelope.Error{
+				Code:    "stage_not_allowed",
+				Message: fmt.Sprintf("target %s changed since dry-run last ran; run ops dry-run %s first", ops.TargetKey(t), key),
+			}
+		}
+	}
+	return nil
+}
+
 func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 	var failFlag bool
 	cmd := &cobra.Command{
@@ -366,6 +449,11 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 						return Outcome{}, err
 					}
 					gi = handoff.GateInputs{RiskGate: cfg.Ops.RiskGate, Score: score, Protected: protected}
+				}
+				if stage == handoff.StageImpact || stage == handoff.StageRollback {
+					if err := checkDryRunFreshness(f, key); err != nil {
+						return Outcome{}, err
+					}
 				}
 			}
 

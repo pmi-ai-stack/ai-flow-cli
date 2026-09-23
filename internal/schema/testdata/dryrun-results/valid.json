@@ -1,6 +1,6 @@
 {
   "mode": "live",
   "targets": [
-    { "target": "infra/prod", "validation": [] }
+    { "target": "infra/prod", "hash": "abc123", "validation": [] }
   ]
 }

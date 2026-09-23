@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 )
 
 // writeFixture copies internal/schema/testdata/<artifact>/valid.json —
@@ -220,6 +223,30 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 			amendRepoJSONForVisualE2EAndMutation(t, home, key)
 		}
 		env := runStage(t, home, 0, "complete", key, s.stage)
+		if s.stage == "implement" {
+			// render-drift and dry-run (real as of phase 20) need a
+			// changed target, or they auto-skip the same way the three
+			// stages above would have without amendRepoJSONForVisualE2EAndMutation.
+			// Written here, after `stage complete implement`'s own real
+			// `ops detect --scope diff` (internal/cli/stage.go's
+			// resolveOpsDetectForComplete) has already run and would
+			// otherwise overwrite an earlier write with an empty target
+			// list (no addon is registered before phase 21) — this test
+			// drives both stages by hand-writing their own result
+			// fixtures (writeFixture above), never through `ops
+			// drift`/`ops dry-run` themselves, so any repo/path value
+			// proves the should-run rule without needing a real checkout
+			// at that path.
+			writeChangedTerraformTarget(t, home, key, true)
+		}
+		if s.stage == "dry-run" {
+			// Flipped back to changed:false once dry-run completes, so
+			// checkDryRunFreshness's tree-hash comparison at `stage
+			// complete impact`/`rollback` (phase 20's own new
+			// precondition) has nothing to check against a real checkout
+			// this test never creates for this target.
+			writeChangedTerraformTarget(t, home, key, false)
+		}
 
 		switch s.stage {
 		case "plan":
@@ -477,6 +504,7 @@ func TestStageResetCascadesAndRemovesRenderPlans(t *testing.T) {
 	writeFixture(t, home, key, "test-results", "test-results.json")
 	runStage(t, home, 0, "complete", key, "implement")
 
+	writeChangedTerraformTarget(t, home, key, true)
 	runStage(t, home, 0, "start", key, "render-drift")
 	writeFixture(t, home, key, "render-drift-results", "render-drift-results.json")
 	runStage(t, home, 0, "complete", key, "render-drift")
@@ -550,7 +578,7 @@ func TestStageShouldRun(t *testing.T) {
 			Run   bool   `json:"run"`
 		} `json:"result"`
 	}
-	stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", "render-drift", "--home", home)
+	stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", "checks", "--home", home)
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
 	}
@@ -560,8 +588,8 @@ func TestStageShouldRun(t *testing.T) {
 	if !full.Result.Run {
 		t.Error("run = false, want true")
 	}
-	if full.Result.Rule != "no_changed_target" {
-		t.Errorf("rule = %q, want no_changed_target", full.Result.Rule)
+	if full.Result.Rule != "no_check_applies" {
+		t.Errorf("rule = %q, want no_check_applies", full.Result.Rule)
 	}
 	// should-run must never write status.json — it is read-only.
 	if _, err := os.Stat(filepath.Join(home, "PROJ-1", "status.json")); !os.IsNotExist(err) {
@@ -652,7 +680,7 @@ func TestStageShouldRunE2EReal(t *testing.T) {
 func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
 	home := t.TempDir()
 	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
-	for _, stage := range []string{"render-drift", "checks", "dry-run", "impact", "rollback", "infra-test", "mutation"} {
+	for _, stage := range []string{"checks", "impact", "rollback", "infra-test", "mutation"} {
 		stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
 		if exitCode != 0 {
 			t.Fatalf("stage %s: exitCode = %d\n%s", stage, exitCode, stdout.String())
@@ -662,4 +690,77 @@ func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
 			t.Errorf("stage %s: run = false, want true (still stubbed)", stage)
 		}
 	}
+}
+
+// TestStageShouldRunRenderDriftAndDryRun pins phase 20's real rule at
+// the CLI layer: no ops-targets.json (or one with no changed target)
+// skips both stages; a changed target makes both run.
+func TestStageShouldRunRenderDriftAndDryRun(t *testing.T) {
+	for _, stage := range []string{"render-drift", "dry-run"} {
+		t.Run(stage+"/no ops-targets.json", func(t *testing.T) {
+			home := t.TempDir()
+			stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+			}
+			env := decodeShouldRun(t, stdout.Bytes())
+			if env.Result.Run {
+				t.Errorf("run = true, want false (no ops-targets.json)")
+			}
+		})
+
+		t.Run(stage+"/no changed target", func(t *testing.T) {
+			home := t.TempDir()
+			writeChangedTerraformTarget(t, home, "PROJ-1", false)
+			stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+			}
+			env := decodeShouldRun(t, stdout.Bytes())
+			if env.Result.Run {
+				t.Errorf("run = true, want false (no changed target)")
+			}
+		})
+
+		t.Run(stage+"/changed target", func(t *testing.T) {
+			home := t.TempDir()
+			writeChangedTerraformTarget(t, home, "PROJ-1", true)
+			stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+			}
+			env := decodeShouldRun(t, stdout.Bytes())
+			if !env.Result.Run {
+				t.Errorf("run = false, want true (a changed target is present)")
+			}
+		})
+	}
+}
+
+// writeOpsTargetsFixture writes home/key/ops-targets.json directly —
+// the shared setup TestStageShouldRunRenderDriftAndDryRun's three
+// subtests need.
+func writeOpsTargetsFixture(t *testing.T, home, key string, targets []ops.Target) {
+	t.Helper()
+	for i := range targets {
+		if targets[i].Files == nil {
+			targets[i].Files = []string{}
+		}
+	}
+	ticketDir := filepath.Join(home, key)
+	result := ops.DetectResult{AppFiles: []string{}, Targets: targets}
+	if _, err := handoff.WriteArtifact(ticketDir, "ops-targets.json", "ops-targets", result); err != nil {
+		t.Fatalf("write ops-targets.json: %v", err)
+	}
+}
+
+// writeChangedTerraformTarget writes home/key/ops-targets.json naming
+// one terraform target at infra/prod, changed as given — the one
+// fixture every render-drift/dry-run should-run and staleness test in
+// this package shares; the repo/path values are never resolved against
+// a real checkout by these tests (they drive stages by hand-writing
+// result fixtures directly), so any value proves the should-run rule.
+func writeChangedTerraformTarget(t *testing.T, home, key string, changed bool) {
+	t.Helper()
+	writeOpsTargetsFixture(t, home, key, []ops.Target{{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: &changed}})
 }

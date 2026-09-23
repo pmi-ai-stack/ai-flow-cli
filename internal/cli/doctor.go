@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -144,6 +145,34 @@ type doctorResult struct {
 	// check with a Tool at all — dependency/layout/docs/commit/pr are
 	// built-in and never appear here.
 	MissingCheckRunners []doctorMissingCheckRunner `json:"missing_check_runners"`
+
+	// LiveEnvironments is the phase-20 growing-surfaces "live probes"
+	// line: config.ops.environments's own kube-bound entries, probed
+	// with "kubectl auth can-i --list" (spec's own literal example).
+	LiveEnvironments []doctorLiveEnvironment `json:"live_environments"`
+}
+
+// doctorLiveEnvironment is one config.ops.environments entry's live
+// read-only probe result. Only environments with a Kube binding are
+// probed: no other addon-independent, credential-only read-only check
+// exists yet before an addon (terraform/jenkins land in 21/27) can
+// answer the same question through its own Drift/DryRun call.
+type doctorLiveEnvironment struct {
+	Environment string `json:"environment"`
+	Tier        string `json:"tier"`
+	Context     string `json:"context"`
+	Reachable   *bool  `json:"reachable"`
+	// ReadOnly is a provisional heuristic (no mutating verb keyword
+	// found in "kubectl auth can-i --list"'s own stdout) — kubectl has
+	// no "-o json" form of can-i --list as of the versions this spec
+	// targets, and a positional-column parser against an unversioned,
+	// human-oriented table for a doctor *warning* (never a hard
+	// failure) is not proportionate. Flagged explicitly here, the same
+	// posture phase 9 already established for its own guessed Cursor
+	// payload shapes. nil when Reachable is false — there is no output
+	// to read a verdict from.
+	ReadOnly *bool  `json:"read_only"`
+	Error    string `json:"error,omitempty"`
 }
 
 // doctorMissingCheckRunner is one check whose tool doctor could not
@@ -251,6 +280,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			var checkRunnerWarnings []string
 			result.MissingCheckRunners, checkRunnerWarnings = doctorProbeCheckRunners(result.Active, activeStandards)
 			warnings = append(warnings, checkRunnerWarnings...)
+
+			var liveWarnings []string
+			result.LiveEnvironments, liveWarnings = doctorProbeLiveEnvironments(cmd.Context(), cfg)
+			warnings = append(warnings, liveWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -673,4 +706,71 @@ func doctorProbeCheckRunners(active *doctorActive, a *standards.Artifact) ([]doc
 	}
 	sort.Slice(missing, func(i, j int) bool { return missing[i].CheckID < missing[j].CheckID })
 	return missing, warnings
+}
+
+// mutatingCanIVerbs is the keyword set doctorProbeLiveEnvironments's
+// own provisional read_only heuristic (see doctorLiveEnvironment's doc
+// comment) treats as evidence the configured context can mutate live
+// state.
+var mutatingCanIVerbs = []string{"create", "update", "patch", "delete", "deletecollection"}
+
+// doctorProbeLiveEnvironments runs the spec's own documented live
+// read-only probe ("kubectl auth can-i --list" → "read_only") against
+// every config.ops.environments entry with a Kube binding — the one
+// addon-independent, credential-only signal a doctor probe can check
+// before any real addon (kubectl lands in phase 22) exists to ask
+// through Addon.Drift/DryRun itself. cfg nil (config did not load)
+// reports nothing, the same tolerant-of-a-missing-config shape every
+// other cfg-dependent probe in this file already uses. A probe failure
+// (kubectl absent, cluster unreachable) is doctor's own kind of
+// finding — reported as data, never returned as a command error.
+func doctorProbeLiveEnvironments(ctx context.Context, cfg *config.Config) ([]doctorLiveEnvironment, []string) {
+	if cfg == nil {
+		return nil, nil
+	}
+	names := make([]string, 0, len(cfg.Ops.Environments))
+	for name, e := range cfg.Ops.Environments {
+		if e.Kube != nil {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return nil, nil
+	}
+
+	execer := newExecer()
+	var out []doctorLiveEnvironment
+	var warnings []string
+	for _, name := range names {
+		env := cfg.Ops.Environments[name]
+		probe := doctorLiveEnvironment{Environment: name, Tier: env.Tier, Context: env.Kube.Context}
+
+		result, err := execer.Run(ctx, "kubectl", []string{"auth", "can-i", "--list", "--context", env.Kube.Context}, exec.RunOpts{Timeout: cfg.Ops.ToolTimeout()})
+		ok := err == nil
+		probe.Reachable = &ok
+		if err != nil {
+			probe.Error = redactMessage(err)
+			warnings = append(warnings, fmt.Sprintf("ops: environment %q: live probe failed: %s", name, probe.Error))
+			out = append(out, probe)
+			continue
+		}
+
+		readOnly := !containsAny(result.Stdout, mutatingCanIVerbs)
+		probe.ReadOnly = &readOnly
+		if !readOnly {
+			warnings = append(warnings, fmt.Sprintf("ops: environment %q: configured kube context can mutate live state; use a read-only account", name))
+		}
+		out = append(out, probe)
+	}
+	return out, warnings
+}
+
+func containsAny(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
