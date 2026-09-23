@@ -100,6 +100,14 @@ linters:
         linters: [gochecknoglobals] # imageExtensions is a lookup table, not mutable state
       - path: ^internal/cli/git\.go$
         linters: [gochecknoglobals] # newExecer is the injectable Execer constructor by design — tests reassign it, mirroring handoff/clock.go's Now
+      - path: ^internal/cli/ops\.go$
+        linters: [gochecknoglobals] # newOpsExecer is the injectable Execer constructor for buildOpsRegistry's own addons, mirroring git.go's newExecer
+      - path: ^internal/ops/addons/terraform/kindclass\.go$
+        linters: [gochecknoglobals] # kindPrefixes is a lookup table, not mutable state
+      - path: ^internal/ops/addons/terraform/planjson\.go$
+        linters: [gochecknoglobals] # actionKinds is a lookup table, not mutable state
+      - path: ^internal/ops/addons/terraform/rollback\.go$
+        linters: [gochecknoglobals] # nonRevertibleClasses is a lookup table, not mutable state
       - path: ^internal/cli/pr\.go$
         linters: [gochecknoglobals] # newGitHubTransport is the injectable http.RoundTripper source by design — tests reassign it, mirroring handoff/clock.go's Now
       - path: ^internal/cli/visual\.go$

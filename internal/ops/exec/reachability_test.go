@@ -55,13 +55,20 @@ func suppressWorktreeAdd(callLiterals []string, literal string) bool {
 
 // TestEphemeralRowsReachableOnlyFromDesignatedCallers is phase 18's own
 // "Reachability tests: ephemeral rows are reachable only from ops test
-// run and the cluster lifecycle commands" bullet. No such command
-// exists yet (phase 24) and no addon implementation calls any of
-// these tools yet (phases 21/22/26/27), so the allowed-caller list is
-// empty today — this holds vacuously by construction, exactly like
-// the git side did before this test existed, and will need an
-// explicit, reviewed update the day phase 24 adds the first real call
-// site.
+// run and the cluster lifecycle commands" bullet. The scanner watches
+// by bare tool name, not (tool, verb) — "terraform" is watched
+// regardless of verb because Table carries one ClassEphemeral row for
+// it ("terraform test"), so phase 21's own real, non-ephemeral calls
+// ("init", "validate", "plan", "show", "workspace select") trip it
+// exactly as much as a real "terraform test" call would; the phase-21
+// plan's own §0.3 already anticipated this and its allowed entries
+// below are exactly its own non-ephemeral call sites, added in that
+// phase's own PR — not internal/ops/addons/terraform/harness.go,
+// which only detects .tftest.hcl files on disk and calls no
+// subprocess at all. No command exists yet for the ephemeral verb
+// itself ("terraform test", "kuttl", "chainsaw", ...) — phase 24 will
+// need its own, separate, explicit update to allowed the day it adds
+// the first real caller of that verb.
 func TestEphemeralRowsReachableOnlyFromDesignatedCallers(t *testing.T) {
 	watched := map[string]bool{}
 	for _, r := range Table {
@@ -73,7 +80,12 @@ func TestEphemeralRowsReachableOnlyFromDesignatedCallers(t *testing.T) {
 		t.Fatal("no ClassEphemeral row on Table — this test has nothing to check; if that's expected, delete it")
 	}
 
-	var allowed []string // extended by phase 24, in the same PR that adds ops test run/teardown.
+	allowed := []string{
+		filepath.Join("internal", "ops", "addons", "terraform", "render.go"),
+		filepath.Join("internal", "ops", "addons", "terraform", "drift.go"),
+		filepath.Join("internal", "ops", "addons", "terraform", "dryrun.go"),
+		filepath.Join("internal", "ops", "addons", "terraform", "env.go"),
+	}
 	violations := scanCallArgLiterals(t, moduleRoot(t), watched, allowed, nil)
 	for _, v := range violations {
 		t.Errorf("%s: %q (an ephemeral-class tool) used as a call argument outside %v", v.file, v.literal, allowed)

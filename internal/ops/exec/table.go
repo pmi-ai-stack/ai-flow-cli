@@ -112,6 +112,16 @@ var Table = []Row{
 	{Tool: "terraform", Verb: []string{"plan"}, RequiredFlags: []string{"-detailed-exitcode"}, Class: ClassReadOnlyLive},
 	{Tool: "terraform", Verb: []string{"plan"}, RequiredFlags: []string{"-out"}, Class: ClassReadOnlyLive},
 	{Tool: "terraform", Verb: []string{"show"}, RequiredFlags: []string{"-json"}, Class: ClassNone},
+	// Phase 21's own two additions: Drift/DryRun both need a *real*
+	// (backend-reading) init — distinct from the -backend=false row
+	// above, which Render uses and which never touches live state — and
+	// a workspace switch before planning. Neither is Mutating: an init
+	// or workspace select touches only local .terraform/ metadata and a
+	// state lock, never the target infrastructure itself (the same
+	// "touches only the worktree" bucket ClassReadOnlyLive's own doc
+	// comment already puts kubectl diff/helm get manifest in).
+	{Tool: "terraform", Verb: []string{"init"}, ForbiddenFlags: []string{"-backend=false"}, Class: ClassReadOnlyLive},
+	{Tool: "terraform", Verb: []string{"workspace", "select"}, Class: ClassReadOnlyLive},
 	// Ephemeral per the Execution allowlist section's own list (line
 	// 367): only ops test run/teardown may ever reach this row — see
 	// reachability_test.go.

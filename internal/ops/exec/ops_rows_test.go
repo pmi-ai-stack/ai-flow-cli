@@ -20,6 +20,9 @@ func TestOpsRowsCoverCapabilityMatrixVerbs(t *testing.T) {
 		{"terraform", []string{"plan"}, ClassReadOnlyLive, false}, // matches either drift or dry-run row
 		{"terraform", []string{"show"}, ClassNone, false},
 		{"terraform", []string{"test"}, ClassEphemeral, true},
+		{"terraform", []string{"init"}, ClassReadOnlyLive, false},                // phase 21: the real, backend-reading init
+		{"terraform", []string{"workspace", "select"}, ClassReadOnlyLive, false}, // phase 21
+
 		{"kubeconform", nil, ClassNone, false},
 		{"kubectl", []string{"diff"}, ClassReadOnlyLive, false},
 		{"kubectl", []string{"apply"}, ClassReadOnlyLive, true},

@@ -14,10 +14,29 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/gitops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/terraform"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/envs"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 )
+
+// newOpsExecer builds the Execer every real addon in buildOpsRegistry
+// runs its subprocesses through — a package var so a test can inject
+// exectest.Scripted instead, mirroring git.go's own newExecer.
+var newOpsExecer = func() exec.Execer { return exec.NewRunner() }
+
+// buildOpsRegistry is the real construction point for this binary's
+// OPS addon registry — internal/ops.DefaultRegistry() stays empty by
+// design (see its own doc comment): a real addon must import
+// internal/ops (for Addon, Target, ...), so internal/ops can never
+// import a real addon's own package back without a direct
+// two-package import cycle. internal/cli already imports both, so the
+// wiring lives here instead, the same role git.go's newExecer and
+// pr.go's newGitHubTransport already play for other concrete
+// implementations of a package-level interface.
+func buildOpsRegistry(f Flags, cfg *config.Config) *ops.Registry {
+	return ops.NewRegistry(terraform.New(newOpsExecer(), cfg, f.Home))
+}
 
 func newOpsCmd(cio cmdIO) *cobra.Command {
 	cmd := &cobra.Command{
@@ -64,7 +83,7 @@ func newOpsDetectCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, err
 			}
 
-			result, err := runOpsDetect(cfg, artifact, scopeFor(artifact))
+			result, err := runOpsDetect(f, cfg, artifact, scopeFor(artifact))
 			if err != nil {
 				return Outcome{NeedsInput: needsInputFor(err, key)}, err
 			}
@@ -112,7 +131,7 @@ func scopeFor(artifact *repoArtifact) string {
 // the one visible cost is a false-positive risk when two different
 // repositories happen to share a target path exactly — the same
 // class of monorepo ambiguity already accepted elsewhere.
-func runOpsDetect(cfg *config.Config, artifact *repoArtifact, scope string) (ops.DetectResult, error) {
+func runOpsDetect(f Flags, cfg *config.Config, artifact *repoArtifact, scope string) (ops.DetectResult, error) {
 	var changed []string
 	if scope == ops.ScopeDiff {
 		changed = artifact.InScopeFiles
@@ -123,7 +142,7 @@ func runOpsDetect(cfg *config.Config, artifact *repoArtifact, scope string) (ops
 		inputs = append(inputs, ops.DetectInput{Repo: toDetectRepo(r), Changed: changed})
 	}
 
-	result, err := ops.DetectAll(ops.DefaultRegistry().Addons(), inputs, scope)
+	result, err := ops.DetectAll(buildOpsRegistry(f, cfg).Addons(), inputs, scope)
 	if err != nil {
 		return ops.DetectResult{}, err
 	}
@@ -209,6 +228,10 @@ func newOpsRenderCmd(cio cmdIO) *cobra.Command {
 			}
 			f := FlagsFrom(cmd.Context())
 
+			cfg, err := config.Load(f.Home, f.Config)
+			if err != nil {
+				return Outcome{}, err
+			}
 			ticketDir := handoff.TicketDir(f.Home, key)
 			repoArt, err := loadRepoArtifact(ticketDir)
 			if err != nil {
@@ -233,7 +256,7 @@ func newOpsRenderCmd(cio cmdIO) *cobra.Command {
 				targets = filtered
 			}
 
-			reg := ops.DefaultRegistry()
+			reg := buildOpsRegistry(f, cfg)
 			result := opsRenderResult{Key: key, Ref: refFlag}
 			for _, t := range targets {
 				rt, err := renderOneTarget(cmd.Context(), f, key, repoArt, t, ref, reg)
@@ -449,8 +472,13 @@ func newOpsAddonsCmd(cio cmdIO) *cobra.Command {
 		Short: "List every addon this binary knows about, and their capabilities",
 		Args:  cobra.NoArgs,
 		RunE: wrap("ops addons", cio.stdout, cio.exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
+			f := FlagsFrom(cmd.Context())
+			cfg, err := config.Load(f.Home, f.Config)
+			if err != nil {
+				return Outcome{}, err
+			}
 			var entries []opsAddonEntry
-			for _, a := range ops.DefaultRegistry().Addons() {
+			for _, a := range buildOpsRegistry(f, cfg).Addons() {
 				entries = append(entries, opsAddonEntry{Name: a.Name(), Capabilities: a.Capabilities()})
 			}
 			if entries == nil {

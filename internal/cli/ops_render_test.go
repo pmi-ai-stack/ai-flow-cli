@@ -15,8 +15,12 @@ import (
 )
 
 // terraformTargetTicket builds a ticket whose ops-targets.json names
-// one target ("acme.infra:infra/prod", addon "terraform" — unregistered
-// in DefaultRegistry() before phase 21) and whose repo.json points
+// one target ("acme.infra:infra/prod", addon "no-such-addon" —
+// deliberately never a real one, so tests built on this fixture that
+// drive the full `ops render`/`ops drift`/`ops dry-run` command tree
+// stay a harmless no-op rather than invoking a real subprocess through
+// internal/cli's own buildOpsRegistry, which registers a real
+// "terraform" addon from phase 21 on) and whose repo.json points
 // repository "acme.infra" at repoDir. Mirrors internal/schema's own
 // ops-targets valid fixture (schema/testdata/ops-targets/valid.json),
 // so `--target acme.infra:infra/prod` always has something real to
@@ -36,7 +40,7 @@ func terraformTargetTicket(t *testing.T, key string) (home, repoDir string) {
 
 	targets := ops.DetectResult{
 		AppFiles: []string{},
-		Targets:  []ops.Target{{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: "repo", Files: []string{}}},
+		Targets:  []ops.Target{{Addon: "no-such-addon", Repo: "acme.infra", Path: "infra/prod", Scope: "repo", Files: []string{}}},
 	}
 	if _, err := handoff.WriteArtifact(ticketDir, "ops-targets.json", "ops-targets", targets); err != nil {
 		t.Fatalf("write ops-targets.json: %v", err)
@@ -110,11 +114,12 @@ func TestOpsRenderUnknownTargetIsMissingArtifact(t *testing.T) {
 	}
 }
 
-// TestOpsRenderUnregisteredAddonIsANoop proves DefaultRegistry()
-// shipping empty (no addon before phase 21) makes `ops render` a
-// harmless no-op even when ops-targets.json names a real target — the
-// same "not a stub, the correct answer today" property phase 18
-// already established for `ops detect`/`ops addons`.
+// TestOpsRenderUnregisteredAddonIsANoop proves a target naming an
+// addon buildOpsRegistry never registers makes `ops render` a harmless
+// no-op even when ops-targets.json names a real target — the same
+// "not a stub, the correct answer today" property phase 18 already
+// established for `ops detect`/`ops addons` against the (still always
+// empty) internal/ops.DefaultRegistry().
 func TestOpsRenderUnregisteredAddonIsANoop(t *testing.T) {
 	home, _ := terraformTargetTicket(t, "PROJ-1")
 	stdout, _, ec := runRoot(t, "--home", home, "ops", "render", "PROJ-1", "--ref", "branch", "--target", "acme.infra:infra/prod")
@@ -126,7 +131,7 @@ func TestOpsRenderUnregisteredAddonIsANoop(t *testing.T) {
 		t.Fatalf("ok = false, want true\n%s", stdout.String())
 	}
 	if len(targets) != 0 {
-		t.Errorf("targets = %v, want none (terraform is not registered before phase 21)", targets)
+		t.Errorf("targets = %v, want none (no-such-addon is never registered)", targets)
 	}
 }
 
@@ -149,10 +154,9 @@ func TestOpsRenderCatalogRegistration(t *testing.T) {
 // fixture addon registry — internal/ops/render's own tests already
 // prove Render's real behavior (cache reuse, redaction, mode 0700);
 // these prove this package's own orchestration (source-dir resolution,
-// error wrapping) that only ever runs once a real addon is registered,
-// which DefaultRegistry() never is before phase 21 (see the phase-19
-// plan's design decision on why renderOneTarget takes an explicit
-// *ops.Registry parameter).
+// error wrapping) without depending on a real addon or a real
+// subprocess (see the phase-19 plan's design decision on why
+// renderOneTarget takes an explicit *ops.Registry parameter).
 
 func TestRenderOneTargetUnknownRepoIsMissingArtifact(t *testing.T) {
 	home := t.TempDir()

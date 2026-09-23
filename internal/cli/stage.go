@@ -296,7 +296,7 @@ func resolveOpsDetectForStart(f Flags, key string, stage handoff.Stage, to hando
 	if err != nil {
 		return err
 	}
-	result, err := runOpsDetect(cfg, artifact, ops.ScopeRepo)
+	result, err := runOpsDetect(f, cfg, artifact, ops.ScopeRepo)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func resolveOpsDetectForComplete(f Flags, key string, stage handoff.Stage, failF
 	if err != nil {
 		return err
 	}
-	result, err := runOpsDetect(cfg, artifact, ops.ScopeDiff)
+	result, err := runOpsDetect(f, cfg, artifact, ops.ScopeDiff)
 	if err != nil {
 		return err
 	}

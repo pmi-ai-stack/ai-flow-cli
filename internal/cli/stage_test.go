@@ -755,12 +755,17 @@ func writeOpsTargetsFixture(t *testing.T, home, key string, targets []ops.Target
 }
 
 // writeChangedTerraformTarget writes home/key/ops-targets.json naming
-// one terraform target at infra/prod, changed as given — the one
-// fixture every render-drift/dry-run should-run and staleness test in
-// this package shares; the repo/path values are never resolved against
-// a real checkout by these tests (they drive stages by hand-writing
+// one OPS target at infra/prod, changed as given — the one fixture
+// every render-drift/dry-run should-run and staleness test in this
+// package shares; the repo/path values are never resolved against a
+// real checkout by these tests (they drive stages by hand-writing
 // result fixtures directly), so any value proves the should-run rule.
+// Addon is deliberately "no-such-addon" — never a real one (phase 21
+// on, "terraform" is really registered by internal/cli's own
+// buildOpsRegistry) — so the tests sharing this fixture that do run
+// the full `ops drift`/`ops dry-run` command tree stay a harmless
+// no-op rather than invoking a real subprocess.
 func writeChangedTerraformTarget(t *testing.T, home, key string, changed bool) {
 	t.Helper()
-	writeOpsTargetsFixture(t, home, key, []ops.Target{{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: &changed}})
+	writeOpsTargetsFixture(t, home, key, []ops.Target{{Addon: "no-such-addon", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: &changed}})
 }

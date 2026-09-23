@@ -177,23 +177,38 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	}
 }
 
-// TestOpsAddonsCommandEmptyByDefault proves `ops addons` reports zero
-// addons today, correctly — DefaultRegistry ships empty before phase
-// 21, and this must not be silently mistaken for a bug later.
-func TestOpsAddonsCommandEmptyByDefault(t *testing.T) {
-	stdout, _, ec := runRoot(t, "ops", "addons")
+// TestOpsAddonsCommandListsTerraform proves `ops addons` reports the
+// real registry buildOpsRegistry constructs — exactly "terraform,"
+// every capability true — from phase 21 on (internal/ops.DefaultRegistry()
+// itself stays empty forever, by design; see its own doc comment).
+func TestOpsAddonsCommandListsTerraform(t *testing.T) {
+	home := t.TempDir()
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+
+	stdout, _, ec := runRoot(t, "--home", home, "ops", "addons")
 	if ec != 0 {
 		t.Fatalf("ops addons: exitCode = %d\n%s", ec, stdout.String())
 	}
 	var env struct {
 		Result struct {
-			Addons []any `json:"addons"`
+			Addons []struct {
+				Name         string `json:"name"`
+				Capabilities struct {
+					Render, Validate, Drift, DryRun, Rollback, UnitTest, E2ETest bool
+				} `json:"capabilities"`
+			} `json:"addons"`
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("decode: %v\n%s", err, stdout.String())
 	}
-	if len(env.Result.Addons) != 0 {
-		t.Errorf("ops addons = %v, want empty", env.Result.Addons)
+	if len(env.Result.Addons) != 1 || env.Result.Addons[0].Name != "terraform" {
+		t.Fatalf("ops addons = %+v, want exactly one, named terraform", env.Result.Addons)
+	}
+	c := env.Result.Addons[0].Capabilities
+	if !c.Render || !c.Validate || !c.Drift || !c.DryRun || !c.Rollback || !c.UnitTest || !c.E2ETest {
+		t.Errorf("terraform capabilities = %+v, want every one true", c)
 	}
 }

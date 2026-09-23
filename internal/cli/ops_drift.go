@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
@@ -57,6 +58,10 @@ func newOpsDriftCmd(cio cmdIO) *cobra.Command {
 				return Outcome{Result: opsDriftResult{Key: key, Targets: []opsDriftResultTarget{}}}, nil
 			}
 
+			cfg, err := config.Load(f.Home, f.Config)
+			if err != nil {
+				return Outcome{}, err
+			}
 			ticketDir := handoff.TicketDir(f.Home, key)
 			repoArt, err := loadRepoArtifact(ticketDir)
 			if err != nil {
@@ -71,7 +76,7 @@ func newOpsDriftCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, err
 			}
 
-			reg := ops.DefaultRegistry()
+			reg := buildOpsRegistry(f, cfg)
 			var entries []opsDriftResultTarget
 			for _, t := range targets {
 				rt, err := driftOneTarget(cmd.Context(), f, key, repoArt, t, reg)

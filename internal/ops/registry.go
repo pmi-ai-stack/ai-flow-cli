@@ -17,11 +17,16 @@ func NewRegistry(addons ...Addon) *Registry {
 	return &Registry{addons: slices.Clone(addons)}
 }
 
-// DefaultRegistry is the registry this binary actually ships. It is
-// empty through phase 20 — no addon implementation exists before
-// phase 21 (terraform) — so `ops addons`/`ops detect` correctly report
-// zero addons today, not a stub answer. Phases 21, 22, 26 and 27 each
-// append their own addon here in the same PR that builds it.
+// DefaultRegistry is empty, always — not just "through phase 20." A
+// real addon (terraform, phase 21 on) must import this package (for
+// Addon, Target, Capabilities, ...), so this package can never import
+// a real addon's own package back without a direct two-package import
+// cycle. The registry this binary actually ships is built one layer
+// up, in internal/cli (which already imports both internal/ops and
+// each addon package): see internal/cli/ops.go's buildOpsRegistry.
+// DefaultRegistry stays here only as the always-empty base every test
+// that wants a deliberately addon-free registry can still name
+// directly.
 func DefaultRegistry() *Registry {
 	return NewRegistry()
 }
