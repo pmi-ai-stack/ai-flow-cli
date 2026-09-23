@@ -100,6 +100,11 @@ var catalog = []CommandSpec{
 	{Name: "standards resolve", TicketScoped: true},
 	{Name: "standards show", TicketScoped: true, Flags: []string{"id"}},
 	{Name: "standards waive", TicketScoped: true, Flags: []string{"check", "repo", "reason", "expires", "confirmed"}},
+
+	// Phase 14. Registered ticket-scoped only — the directory (CI) form
+	// is never invoked from a skill (the phase-14 plan's design
+	// decision 11).
+	{Name: "standards check", TicketScoped: true, Flags: []string{"fix", "stage"}},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

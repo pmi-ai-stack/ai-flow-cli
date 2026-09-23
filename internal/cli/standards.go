@@ -25,6 +25,7 @@ func newStandardsCmd(cio cmdIO) *cobra.Command {
 	cmd.AddCommand(newStandardsResolveCmd(cio))
 	cmd.AddCommand(newStandardsShowCmd(cio))
 	cmd.AddCommand(newStandardsWaiveCmd(cio))
+	cmd.AddCommand(newStandardsCheckCmd(cio))
 	return cmd
 }
 

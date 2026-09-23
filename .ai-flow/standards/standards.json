@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "ai-flow-cli",
+  "version": "1.0.0",
+  "sections": [],
+  "checks": [
+    { "id": "org.secrets", "kind": "secrets", "tool": "gitleaks", "config": "gitleaks.toml", "severity": "must" }
+  ],
+  "overrides": [
+    { "id": "org.secrets", "reason": "internal/redact's own tests intentionally contain fixture strings shaped like AWS credentials, to prove the redactor catches them before they ever reach an artifact or stderr; this repo's own gitleaks config allowlists that one path instead of the reference pack's generic one." }
+  ]
+}

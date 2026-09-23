@@ -136,6 +136,20 @@ type doctorResult struct {
 	HookSelftest    []doctorSelftestReport `json:"hook_selftest"`
 	Packs           []doctorPackReport     `json:"packs"`
 	GuidanceBudget  *doctorGuidanceBudget  `json:"guidance_budget"`
+
+	// MissingCheckRunners is the phase-14 growing-surfaces line: every
+	// tool the active ticket's resolved checks name that is not on
+	// PATH. Populated only for a real, effective (non-overridden)
+	// check with a Tool at all — dependency/layout/docs/commit/pr are
+	// built-in and never appear here.
+	MissingCheckRunners []doctorMissingCheckRunner `json:"missing_check_runners"`
+}
+
+// doctorMissingCheckRunner is one check whose tool doctor could not
+// find on PATH.
+type doctorMissingCheckRunner struct {
+	CheckID string `json:"check_id"`
+	Tool    string `json:"tool"`
 }
 
 // testRunnerBinaries and mutationToolBinaries are the fixed tables
@@ -210,9 +224,18 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			result.Packs, packsWarnings = doctorProbePacks(f.Home, cfg)
 			warnings = append(warnings, packsWarnings...)
 
+			// Read once, not once per probe: doctorProbeGuidanceBudget and
+			// doctorProbeCheckRunners both read the same active ticket's
+			// standards.json.
+			activeStandards := doctorActiveStandards(f.Home, result.Active)
+
 			var budgetWarnings []string
-			result.GuidanceBudget, budgetWarnings = doctorProbeGuidanceBudget(f.Home, result.Active)
+			result.GuidanceBudget, budgetWarnings = doctorProbeGuidanceBudget(result.Active, activeStandards)
 			warnings = append(warnings, budgetWarnings...)
+
+			var checkRunnerWarnings []string
+			result.MissingCheckRunners, checkRunnerWarnings = doctorProbeCheckRunners(result.Active, activeStandards)
+			warnings = append(warnings, checkRunnerWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -552,23 +575,34 @@ func doctorProbePacks(home string, cfg *config.Config) ([]doctorPackReport, []st
 	return reports, warnings
 }
 
-// doctorProbeGuidanceBudget reads the active ticket's standards.json
-// and reports every stage whose `must` sections alone exceeded
-// config.standards.guidance_budget_tokens — the spec's "guidance.md
-// still carries every must section, records `Budget exceeded by must
-// sections:` with the overflow in bytes, and doctor reports it."
-//
-// No active ticket, no standards.json yet, or a standards.json this
-// binary cannot parse all report nothing: doctor's own philosophy is
-// findings-as-data and never failing, and "there is nothing resolved
-// to check" is not a finding.
-func doctorProbeGuidanceBudget(home string, active *doctorActive) (*doctorGuidanceBudget, []string) {
+// doctorActiveStandards reads the active ticket's standards.json once,
+// shared by doctorProbeGuidanceBudget and doctorProbeCheckRunners —
+// both used to read it independently, doubling the same file read and
+// JSON decode on every `doctor` run. No active ticket, no
+// standards.json yet, or one this binary cannot parse all report nil,
+// exactly as each probe's own prior direct read did.
+func doctorActiveStandards(home string, active *doctorActive) *standards.Artifact {
 	if active == nil {
-		return nil, nil
+		return nil
 	}
-
 	a, err := standards.ReadArtifact(handoff.TicketDir(home, active.Key))
-	if err != nil || a == nil {
+	if err != nil {
+		return nil
+	}
+	return a
+}
+
+// doctorProbeGuidanceBudget reports every stage whose `must` sections
+// alone exceeded config.standards.guidance_budget_tokens — the spec's
+// "guidance.md still carries every must section, records `Budget
+// exceeded by must sections:` with the overflow in bytes, and doctor
+// reports it."
+//
+// No active ticket or no standards.json yet reports nothing: doctor's
+// own philosophy is findings-as-data and never failing, and "there is
+// nothing resolved to check" is not a finding.
+func doctorProbeGuidanceBudget(active *doctorActive, a *standards.Artifact) (*doctorGuidanceBudget, []string) {
+	if active == nil || a == nil {
 		return nil, nil
 	}
 
@@ -586,4 +620,42 @@ func doctorProbeGuidanceBudget(home string, active *doctorActive) (*doctorGuidan
 			active.Key, ps.Stage, ps.MustOverflowBytes))
 	}
 	return report, warnings
+}
+
+// whichOverride is exec.Which by default; tests reassign it so
+// doctorProbeCheckRunners' own logic can be proven without depending
+// on which check-runner binaries happen to be on the machine running
+// the suite — the same injectable-constructor pattern git.go's
+// newExecer and pr.go's newGitHubTransport already use.
+var whichOverride = exec.Which
+
+// doctorProbeCheckRunners reports every distinct tool an effective
+// check names that is not on PATH — the phase-14 plan's own "doctor
+// gains missing check runners" growing-surfaces line. Reads the
+// already-resolved standards.json (via doctorActiveStandards) rather
+// than re-resolving (no repo checkout access is guaranteed from
+// wherever `doctor` runs), so this is silent whenever there is no
+// active ticket or no standards.json yet — the same "nothing resolved
+// to check is not a finding" philosophy doctorProbeGuidanceBudget
+// already states.
+func doctorProbeCheckRunners(active *doctorActive, a *standards.Artifact) ([]doctorMissingCheckRunner, []string) {
+	if active == nil || a == nil {
+		return nil, nil
+	}
+
+	var missing []doctorMissingCheckRunner
+	var warnings []string
+	seen := map[string]bool{}
+	for _, c := range a.Checks {
+		if c.Tool == "" || c.OverriddenBy != nil || seen[c.Tool] {
+			continue
+		}
+		seen[c.Tool] = true
+		if _, found := whichOverride(c.Tool); !found {
+			missing = append(missing, doctorMissingCheckRunner{CheckID: c.ID, Tool: c.Tool})
+			warnings = append(warnings, fmt.Sprintf("check %s: tool %q was not found on PATH", c.ID, c.Tool))
+		}
+	}
+	sort.Slice(missing, func(i, j int) bool { return missing[i].CheckID < missing[j].CheckID })
+	return missing, warnings
 }

@@ -82,6 +82,10 @@ linters:
         linters: [gochecknoglobals] # renderingValidatorTools is a lookup table, not mutable state
       - path: ^internal/standards/clock\.go$
         linters: [gochecknoglobals, forbidigo] # defaultClock is the injectable clock by design, mirroring internal/handoff/clock.go's own Now
+      - path: ^internal/standards/check/runner\.go$
+        linters: [gochecknoglobals] # runners is the kind -> CheckRunner dispatch table, not mutable state
+      - path: ^internal/standards/check/pr\.go$
+        linters: [gochecknoglobals] # requiredPRHeadings is a lookup table, not mutable state
       - path: ^internal/handoff/stage\.go$
         linters: [gochecknoglobals] # stages is the one declared pipeline order every other table derives from, not mutable state
       - path: ^internal/handoff/stagetable\.go$
@@ -109,7 +113,11 @@ linters:
       - path: ^internal/cli/mutation\.go$
         linters: [gochecknoglobals] # mutationTools is a lookup table, not mutable state
       - path: ^internal/cli/doctor\.go$
-        linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state
+        linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries are lookup tables, not mutable state; whichOverride is the injectable exec.Which by design, mirroring git.go's newExecer
+      - path: ^internal/cli/checks\.go$
+        linters: [gochecknoglobals] # ticketOnlyKinds is a lookup table, not mutable state
+      - path: ^internal/render/data\.go$
+        linters: [gochecknoglobals] # severityOrder is a lookup table, not mutable state
       - path: ^internal/agenthost/guard/rows\.go$
         linters: [gochecknoglobals] # proseArtifacts/row6Denied/row7InfraTools/execAllowlist are lookup tables (or built once from one), not mutable state
       - path: ^internal/skills/lint/rules\.go$

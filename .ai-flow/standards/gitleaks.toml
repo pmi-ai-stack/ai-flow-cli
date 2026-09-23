@@ -1,0 +1,16 @@
+title = "ai-flow-cli repo gitleaks config"
+# Overrides the reference pack's org.secrets check (see standards.json's
+# own overrides[] entry): identical to packs/reference/checks/gitleaks.toml
+# plus one repo-specific allowlist path, since this repo's own tests
+# deliberately contain fixture strings that look like real credentials.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "generated fixtures, this repo's docs, and internal/redact's own credential-shaped test fixtures"
+paths = [
+  '''testdata/''',
+  '''\.md$''',
+  '''internal/redact/redact_test\.go''',
+]

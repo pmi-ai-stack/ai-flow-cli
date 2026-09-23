@@ -48,3 +48,31 @@ jobs:
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
+
+      # Dogfooding (phase 14): the freshly built binary runs its own
+      # `standards check .` against this repository and its embedded
+      # reference pack (plus this repo's own .ai-flow/standards/
+      # override — see that directory's own standards.json for why).
+      # `golangci-lint`/`gitleaks` are check-runner tools this job
+      # otherwise has no reason to install as their own binaries — the
+      # step above already covers linting via `go tool golangci-lint`,
+      # which is a different invocation from the bare `golangci-lint`
+      # `standards check` shells out to — so both are provisioned here,
+      # not assumed present.
+      - name: install check-runner tools (gitleaks, golangci-lint shim)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.21.2
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/bin/sh\nexec go tool golangci-lint "$@"\n' > "$HOME/.local/bin/golangci-lint"
+          chmod +x "$HOME/.local/bin/golangci-lint"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: build ai-flow
+        run: go build -o /tmp/ai-flow-dogfood ./cmd/ai-flow
+
+      - name: standards check . (dogfood the reference pack)
+        run: |
+          AI_FLOW_HOME="$(mktemp -d)"
+          /tmp/ai-flow-dogfood config init --home "$AI_FLOW_HOME"
+          /tmp/ai-flow-dogfood standards check . --home "$AI_FLOW_HOME"

@@ -30,7 +30,7 @@ func block(d Data, level int) string {
 	}
 
 	b.WriteString(heading(level, "Checks, packs and waivers"))
-	b.WriteString("Standards packs, checks and waivers are not implemented yet (see phases 12-14).\n\n")
+	writeChecksSection(&b, d)
 
 	b.WriteString(heading(level, "Mutation"))
 	if len(d.Mutation) == 0 {
@@ -48,6 +48,44 @@ func block(d Data, level int) string {
 	}
 
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// writeChecksSection renders the checks/packs/waivers section (the
+// phase-14 plan's design decision 16): absent entirely — a sentence,
+// not a table with every count at zero — until standards.json exists
+// for this ticket (from the plan stage onward), since before that
+// there is nothing yet to summarize rather than a summary of zero.
+func writeChecksSection(b *strings.Builder, d Data) {
+	if !d.HasStandards {
+		b.WriteString("No standards resolution recorded yet.\n\n")
+		return
+	}
+
+	b.WriteString("| Severity | Open | Fixed | Waived |\n")
+	b.WriteString("| --- | --- | --- | --- |\n")
+	for _, c := range d.Checks {
+		fmt.Fprintf(b, "| %s | %d | %d | %d |\n", c.Severity, c.Open, c.Fixed, c.Waived)
+	}
+	b.WriteString("\n")
+
+	if len(d.Packs) == 0 {
+		b.WriteString("Packs: (none resolved)\n\n")
+	} else {
+		names := make([]string, len(d.Packs))
+		for i, p := range d.Packs {
+			names[i] = p.ID + "@" + p.Ref
+		}
+		fmt.Fprintf(b, "Packs: %s\n\n", strings.Join(names, ", "))
+	}
+
+	if len(d.Waivers) == 0 {
+		b.WriteString("No waivers recorded.\n\n")
+	} else {
+		for _, w := range d.Waivers {
+			fmt.Fprintf(b, "- %s (%s): %s, until %s\n", w.CheckID, w.Repo, w.Reason, w.Expires)
+		}
+		b.WriteString("\n")
+	}
 }
 
 // Output renders output.md's full content — repositories, checks

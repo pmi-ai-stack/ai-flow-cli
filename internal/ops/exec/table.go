@@ -65,6 +65,29 @@ var Table = []Row{
 	{Tool: "mutmut", Verb: []string{"run"}, Class: ClassNone},
 	{Tool: "mutmut", Verb: []string{"junitxml"}, Class: ClassNone},
 	{Tool: "mvn", Verb: []string{"org.pitest:pitest-maven:mutationCoverage"}, Class: ClassNone},
+
+	// Phase 14 adds internal/standards/check's eight kinds' tools — same
+	// class: none reasoning throughout: every one of these reads or
+	// rewrites files inside the developer's own worktree (a source file,
+	// its own config, a report) and none reaches a persistent
+	// infrastructure target, so none is Mutating even where it rewrites
+	// files in place (gofmt -w, prettier --write, ruff format) — the
+	// same bucket phase 6/7's test and mutation tools are already in,
+	// not the git rows' repo_write/dry-run-flag shape (see the
+	// phase-14 plan's design decision 7). format's check and fix modes
+	// are split into their own rows (RequiredFlags/ForbiddenFlags) so
+	// each is independently the only shape it can be invoked as.
+	{Tool: "gofmt", Verb: []string{}, RequiredFlags: []string{"-l"}, Class: ClassNone},
+	{Tool: "gofmt", Verb: []string{}, RequiredFlags: []string{"-w"}, Class: ClassNone},
+	{Tool: "prettier", Verb: []string{}, RequiredFlags: []string{"--check"}, Class: ClassNone},
+	{Tool: "prettier", Verb: []string{}, RequiredFlags: []string{"--write"}, Class: ClassNone},
+	{Tool: "ruff", Verb: []string{"format"}, RequiredFlags: []string{"--check"}, Class: ClassNone},
+	{Tool: "ruff", Verb: []string{"format"}, ForbiddenFlags: []string{"--check"}, Class: ClassNone},
+	{Tool: "ruff", Verb: []string{"check"}, ForbiddenFlags: []string{"--fix"}, Class: ClassNone},
+	{Tool: "eslint", Verb: []string{}, ForbiddenFlags: []string{"--fix"}, Class: ClassNone},
+	{Tool: "golangci-lint", Verb: []string{"run"}, Class: ClassNone},
+	{Tool: "checkstyle", Verb: []string{}, Class: ClassNone},
+	{Tool: "gitleaks", Verb: []string{"detect"}, Class: ClassNone},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

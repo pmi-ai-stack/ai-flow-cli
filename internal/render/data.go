@@ -34,6 +34,25 @@ type Accepted struct {
 	Reason string
 }
 
+// SeverityCount is one checks-results.json severity's status tally —
+// the block's own table row.
+type SeverityCount struct {
+	Severity            string
+	Open, Fixed, Waived int
+}
+
+// PackSummary is one standards.json sources[] entry, trimmed to what
+// the block prints: id@ref (or id@embedded for the reference pack).
+type PackSummary struct {
+	ID, Ref string
+}
+
+// WaiverSummary is one standards.json waivers[] entry, trimmed to what
+// the block prints.
+type WaiverSummary struct {
+	CheckID, Repo, Reason, Expires string
+}
+
 // Data is everything Output and PRBlock read to render — a pure value,
 // so both are pure functions of it (07-determinism.md).
 type Data struct {
@@ -41,6 +60,19 @@ type Data struct {
 	Repositories []Repository
 	Mutation     []MutationRepo
 	Accepted     *Accepted
+
+	// HasStandards is true once standards.json has been written for
+	// this ticket (from the plan stage onward) — the phase-14 plan's
+	// design decision 16: the checks/packs/waivers block is absent
+	// entirely, not merely empty, before that, since there is nothing
+	// yet to summarize rather than a summary of zero. A Data literal
+	// built by hand (every existing render test) leaves this false,
+	// which is exactly the "before plan" behaviour those tests already
+	// expect.
+	HasStandards bool
+	Checks       []SeverityCount
+	Packs        []PackSummary
+	Waivers      []WaiverSummary
 }
 
 // repoArtifactWire is the subset of repo.schema.json Load needs.
@@ -97,7 +129,105 @@ func Load(ticketDir, key string) (Data, error) {
 	d.Mutation = mutation
 	d.Accepted = accepted
 
+	hasStandards, checks, packs, waivers, err := LoadStandards(ticketDir)
+	if err != nil {
+		return Data{}, err
+	}
+	d.HasStandards = hasStandards
+	d.Checks = checks
+	d.Packs = packs
+	d.Waivers = waivers
+
 	return d, nil
+}
+
+// standardsWire is the subset of standards.schema.json Load needs.
+type standardsWire struct {
+	Sources []struct {
+		ID  string `json:"id"`
+		Ref string `json:"ref"`
+	} `json:"sources"`
+	Waivers []struct {
+		CheckID string `json:"check_id"`
+		Repo    string `json:"repo"`
+		Reason  string `json:"reason"`
+		Expires string `json:"expires"`
+	} `json:"waivers"`
+}
+
+// checksResultsWire is the subset of checks-results.schema.json Load
+// needs.
+type checksResultsWire struct {
+	Findings []struct {
+		Severity string `json:"severity"`
+		Status   string `json:"status"`
+	} `json:"findings"`
+}
+
+// severityOrder is the block's own display order — must first, since
+// it is the one severity that blocks a stage, then should, then may.
+var severityOrder = []string{"must", "should", "may"}
+
+// LoadStandards reads ticketDir's standards.json (optional — absent
+// before the plan stage resolves it) and checks-results.json
+// (optional — absent before any check has run). Exported separately
+// from Load for the same reason LoadMutation is: a caller that already
+// has the pieces it needs in memory should not have to re-read them
+// through a file.
+func LoadStandards(ticketDir string) (hasStandards bool, checks []SeverityCount, packs []PackSummary, waivers []WaiverSummary, err error) {
+	standardsData, err := handoff.ReadArtifact(filepath.Join(ticketDir, "standards.json"))
+	if err != nil {
+		return false, nil, nil, nil, err
+	}
+	if standardsData == nil {
+		return false, nil, nil, nil, nil
+	}
+
+	var sw standardsWire
+	if err := json.Unmarshal(standardsData, &sw); err != nil {
+		return false, nil, nil, nil, fmt.Errorf("render: decode standards.json: %w", err)
+	}
+	for _, s := range sw.Sources {
+		packs = append(packs, PackSummary{ID: s.ID, Ref: s.Ref})
+	}
+	for _, w := range sw.Waivers {
+		waivers = append(waivers, WaiverSummary{CheckID: w.CheckID, Repo: w.Repo, Reason: w.Reason, Expires: w.Expires})
+	}
+
+	counts := map[string]*SeverityCount{}
+	for _, sev := range severityOrder {
+		counts[sev] = &SeverityCount{Severity: sev}
+	}
+
+	checksData, err := handoff.ReadArtifact(filepath.Join(ticketDir, "checks-results.json"))
+	if err != nil {
+		return false, nil, nil, nil, err
+	}
+	if checksData != nil {
+		var cw checksResultsWire
+		if err := json.Unmarshal(checksData, &cw); err != nil {
+			return false, nil, nil, nil, fmt.Errorf("render: decode checks-results.json: %w", err)
+		}
+		for _, f := range cw.Findings {
+			c, ok := counts[f.Severity]
+			if !ok {
+				continue
+			}
+			switch f.Status {
+			case "open":
+				c.Open++
+			case "fixed":
+				c.Fixed++
+			case "waived":
+				c.Waived++
+			}
+		}
+	}
+	for _, sev := range severityOrder {
+		checks = append(checks, *counts[sev])
+	}
+
+	return true, checks, packs, waivers, nil
 }
 
 // LoadMutation reads ticketDir's mutation-results.json (optional —

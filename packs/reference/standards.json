@@ -86,5 +86,48 @@
     { "id": "java.anti-patterns", "path": "languages/java/guidance/08-anti-patterns.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["implement", "review"] } },
     { "id": "java.pr-checklist", "path": "languages/java/guidance/09-pr-checklist.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["ship", "review"] } }
   ],
-  "checks": []
+  "checks": [
+    { "id": "go.format", "kind": "format", "tool": "gofmt", "severity": "must", "applies_to": { "languages": ["go"] } },
+    { "id": "go.lint", "kind": "lint", "tool": "golangci-lint", "config": "languages/go/checks/golangci.yml", "severity": "must",
+      "applies_to": { "languages": ["go"] } },
+    { "id": "go.dependencies", "kind": "dependency", "config": "languages/go/checks/dependencies.json", "severity": "should",
+      "applies_to": { "languages": ["go"] } },
+    { "id": "go.layout", "kind": "layout", "config": "languages/go/checks/layout.json", "severity": "should",
+      "applies_to": { "languages": ["go"] } },
+
+    { "id": "typescript.format", "kind": "format", "tool": "prettier", "severity": "must",
+      "applies_to": { "languages": ["typescript"] } },
+    { "id": "typescript.lint", "kind": "lint", "tool": "eslint", "config": "languages/typescript/checks/eslint.config.js", "severity": "must",
+      "applies_to": { "languages": ["typescript"] } },
+    { "id": "typescript.dependencies", "kind": "dependency", "config": "languages/typescript/checks/dependencies.json", "severity": "should",
+      "applies_to": { "languages": ["typescript"] } },
+    { "id": "typescript.layout", "kind": "layout", "config": "languages/typescript/checks/layout.json", "severity": "should",
+      "applies_to": { "languages": ["typescript"] } },
+
+    { "id": "python.format", "kind": "format", "tool": "ruff", "config": "languages/python/checks/ruff.toml", "severity": "must",
+      "applies_to": { "languages": ["python"] } },
+    { "id": "python.lint", "kind": "lint", "tool": "ruff", "config": "languages/python/checks/ruff.toml", "severity": "must",
+      "applies_to": { "languages": ["python"] } },
+    { "id": "python.dependencies", "kind": "dependency", "config": "languages/python/checks/dependencies.json", "severity": "should",
+      "applies_to": { "languages": ["python"] } },
+    { "id": "python.layout", "kind": "layout", "config": "languages/python/checks/layout.json", "severity": "should",
+      "applies_to": { "languages": ["python"] } },
+
+    { "id": "csharp.dependencies", "kind": "dependency", "config": "languages/csharp/checks/dependencies.json", "severity": "should",
+      "applies_to": { "languages": ["csharp"] } },
+    { "id": "csharp.layout", "kind": "layout", "config": "languages/csharp/checks/layout.json", "severity": "should",
+      "applies_to": { "languages": ["csharp"] } },
+
+    { "id": "java.lint", "kind": "lint", "tool": "checkstyle", "config": "languages/java/checks/checkstyle.xml", "severity": "should",
+      "applies_to": { "languages": ["java"] } },
+    { "id": "java.dependencies", "kind": "dependency", "config": "languages/java/checks/dependencies.json", "severity": "should",
+      "applies_to": { "languages": ["java"] } },
+    { "id": "java.layout", "kind": "layout", "config": "languages/java/checks/layout.json", "severity": "should",
+      "applies_to": { "languages": ["java"] } },
+
+    { "id": "org.secrets", "kind": "secrets", "tool": "gitleaks", "config": "checks/gitleaks.toml", "severity": "must" },
+    { "id": "org.docs", "kind": "docs", "severity": "should" },
+    { "id": "process.commit-conventional", "kind": "commit", "severity": "must", "applies_to": { "stages": ["ship"] } },
+    { "id": "process.pr", "kind": "pr", "severity": "must", "applies_to": { "stages": ["ship"] } }
+  ]
 }
