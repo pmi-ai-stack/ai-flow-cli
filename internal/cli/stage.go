@@ -84,23 +84,31 @@ func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Statu
 }
 
 // buildShouldRunInput computes handoff.ShouldRunInput for stage — the
-// phase-6 plan's design decision 7, extended by phase 7 for mutation
-// and phase 20 for render-drift/dry-run. Every stage but those five
-// ignores the input entirely (see handoff.ShouldRun's own switch), so
-// this returns the zero value for the rest without doing any detection
-// work at all: internal/detect.E2E/Mutation's filesystem probing (for
-// visual-test/e2e/mutation, via repo.json) and hasChangedTarget's own
-// read (for render-drift/dry-run, via ops-targets.json — a separate
-// data source, handled in its own early branch below) are both worth
-// skipping for every other stage/command call per ticket that doesn't
-// need either.
+// phase-6 plan's design decision 7, extended by phase 7 for mutation,
+// phase 20 for render-drift/dry-run and phase 23 for impact/rollback.
+// Every stage but those seven ignores the input entirely (see
+// handoff.ShouldRun's own switch), so this returns the zero value for
+// the rest without doing any detection work at all:
+// internal/detect.E2E/Mutation's filesystem probing (for
+// visual-test/e2e/mutation, via repo.json), hasChangedTarget's own
+// read (for render-drift/dry-run/impact, via ops-targets.json) and
+// hasChangesetAction's own read (for rollback, via dryrun-results.json
+// and each target's own plan file) are all worth skipping for every
+// other stage/command call per ticket that doesn't need any of them.
 func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.ShouldRunInput, error) {
-	if stage == handoff.StageRenderDrift || stage == handoff.StageDryRun {
+	if stage == handoff.StageRenderDrift || stage == handoff.StageDryRun || stage == handoff.StageImpact {
 		has, err := hasChangedTarget(f, key)
 		if err != nil {
 			return handoff.ShouldRunInput{}, err
 		}
 		return handoff.ShouldRunInput{HasChangedTarget: has}, nil
+	}
+	if stage == handoff.StageRollback {
+		has, err := hasChangesetAction(f, key)
+		if err != nil {
+			return handoff.ShouldRunInput{}, err
+		}
+		return handoff.ShouldRunInput{HasChangesetAction: has}, nil
 	}
 	if stage != handoff.StageVisualTest && stage != handoff.StageE2E && stage != handoff.StageMutation {
 		return handoff.ShouldRunInput{}, nil
@@ -450,6 +458,11 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 					}
 					gi = handoff.GateInputs{RiskGate: cfg.Ops.RiskGate, Score: score, Protected: protected}
 				}
+				if stage == handoff.StageRollback {
+					if err := checkRollbackPlanCheck(ticketDir, artifactData); err != nil {
+						return Outcome{}, err
+					}
+				}
 				if stage == handoff.StageImpact || stage == handoff.StageRollback {
 					if err := checkDryRunFreshness(f, key); err != nil {
 						return Outcome{}, err
@@ -515,21 +528,27 @@ func mustFindingsOpenError(stage handoff.Stage) *envelope.Error {
 
 // impactGateFields is the subset of impact-results.json GateFires
 // needs. checkPrimaryArtifact has already proven the file exists and
-// satisfies its schema by the time this is called.
+// satisfies its schema by the time this is called. There is no
+// top-level "protected" boolean in the real schema (phase 23) — only
+// protected_actions[], whose own emptiness is the signal; the item
+// shape is irrelevant here, so it decodes into json.RawMessage rather
+// than the full ops.Action shape.
 type impactGateFields struct {
-	Score     int  `json:"score"`
-	Protected bool `json:"protected"`
+	Score            int               `json:"score"`
+	ProtectedActions []json.RawMessage `json:"protected_actions"`
 }
 
-// parseImpactGateInputs decodes impact-results.json's score/protected
-// fields from data, which the caller has already read via
-// checkPrimaryArtifact — this never re-reads the file.
+// parseImpactGateInputs decodes impact-results.json's score and
+// protected_actions[] fields from data, which the caller has already
+// read via checkPrimaryArtifact — this never re-reads the file.
+// protected is true whenever any action is protected — the spec's own
+// "one of the two gate triggers."
 func parseImpactGateInputs(data []byte) (score int, protected bool, err error) {
 	var f impactGateFields
 	if err := json.Unmarshal(data, &f); err != nil {
 		return 0, false, fmt.Errorf("stage complete impact: decode impact-results.json: %w", err)
 	}
-	return f.Score, f.Protected, nil
+	return f.Score, len(f.ProtectedActions) > 0, nil
 }
 
 func newStageApproveCmd(cio cmdIO) *cobra.Command {
@@ -573,12 +592,71 @@ func newStageApproveCmd(cio cmdIO) *cobra.Command {
 			}
 			to := st.Entry(stage).State
 
+			if stage == handoff.StageImpact {
+				if err := postImpactApprovalComment(cmd, f, key, by, at); err != nil {
+					return Outcome{}, err
+				}
+			}
+
 			if err := finalizeTransition(f.Home, key, stage, st, "stage approve", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil
 		}),
 	}
+}
+
+// postImpactApprovalComment posts, or edits, the "ai-flow:impact"
+// marker comment `stage approve KEY impact` is documented to produce —
+// design decision 6: fires unconditionally once Approve has already
+// landed the transition (impact's own GatePost always lands in
+// approved, unlike ship's pre-gate, which has a running/awaiting_
+// approval split this stage does not). impact-results.json is read
+// fresh here rather than threaded through from Complete, since
+// Approve's own precondition (awaiting_approval) already guarantees
+// Complete wrote it.
+func postImpactApprovalComment(cmd *cobra.Command, f Flags, key, by, at string) error {
+	ticketDir := handoff.TicketDir(f.Home, key)
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "impact-results.json"))
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		// Defensive only: checkPrimaryArtifact already requires this
+		// file to exist before impact can reach awaiting_approval, so
+		// approve is unreachable without it in production.
+		return nil
+	}
+	var artifact opsImpactArtifact
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return fmt.Errorf("cli: decode impact-results.json: %w", err)
+	}
+
+	trk, _, err := buildTracker(cmd, f)
+	if err != nil {
+		return err
+	}
+	if err := trk.Comment(cmd.Context(), key, "impact", renderImpactComment(artifact, by, at)); err != nil {
+		return redactErr(err)
+	}
+	return nil
+}
+
+// renderImpactComment is the marker comment's own body: score, blast
+// radius and who accepted it — the spec's own literal field list for
+// this comment.
+func renderImpactComment(a opsImpactArtifact, by, at string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Score: %d/100\n", a.Score)
+	fmt.Fprintf(&b, "Accepted by %s at %s\n\n", by, at)
+	b.WriteString("Blast radius:\n")
+	if len(a.BlastRadius.Entries) == 0 {
+		b.WriteString("- (none)\n")
+	}
+	for _, e := range a.BlastRadius.Entries {
+		fmt.Fprintf(&b, "- %s / %s / %s: %d\n", e.Env, e.Scope, e.Kind, e.Count)
+	}
+	return b.String()
 }
 
 // currentUser is stage approve's source for "by" — the spec records
@@ -613,6 +691,12 @@ func newStageSkipCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, &envelope.Error{Code: "usage", Message: "--reason is required"}
 			}
 			f := FlagsFrom(cmd.Context())
+
+			if stage == handoff.StageImpact {
+				if err := checkNoProtectedActionForSkip(f, key); err != nil {
+					return Outcome{}, err
+				}
+			}
 
 			st, err := handoff.LoadStatus(f.Home, key)
 			if err != nil {

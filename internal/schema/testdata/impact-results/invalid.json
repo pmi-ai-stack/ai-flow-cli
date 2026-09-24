@@ -1,5 +1,8 @@
 {
   "score": 140,
-  "protected": false,
-  "sensitive": false
+  "targets_with_drift": 0,
+  "targets_offline": 0,
+  "contributions": [],
+  "blast_radius": { "entries": [], "kind_class_counts": {} },
+  "protected_actions": []
 }

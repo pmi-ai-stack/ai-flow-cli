@@ -1,7 +1,23 @@
 {
   "score": 40,
-  "protected": false,
-  "sensitive": false,
-  "blast_radius": [],
-  "contributions": []
+  "targets_with_drift": 0,
+  "targets_offline": 0,
+  "contributions": [
+    {
+      "target": "acme.k8s-config:overlays/eu-prod",
+      "address": "prod/Deployment/api",
+      "addon": "kubectl",
+      "action": "update",
+      "kind_class": "workload",
+      "tier": "prod",
+      "per_mille": 6000
+    }
+  ],
+  "blast_radius": {
+    "entries": [
+      { "env": "prod", "scope": "prod", "kind": "Deployment", "count": 1 }
+    ],
+    "kind_class_counts": { "workload": 1 }
+  },
+  "protected_actions": []
 }

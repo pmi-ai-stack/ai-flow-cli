@@ -53,6 +53,13 @@ type WaiverSummary struct {
 	CheckID, Repo, Reason, Expires string
 }
 
+// BlastRadiusEntry is one impact-results.json blast_radius.entries[]
+// item, trimmed to what the block prints.
+type BlastRadiusEntry struct {
+	Env, Scope, Kind string
+	Count            int
+}
+
 // Data is everything Output and PRBlock read to render — a pure value,
 // so both are pure functions of it (07-determinism.md).
 type Data struct {
@@ -73,6 +80,19 @@ type Data struct {
 	Checks       []SeverityCount
 	Packs        []PackSummary
 	Waivers      []WaiverSummary
+
+	// HasImpact is true once impact-results.json has been written for
+	// this ticket (phase 23) — the same "absent entirely, not zeroed"
+	// convention HasStandards already established: no targets at all
+	// means no OPS section, not a score of zero.
+	HasImpact   bool
+	Score       int
+	BlastRadius []BlastRadiusEntry
+
+	// HasRollback is true once rollback-results.json has been written.
+	HasRollback   bool
+	NonRevertible []string
+	WatchList     []string
 }
 
 // repoArtifactWire is the subset of repo.schema.json Load needs.
@@ -138,7 +158,82 @@ func Load(ticketDir, key string) (Data, error) {
 	d.Packs = packs
 	d.Waivers = waivers
 
+	hasImpact, score, blastRadius, err := LoadImpact(ticketDir)
+	if err != nil {
+		return Data{}, err
+	}
+	d.HasImpact = hasImpact
+	d.Score = score
+	d.BlastRadius = blastRadius
+
+	hasRollback, nonRevertible, watchList, err := LoadRollback(ticketDir)
+	if err != nil {
+		return Data{}, err
+	}
+	d.HasRollback = hasRollback
+	d.NonRevertible = nonRevertible
+	d.WatchList = watchList
+
 	return d, nil
+}
+
+// impactResultsWire is the subset of impact-results.schema.json Load
+// needs.
+type impactResultsWire struct {
+	Score       int `json:"score"`
+	BlastRadius struct {
+		Entries []struct {
+			Env   string `json:"env"`
+			Scope string `json:"scope"`
+			Kind  string `json:"kind"`
+			Count int    `json:"count"`
+		} `json:"entries"`
+	} `json:"blast_radius"`
+}
+
+// LoadImpact reads ticketDir's impact-results.json (optional — absent
+// before the impact stage has run). Exported separately from Load for
+// the same reason LoadStandards/LoadMutation are.
+func LoadImpact(ticketDir string) (hasImpact bool, score int, blastRadius []BlastRadiusEntry, err error) {
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "impact-results.json"))
+	if err != nil {
+		return false, 0, nil, err
+	}
+	if data == nil {
+		return false, 0, nil, nil
+	}
+	var w impactResultsWire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return false, 0, nil, fmt.Errorf("render: decode impact-results.json: %w", err)
+	}
+	for _, e := range w.BlastRadius.Entries {
+		blastRadius = append(blastRadius, BlastRadiusEntry{Env: e.Env, Scope: e.Scope, Kind: e.Kind, Count: e.Count})
+	}
+	return true, w.Score, blastRadius, nil
+}
+
+// rollbackResultsWire is the subset of rollback-results.schema.json
+// Load needs.
+type rollbackResultsWire struct {
+	NonRevertible []string `json:"non_revertible"`
+	WatchList     []string `json:"watch_list"`
+}
+
+// LoadRollback reads ticketDir's rollback-results.json (optional —
+// absent before the rollback stage has run).
+func LoadRollback(ticketDir string) (hasRollback bool, nonRevertible, watchList []string, err error) {
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "rollback-results.json"))
+	if err != nil {
+		return false, nil, nil, err
+	}
+	if data == nil {
+		return false, nil, nil, nil
+	}
+	var w rollbackResultsWire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return false, nil, nil, fmt.Errorf("render: decode rollback-results.json: %w", err)
+	}
+	return true, w.NonRevertible, w.WatchList, nil
 }
 
 // standardsWire is the subset of standards.schema.json Load needs.

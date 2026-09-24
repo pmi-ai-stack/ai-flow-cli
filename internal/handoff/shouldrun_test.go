@@ -16,16 +16,14 @@ func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 }
 
 // TestShouldRunStillDeferredStagesAlwaysRun pins phase 6's design
-// decision 2, now covering the six skip rules still deferred after
-// phase 7: they must keep answering run: true, and must do so
+// decision 2, now covering the skip rules still deferred after phases
+// 7/20/23: they must keep answering run: true, and must do so
 // regardless of what ShouldRunInput carries — a future phase adding
 // its own fields to the struct must not accidentally change a rule it
 // does not own yet.
 func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 	want := map[Stage]string{
 		StageChecks:    "no_check_applies",
-		StageImpact:    "dry_run_skipped",
-		StageRollback:  "changeset_empty",
 		StageInfraTest: "no_changed_target_or_no_harness",
 	}
 	inputs := []ShouldRunInput{
@@ -167,6 +165,59 @@ func TestShouldRunDryRun(t *testing.T) {
 			}
 			if rule != "no_changed_target_with_dry_run" {
 				t.Errorf("rule = %q, want no_changed_target_with_dry_run", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunImpact pins phase 23's real rule: dry_run_skipped is the
+// same underlying condition as render-drift/dry-run's own
+// HasChangedTarget, just a different coded id.
+func TestShouldRunImpact(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"changed target", ShouldRunInput{HasChangedTarget: true}, true},
+		{"no changed target", ShouldRunInput{HasChangedTarget: false}, false},
+		{"no changed target, irrelevant HasChangesetAction set too", ShouldRunInput{HasChangedTarget: false, HasChangesetAction: true}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageImpact, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(impact, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "dry_run_skipped" {
+				t.Errorf("rule = %q, want dry_run_skipped", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunRollback pins phase 23's real rule: changeset_empty,
+// decided by HasChangesetAction alone (independent of HasChangedTarget
+// — a changed target whose changeset turned out empty still needs no
+// rollback plan).
+func TestShouldRunRollback(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"has a non-noop action", ShouldRunInput{HasChangesetAction: true}, true},
+		{"empty changeset", ShouldRunInput{HasChangesetAction: false}, false},
+		{"empty changeset, changed target true", ShouldRunInput{HasChangedTarget: true, HasChangesetAction: false}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageRollback, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(rollback, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "changeset_empty" {
+				t.Errorf("rule = %q, want changeset_empty", rule)
 			}
 		})
 	}

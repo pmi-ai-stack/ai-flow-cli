@@ -47,7 +47,51 @@ func block(d Data, level int) string {
 		}
 	}
 
+	writeImpactAndRollbackSection(&b, d, level)
+
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// writeImpactAndRollbackSection renders score, blast radius and the
+// rollback summary — absent entirely (not the heading with an empty
+// body) when neither impact-results.json nor rollback-results.json
+// exists yet for this ticket, the same "absent, not zeroed" convention
+// writeChecksSection already established for HasStandards.
+func writeImpactAndRollbackSection(b *strings.Builder, d Data, level int) {
+	if !d.HasImpact && !d.HasRollback {
+		return
+	}
+	b.WriteString(heading(level, "Impact and rollback"))
+
+	if d.HasImpact {
+		fmt.Fprintf(b, "**Score:** %d/100\n\n", d.Score)
+		if len(d.BlastRadius) == 0 {
+			b.WriteString("Blast radius: (none)\n\n")
+		} else {
+			b.WriteString("Blast radius:\n\n")
+			for _, e := range d.BlastRadius {
+				fmt.Fprintf(b, "- %s / %s / %s: %d\n", e.Env, e.Scope, e.Kind, e.Count)
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if d.HasRollback {
+		if len(d.NonRevertible) == 0 {
+			b.WriteString("Non-revertible: (none)\n\n")
+		} else {
+			b.WriteString("Non-revertible:\n\n")
+			for _, addr := range d.NonRevertible {
+				fmt.Fprintf(b, "- %s\n", addr)
+			}
+			b.WriteString("\n")
+		}
+		if len(d.WatchList) == 0 {
+			b.WriteString("Watch list: (none)\n\n")
+		} else {
+			fmt.Fprintf(b, "Watch list: %s\n\n", strings.Join(d.WatchList, ", "))
+		}
+	}
 }
 
 // writeChecksSection renders the checks/packs/waivers section (the

@@ -54,6 +54,10 @@ type Addon struct {
 	// DryRunChangeset, when non-nil, is DryRun's fixed answer instead of
 	// the zero-value fixed empty Changeset{}.
 	DryRunChangeset *ops.Changeset
+	// RollbackInfo, when non-nil, is Rollback's fixed answer instead of
+	// the zero-value fixed empty RollbackInfo{} — phase 23's own way of
+	// driving real Steps/NonRevertible content through the fixture.
+	RollbackInfo *ops.RollbackInfo
 	// LiveUnreachable, when true, makes Drift and DryRun return
 	// ops.ErrLiveCredentialsMissing whenever called with a *bound* Env
 	// (env.Name != "") — simulating "this environment's live
@@ -160,6 +164,9 @@ func (a *Addon) DryRun(_ context.Context, _ ops.Target, env ops.Env, _ *ops.Rend
 }
 
 func (a *Addon) Rollback(_ context.Context, _ ops.Target, _ ops.Env, _ *ops.Changeset) (*ops.RollbackInfo, error) {
+	if a.RollbackInfo != nil {
+		return a.RollbackInfo, nil
+	}
 	return &ops.RollbackInfo{}, nil
 }
 

@@ -342,3 +342,133 @@ func TestLoad_MutationOptional_FilePathBuiltCorrectly(t *testing.T) {
 		t.Fatalf("Mutation = %d entries, want 1 (mutation-results.json was written)", len(d.Mutation))
 	}
 }
+
+// writeImpactResults writes a minimal, schema-valid impact-results.json.
+func writeImpactResults(t *testing.T, dir string, score int) {
+	t.Helper()
+	artifact := map[string]any{
+		"score":              score,
+		"targets_with_drift": 0,
+		"targets_offline":    0,
+		"contributions":      []any{},
+		"blast_radius": map[string]any{
+			"entries":           []map[string]any{{"env": "prod", "scope": "payments", "kind": "Deployment", "count": 2}},
+			"kind_class_counts": map[string]any{"workload": 2},
+		},
+		"protected_actions": []any{},
+	}
+	if _, err := handoff.WriteArtifact(dir, "impact-results.json", "impact-results", artifact); err != nil {
+		t.Fatalf("write impact-results.json: %v", err)
+	}
+}
+
+// writeRollbackResults writes a minimal, schema-valid
+// rollback-results.json.
+func writeRollbackResults(t *testing.T, dir string, nonRevertible, watchList []string) {
+	t.Helper()
+	artifact := map[string]any{
+		"repositories":   []any{},
+		"targets":        []any{},
+		"non_revertible": nonRevertible,
+		"watch_list":     watchList,
+	}
+	if _, err := handoff.WriteArtifact(dir, "rollback-results.json", "rollback-results", artifact); err != nil {
+		t.Fatalf("write rollback-results.json: %v", err)
+	}
+}
+
+func TestLoad_ImpactAndRollbackAbsent(t *testing.T) {
+	dir := t.TempDir()
+	writeRepo(t, dir)
+
+	d, err := Load(dir, "TEST-1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if d.HasImpact || d.HasRollback {
+		t.Errorf("HasImpact = %v, HasRollback = %v, want both false (neither file written)", d.HasImpact, d.HasRollback)
+	}
+}
+
+func TestLoad_ImpactAndRollbackPresent(t *testing.T) {
+	dir := t.TempDir()
+	writeRepo(t, dir)
+	writeImpactResults(t, dir, 42)
+	writeRollbackResults(t, dir, []string{"aws_s3_bucket.data"}, []string{"aws_s3_bucket.data"})
+
+	d, err := Load(dir, "TEST-1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !d.HasImpact || d.Score != 42 {
+		t.Fatalf("HasImpact = %v, Score = %d, want true, 42", d.HasImpact, d.Score)
+	}
+	if len(d.BlastRadius) != 1 || d.BlastRadius[0].Scope != "payments" || d.BlastRadius[0].Count != 2 {
+		t.Fatalf("BlastRadius = %+v", d.BlastRadius)
+	}
+	if !d.HasRollback || len(d.NonRevertible) != 1 || d.NonRevertible[0] != "aws_s3_bucket.data" {
+		t.Fatalf("HasRollback = %v, NonRevertible = %v", d.HasRollback, d.NonRevertible)
+	}
+	if len(d.WatchList) != 1 || d.WatchList[0] != "aws_s3_bucket.data" {
+		t.Fatalf("WatchList = %v", d.WatchList)
+	}
+}
+
+// TestOutput_ImpactAndRollbackAbsentOmitsSection proves the section is
+// absent entirely, not present with a placeholder — the same
+// convention writeChecksSection already established for HasStandards.
+func TestOutput_ImpactAndRollbackAbsentOmitsSection(t *testing.T) {
+	out := Output(Data{Key: "TEST-1"})
+	if strings.Contains(out, "Impact and rollback") {
+		t.Errorf("Output() must omit the Impact and rollback heading entirely when neither artifact exists\nfull output:\n%s", out)
+	}
+}
+
+func TestOutput_ImpactAndRollbackPresent(t *testing.T) {
+	d := Data{
+		Key: "TEST-1", HasImpact: true, Score: 55,
+		BlastRadius:   []BlastRadiusEntry{{Env: "prod", Scope: "payments", Kind: "Deployment", Count: 2}},
+		HasRollback:   true,
+		NonRevertible: []string{"aws_s3_bucket.data"},
+		WatchList:     []string{"aws_s3_bucket.data", "aws_iam_role.x"},
+	}
+	out := Output(d)
+	for _, want := range []string{
+		"## Impact and rollback",
+		"**Score:** 55/100",
+		"prod / payments / Deployment: 2",
+		"Non-revertible:",
+		"aws_s3_bucket.data",
+		"Watch list: aws_s3_bucket.data, aws_iam_role.x",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Output() missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
+
+// TestOutput_ImpactOnlyOmitsRollbackLines proves the two halves are
+// independently present — impact without rollback shows no
+// Non-revertible/Watch list lines.
+func TestOutput_ImpactOnlyOmitsRollbackLines(t *testing.T) {
+	d := Data{Key: "TEST-1", HasImpact: true, Score: 10}
+	out := Output(d)
+	if !strings.Contains(out, "**Score:** 10/100") {
+		t.Errorf("Output() missing the score\nfull output:\n%s", out)
+	}
+	if strings.Contains(out, "Non-revertible") || strings.Contains(out, "Watch list") {
+		t.Errorf("Output() must not show rollback lines when HasRollback is false\nfull output:\n%s", out)
+	}
+}
+
+func TestOutputAndPRBlock_ByteStableWithImpactAndRollback(t *testing.T) {
+	d := Data{
+		Key: "TEST-1", HasImpact: true, Score: 30,
+		BlastRadius:   []BlastRadiusEntry{{Env: "prod", Scope: "payments", Kind: "Deployment", Count: 2}},
+		HasRollback:   true,
+		NonRevertible: []string{"aws_s3_bucket.data"},
+		WatchList:     []string{"aws_s3_bucket.data"},
+	}
+	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(Output(d)), nil })
+	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(PRBlock(d)), nil })
+}

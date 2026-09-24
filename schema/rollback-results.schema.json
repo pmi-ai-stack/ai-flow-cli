@@ -2,22 +2,37 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/rollback-results.schema.json",
   "title": "rollback-results",
-  "description": "~/.ai-flow/<KEY>/rollback-results.json — minimal placeholder; phase 23 owns the full shape.",
+  "description": "~/.ai-flow/<KEY>/rollback-results.json — the revert path derived as text, never executed: git revert per repository, tool-level rollback per target, the flat non_revertible union plan_check reads, and the deterministic watch list.",
   "type": "object",
-  "required": ["targets"],
+  "required": ["repositories", "targets", "non_revertible", "watch_list"],
   "additionalProperties": false,
   "properties": {
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "revert"],
+        "additionalProperties": false,
+        "properties": {
+          "repo": { "type": "string" },
+          "revert": { "type": "string" }
+        }
+      }
+    },
     "targets": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["target", "steps", "non_revertible"],
+        "additionalProperties": false,
         "properties": {
           "target": { "type": "string" },
           "steps": { "type": "array", "items": { "type": "string" } },
           "non_revertible": { "type": "array", "items": { "type": "string" } }
         }
       }
-    }
+    },
+    "non_revertible": { "type": "array", "items": { "type": "string" } },
+    "watch_list": { "type": "array", "items": { "type": "string" } }
   }
 }

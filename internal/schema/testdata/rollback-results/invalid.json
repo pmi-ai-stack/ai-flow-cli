@@ -1,5 +1,8 @@
 {
+  "repositories": [],
   "targets": [
     { "target": "infra/prod", "steps": "git revert HEAD", "non_revertible": [] }
-  ]
+  ],
+  "non_revertible": [],
+  "watch_list": []
 }

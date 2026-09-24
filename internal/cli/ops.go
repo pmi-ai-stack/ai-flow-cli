@@ -51,6 +51,8 @@ func newOpsCmd(cio cmdIO) *cobra.Command {
 	cmd.AddCommand(newOpsRenderCmd(cio))
 	cmd.AddCommand(newOpsDriftCmd(cio))
 	cmd.AddCommand(newOpsDryRunCmd(cio))
+	cmd.AddCommand(newOpsImpactCmd(cio))
+	cmd.AddCommand(newOpsRollbackCmd(cio))
 	cmd.AddCommand(newOpsAddonsCmd(cio))
 	cmd.AddCommand(newOpsAllowlistCmd(cio))
 	return cmd

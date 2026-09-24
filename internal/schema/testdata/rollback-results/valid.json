@@ -1,5 +1,10 @@
 {
+  "repositories": [
+    { "repo": "acme.k8s-config", "revert": "After this ticket's PR merges in acme.k8s-config, revert it with `git revert <merge-commit>`, then re-run the pipeline to confirm." }
+  ],
   "targets": [
-    { "target": "infra/prod", "steps": ["git revert HEAD"], "non_revertible": [] }
-  ]
+    { "target": "acme.k8s-config:overlays/eu-prod", "steps": ["kubectl rollout undo deployment/api -n prod"], "non_revertible": [] }
+  ],
+  "non_revertible": [],
+  "watch_list": ["prod/Deployment/api"]
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -176,6 +177,19 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 		t.Fatalf("config init: exitCode = %d", ec)
 	}
 
+	// stage approve KEY impact posts the ai-flow:impact marker comment
+	// (phase 23) — a real tracker call this walkthrough now exercises
+	// for real, so it needs credentials and a scripted transport rather
+	// than a live Jira, mirroring doctor_test.go's own useScriptedJira.
+	t.Setenv("AI_FLOW_JIRA_EMAIL", "dev@example.com")
+	t.Setenv("AI_FLOW_JIRA_TOKEN", "token")
+	useScriptedJira(t, func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet {
+			return jsonResponse(200, `{"comments":[]}`), nil
+		}
+		return jsonResponse(201, `{}`), nil
+	})
+
 	type step struct {
 		stage    string
 		artifact string // schema artifact name, or "" for a markdown stub
@@ -199,12 +213,41 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 		{"output", "", "output.md"},
 	}
 
+	walkthroughTarget := ops.Target{Addon: "no-such-addon", Repo: "acme.infra", Path: "infra/prod"}
+
 	for _, s := range steps {
 		runStage(t, home, 0, "start", key, s.stage)
-		if s.artifact != "" {
+		switch {
+		case s.stage == "dry-run":
+			// A hand-built dryrun-results.json + plan file, keyed to
+			// walkthroughTarget's own TargetKey ("acme.infra:infra/prod")
+			// — not the generic schema fixture's mismatched "infra/prod"
+			// — so phase 23's real loadTargetChangesets (impact's and
+			// rollback's own join against ops-targets.json) resolves
+			// instead of refusing on an unknown target. The one non-noop
+			// action makes rollback's own real ShouldRun rule
+			// (changeset_empty) answer run: true.
+			writeDryRunResultsTargets(t, home, key, "live", []opsDryRunArtifactTarget{
+				{Hash: "h1", Target: ops.TargetKey(walkthroughTarget), Validation: []ops.Finding{}},
+			})
+			writePlanFixture(t, filepath.Join(home, key), walkthroughTarget, ops.Changeset{Actions: []ops.Action{
+				{Address: "aws_instance.web", Addon: "no-such-addon", Tier: "nonprod", Kind: "aws_instance", KindClass: ops.KindWorkload, Action: ops.ActionUpdate, Target: ops.TargetKey(walkthroughTarget)},
+			}})
+		case s.artifact != "":
 			writeFixture(t, home, key, s.artifact, s.filename)
-		} else {
+		default:
 			writeMarkdown(t, home, key, s.filename)
+		}
+		if s.stage == "impact" {
+			// Flipped to changed:false here — after `stage start impact`
+			// already ran above (which needed HasChangedTarget true for
+			// impact's own real ShouldRun rule, phase 23) but before
+			// `stage complete impact` below, whose checkDryRunFreshness
+			// tree-hash comparison must have nothing to check against a
+			// real checkout this test never creates for this target.
+			// rollback's own ShouldRun rule (changeset_empty) does not
+			// read this flag at all, so this has no effect on it.
+			writeChangedTerraformTarget(t, home, key, false)
 		}
 		if s.stage == "locate" {
 			// This test drives every stage to completion, including
@@ -238,14 +281,6 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 			// proves the should-run rule without needing a real checkout
 			// at that path.
 			writeChangedTerraformTarget(t, home, key, true)
-		}
-		if s.stage == "dry-run" {
-			// Flipped back to changed:false once dry-run completes, so
-			// checkDryRunFreshness's tree-hash comparison at `stage
-			// complete impact`/`rollback` (phase 20's own new
-			// precondition) has nothing to check against a real checkout
-			// this test never creates for this target.
-			writeChangedTerraformTarget(t, home, key, false)
 		}
 
 		switch s.stage {
@@ -385,6 +420,129 @@ func TestStageChecksRefusedOnOpenMustFinding(t *testing.T) {
 		t.Errorf("state = %s, want pass once the must finding is resolved", env.Result.State)
 	}
 }
+
+// TestStageSkipImpactRefusedWhenProtected and
+// TestStageSkipImpactAllowedWhenNotProtected exercise the phase-23
+// precondition directly: `stage skip KEY impact` is refused when any
+// action in the already-computed changeset is protected, evaluated
+// against the changeset itself (never impact-results.json, which does
+// not exist yet at pending).
+func TestStageSkipImpactRefusedWhenProtected(t *testing.T) {
+	home := t.TempDir()
+	key := "PROJ-1"
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+	ticketDir := filepath.Join(home, key)
+	tgt := ops.Target{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff}
+	writeOpsTargetsFixture(t, home, key, []ops.Target{tgt})
+	writeDryRunResultsFixture(t, home, key, []opsDryRunArtifactTarget{
+		{Hash: "h1", Target: ops.TargetKey(tgt), Validation: []ops.Finding{}},
+	})
+	writePlanFixture(t, ticketDir, tgt, ops.Changeset{Actions: []ops.Action{
+		{Address: "aws_s3_bucket.data", Addon: "terraform", Tier: "prod", Kind: "aws_s3_bucket", KindClass: ops.KindData, Action: ops.ActionDelete, Target: ops.TargetKey(tgt)},
+	}})
+
+	env := runStage(t, home, 3, "skip", key, "impact", "--reason", "not needed")
+	if env.Error == nil || env.Error.Code != "stage_not_allowed" {
+		t.Errorf("error = %+v, want stage_not_allowed", env.Error)
+	}
+}
+
+func TestStageSkipImpactAllowedWhenNotProtected(t *testing.T) {
+	home := t.TempDir()
+	key := "PROJ-1"
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+	ticketDir := filepath.Join(home, key)
+	tgt := ops.Target{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff}
+	writeOpsTargetsFixture(t, home, key, []ops.Target{tgt})
+	writeDryRunResultsFixture(t, home, key, []opsDryRunArtifactTarget{
+		{Hash: "h1", Target: ops.TargetKey(tgt), Validation: []ops.Finding{}},
+	})
+	writePlanFixture(t, ticketDir, tgt, ops.Changeset{Actions: []ops.Action{
+		{Address: "aws_instance.web", Addon: "terraform", Tier: "nonprod", Kind: "aws_instance", KindClass: ops.KindWorkload, Action: ops.ActionUpdate, Target: ops.TargetKey(tgt)},
+	}})
+
+	env := runStage(t, home, 0, "skip", key, "impact", "--reason", "not needed")
+	if env.Result.State != "skipped" {
+		t.Errorf("state = %s, want skipped", env.Result.State)
+	}
+}
+
+// TestStageSkipImpactAllowedWithNoDryRunResults proves the tolerant-of-
+// absence shape: no dry-run has run yet, so there is nothing to refuse
+// skip on.
+func TestStageSkipImpactAllowedWithNoDryRunResults(t *testing.T) {
+	home := t.TempDir()
+	key := "PROJ-1"
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+	env := runStage(t, home, 0, "skip", key, "impact", "--reason", "not needed")
+	if env.Result.State != "skipped" {
+		t.Errorf("state = %s, want skipped", env.Result.State)
+	}
+}
+
+// TestStageCompleteRollbackPlanCheck drives `stage complete KEY
+// rollback` end to end: refused (invalid_result) while
+// rollback-plan.md carries no mitigation for a non_revertible address,
+// then passes once one is added — the plan's own "plan_check rejecting
+// a missing mitigation and accepting a present one."
+func TestStageCompleteRollbackPlanCheck(t *testing.T) {
+	home := t.TempDir()
+	key := "PROJ-1"
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+	ticketDir := filepath.Join(home, key)
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "AGENTS.md"), []byte("# acme.infra\n"), 0o600); err != nil {
+		t.Fatalf("write AGENTS.md: %v", err)
+	}
+	writeRepoFixture(t, ticketDir, "Team Beta", []repoArtifactRepository{{Name: "acme.infra", LocalPath: repoDir, InstructionsFile: "AGENTS.md"}})
+	tgt := ops.Target{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: boolPtr(false)}
+	writeOpsTargetsFixture(t, home, key, []ops.Target{tgt})
+	writeDryRunResultsFixture(t, home, key, []opsDryRunArtifactTarget{
+		{Hash: "h1", Target: ops.TargetKey(tgt), Validation: []ops.Finding{}},
+	})
+	writePlanFixture(t, ticketDir, tgt, ops.Changeset{Actions: []ops.Action{
+		{Address: "aws_s3_bucket.data", Addon: "terraform", Tier: "prod", Kind: "aws_s3_bucket", KindClass: ops.KindData, Action: ops.ActionDelete, Target: ops.TargetKey(tgt)},
+	}})
+
+	env := runStage(t, home, 0, "start", key, "rollback")
+	if env.Result.State != "running" {
+		t.Fatalf("stage start rollback: state = %s, want running (a non-noop action must make changeset_empty answer run: true)", env.Result.State)
+	}
+
+	rollbackArtifact := map[string]any{
+		"repositories":   []any{},
+		"targets":        []any{map[string]any{"target": ops.TargetKey(tgt), "steps": []string{"terraform destroy -target=aws_s3_bucket.data (as text; never executed)"}, "non_revertible": []string{"aws_s3_bucket.data"}}},
+		"non_revertible": []string{"aws_s3_bucket.data"},
+		"watch_list":     []string{"aws_s3_bucket.data"},
+	}
+	if _, err := handoff.WriteArtifact(ticketDir, "rollback-results.json", "rollback-results", rollbackArtifact); err != nil {
+		t.Fatalf("write rollback-results.json: %v", err)
+	}
+	// No rollback-plan.md at all yet.
+	env = runStage(t, home, 6, "complete", key, "rollback")
+	if env.Error == nil || env.Error.Code != "invalid_result" {
+		t.Fatalf("error = %+v, want invalid_result", env.Error)
+	}
+
+	md := "# Rollback plan\n\n## Trigger criteria\n\nx\n\n## Steps\n\nx\n\n## Non-revertible\n\n- aws_s3_bucket.data: a snapshot is taken before delete; restore from it if needed.\n\n## Watch list\n\nnone\n\n## Owner\n\nplatform\n"
+	if _, err := handoff.WriteFile(ticketDir, "rollback-plan.md", []byte(md)); err != nil {
+		t.Fatalf("write rollback-plan.md: %v", err)
+	}
+	env = runStage(t, home, 0, "complete", key, "rollback")
+	if env.Result.State != "pass" {
+		t.Errorf("state = %s, want pass once the mitigation is present", env.Result.State)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
 
 // TestStageShipApproveRefusedOnOutputNotPassed and
 // TestStageShipApproveRefusedOnOpenMustFinding exercise `stage approve
@@ -676,11 +834,15 @@ func TestStageShouldRunE2EReal(t *testing.T) {
 
 // TestStageShouldRunOtherStagesIgnoreRepoContent proves the seven
 // stages phase 6 does not own stay run: true regardless of repo.json's
-// content — a regression test for the plan's design decision 2.
+// content — a regression test for the plan's design decision 2. impact
+// and rollback are no longer in this list as of phase 23, which made
+// both real (they read ops-targets.json/dryrun-results.json, not
+// repo.json, so they are exercised by TestShouldRunImpact/
+// TestShouldRunRollback in internal/handoff instead).
 func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
 	home := t.TempDir()
 	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
-	for _, stage := range []string{"checks", "impact", "rollback", "infra-test", "mutation"} {
+	for _, stage := range []string{"checks", "infra-test", "mutation"} {
 		stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
 		if exitCode != 0 {
 			t.Fatalf("stage %s: exitCode = %d\n%s", stage, exitCode, stdout.String())

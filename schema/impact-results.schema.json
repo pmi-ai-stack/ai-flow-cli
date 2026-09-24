@@ -2,15 +2,77 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-flow.dev/schema/impact-results.schema.json",
   "title": "impact-results",
-  "description": "~/.ai-flow/<KEY>/impact-results.json — minimal placeholder; phase 23 (internal/ops/risk) owns the full shape.",
+  "description": "~/.ai-flow/<KEY>/impact-results.json — risk score and blast radius as a pure function of the changeset, drift and config.ops.risk.",
   "type": "object",
-  "required": ["score", "protected", "sensitive"],
+  "required": ["score", "contributions", "blast_radius", "protected_actions", "targets_with_drift", "targets_offline"],
   "additionalProperties": false,
   "properties": {
     "score": { "type": "integer", "minimum": 0, "maximum": 100 },
-    "protected": { "type": "boolean" },
-    "sensitive": { "type": "boolean" },
-    "blast_radius": { "type": "array", "items": { "type": "object" } },
-    "contributions": { "type": "array", "items": { "type": "object" } }
+    "targets_with_drift": { "type": "integer", "minimum": 0 },
+    "targets_offline": { "type": "integer", "minimum": 0 },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "address", "addon", "action", "kind_class", "tier", "per_mille"],
+        "additionalProperties": false,
+        "properties": {
+          "target": { "type": "string" },
+          "address": { "type": "string" },
+          "addon": { "type": "string" },
+          "action": { "enum": ["create", "update", "replace", "delete", "noop"] },
+          "kind_class": { "enum": ["workload", "network", "rbac", "secret", "data", "iam", "crd_or_namespace", "pipeline", "other"] },
+          "tier": { "type": "string" },
+          "per_mille": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "blast_radius": {
+      "type": "object",
+      "required": ["entries", "kind_class_counts"],
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["env", "scope", "kind", "count"],
+            "additionalProperties": false,
+            "properties": {
+              "env": { "type": "string" },
+              "scope": { "type": "string" },
+              "kind": { "type": "string" },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "kind_class_counts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "protected_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "address", "addon", "env", "fields_changed", "kind", "kind_class", "name", "protected", "sensitive", "target", "tier"],
+        "additionalProperties": false,
+        "properties": {
+          "action": { "enum": ["create", "update", "replace", "delete", "noop"] },
+          "address": { "type": "string" },
+          "addon": { "type": "string" },
+          "env": { "type": "string" },
+          "fields_changed": { "type": "array", "items": { "type": "string" } },
+          "kind": { "type": "string" },
+          "kind_class": { "enum": ["workload", "network", "rbac", "secret", "data", "iam", "crd_or_namespace", "pipeline", "other"] },
+          "name": { "type": "string" },
+          "protected": { "const": true },
+          "sensitive": { "type": "boolean" },
+          "target": { "type": "string" },
+          "tier": { "type": "string" }
+        }
+      }
+    }
   }
 }

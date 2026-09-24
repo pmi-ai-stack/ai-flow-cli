@@ -64,18 +64,28 @@ type ShouldRunInput struct {
 	// HasChangedTarget is true when ops-targets.json names any target
 	// with changed: true — render-drift's and dry-run's shared rule,
 	// phase 20 ("no_changed_target"/"no_changed_target_with_dry_run":
-	// the coded ids differ, the predicate does not).
+	// the coded ids differ, the predicate does not). impact reuses it
+	// too, phase 23: "dry_run_skipped" is the same underlying condition
+	// as dry-run's own "no_changed_target_with_dry_run" — a dry-run
+	// that never ran (no changed target) leaves nothing for impact to
+	// score.
 	HasChangedTarget bool
+	// HasChangesetAction is true when any target's own changeset (via
+	// internal/cli's loadTargetChangesets) carries at least one
+	// non-noop action — rollback's own rule, phase 23
+	// ("changeset_empty"): a changed target whose dry-run computed
+	// nothing to change needs no rollback plan.
+	HasChangesetAction bool
 }
 
 // ShouldRun implements `stage should-run KEY <stage>`: it is read-only
 // and never mutates status.json. visual-test and e2e are real as of
 // phase 6, mutation as of phase 7, render-drift and dry-run as of
-// phase 20; every other stage ignores in entirely and answers
-// run: true, exactly as it did before this type existed — a dedicated
-// test pins that this stays true regardless of what in carries, so a
-// future phase's own field additions cannot accidentally change a rule
-// they don't own.
+// phase 20, impact and rollback as of phase 23; every other stage
+// ignores in entirely and answers run: true, exactly as it did before
+// this type existed — a dedicated test pins that this stays true
+// regardless of what in carries, so a future phase's own field
+// additions cannot accidentally change a rule they don't own.
 func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 	switch stage {
 	case StageVisualTest:
@@ -84,8 +94,10 @@ func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 		return in.HasAppFiles && in.HasE2ESuite, skipRuleFor(stage)
 	case StageMutation:
 		return in.HasAppFiles && in.HasMutationTool, skipRuleFor(stage)
-	case StageRenderDrift, StageDryRun:
+	case StageRenderDrift, StageDryRun, StageImpact:
 		return in.HasChangedTarget, skipRuleFor(stage)
+	case StageRollback:
+		return in.HasChangesetAction, skipRuleFor(stage)
 	default:
 		return true, skipRuleFor(stage)
 	}
