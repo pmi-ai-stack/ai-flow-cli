@@ -27,6 +27,7 @@ func TestOpsRowsCoverCapabilityMatrixVerbs(t *testing.T) {
 		{"kubectl", []string{"diff"}, ClassReadOnlyLive, false},
 		{"kubectl", []string{"apply"}, ClassReadOnlyLive, true},
 		{"kubectl", []string{"rollout", "history"}, ClassReadOnlyLive, false},
+		{"kubectl", []string{"get"}, ClassReadOnlyLive, false}, // phase 22
 		{"kuttl", nil, ClassEphemeral, true},
 		{"chainsaw", nil, ClassEphemeral, true},
 		{"helm", []string{"template"}, ClassNone, false},

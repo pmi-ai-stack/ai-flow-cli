@@ -129,6 +129,12 @@ var Table = []Row{
 
 	{Tool: "kubeconform", Verb: []string{}, Class: ClassNone},
 	{Tool: "kubectl", Verb: []string{"diff"}, Class: ClassReadOnlyLive},
+	// Phase 22's own addition: Drift/DryRun both need a live read of a
+	// target's current state ("before," for the JSON comparison neither
+	// diff's own external-tool-dependent text output nor the capability
+	// matrix's literal cell name — see .ai/phase-22/plan.md §0.2/§0.9).
+	// Non-mutating: a get touches nothing.
+	{Tool: "kubectl", Verb: []string{"get"}, Class: ClassReadOnlyLive},
 	// The dry-run flag exception (line 366): matched per row, never by
 	// name across tools — this row's own flag is "--dry-run=server".
 	{Tool: "kubectl", Verb: []string{"apply"}, RequiredFlags: []string{"--dry-run=server"}, Mutating: true, Class: ClassReadOnlyLive},

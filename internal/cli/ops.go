@@ -14,6 +14,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/gitops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kubectl"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/terraform"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/envs"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -33,9 +34,12 @@ var newOpsExecer = func() exec.Execer { return exec.NewRunner() }
 // two-package import cycle. internal/cli already imports both, so the
 // wiring lives here instead, the same role git.go's newExecer and
 // pr.go's newGitHubTransport already play for other concrete
-// implementations of a package-level interface.
+// implementations of a package-level interface. Phase 22 adds
+// kubectl.New as this registry's second addon — it takes no home
+// parameter (unlike terraform.New), a deliberate divergence recorded
+// in internal/ops/addons/kubectl/addon.go's own doc comment.
 func buildOpsRegistry(f Flags, cfg *config.Config) *ops.Registry {
-	return ops.NewRegistry(terraform.New(newOpsExecer(), cfg, f.Home))
+	return ops.NewRegistry(terraform.New(newOpsExecer(), cfg, f.Home), kubectl.New(newOpsExecer(), cfg))
 }
 
 func newOpsCmd(cio cmdIO) *cobra.Command {

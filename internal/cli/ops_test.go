@@ -177,11 +177,14 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	}
 }
 
-// TestOpsAddonsCommandListsTerraform proves `ops addons` reports the
-// real registry buildOpsRegistry constructs — exactly "terraform,"
-// every capability true — from phase 21 on (internal/ops.DefaultRegistry()
-// itself stays empty forever, by design; see its own doc comment).
-func TestOpsAddonsCommandListsTerraform(t *testing.T) {
+// TestOpsAddonsCommandListsTerraformAndKubectl proves `ops addons`
+// reports the real registry buildOpsRegistry constructs — "terraform"
+// then "kubectl," in registration order, from phase 22 on
+// (internal/ops.DefaultRegistry() itself stays empty forever, by
+// design; see its own doc comment). Renamed from
+// TestOpsAddonsCommandListsTerraform (phase 21) now that a second
+// addon is registered.
+func TestOpsAddonsCommandListsTerraformAndKubectl(t *testing.T) {
 	home := t.TempDir()
 	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
 		t.Fatalf("config init: exitCode = %d", ec)
@@ -204,11 +207,15 @@ func TestOpsAddonsCommandListsTerraform(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("decode: %v\n%s", err, stdout.String())
 	}
-	if len(env.Result.Addons) != 1 || env.Result.Addons[0].Name != "terraform" {
-		t.Fatalf("ops addons = %+v, want exactly one, named terraform", env.Result.Addons)
+	if len(env.Result.Addons) != 2 || env.Result.Addons[0].Name != "terraform" || env.Result.Addons[1].Name != "kubectl" {
+		t.Fatalf("ops addons = %+v, want exactly two, named terraform then kubectl", env.Result.Addons)
 	}
-	c := env.Result.Addons[0].Capabilities
-	if !c.Render || !c.Validate || !c.Drift || !c.DryRun || !c.Rollback || !c.UnitTest || !c.E2ETest {
-		t.Errorf("terraform capabilities = %+v, want every one true", c)
+	tf := env.Result.Addons[0].Capabilities
+	if !tf.Render || !tf.Validate || !tf.Drift || !tf.DryRun || !tf.Rollback || !tf.UnitTest || !tf.E2ETest {
+		t.Errorf("terraform capabilities = %+v, want every one true", tf)
+	}
+	kc := env.Result.Addons[1].Capabilities
+	if !kc.Render || !kc.Validate || !kc.Drift || !kc.DryRun || !kc.Rollback || kc.UnitTest || !kc.E2ETest {
+		t.Errorf("kubectl capabilities = %+v, want every one true except unit_test", kc)
 	}
 }
