@@ -1,5 +1,7 @@
 package ops
 
+import "strings"
+
 // Target is one deployable unit an addon found: a Terraform root
 // module, a Helm chart + values file, a Kustomize overlay, a directory
 // of raw manifests, a workflow file, a Jenkins job. This is
@@ -51,4 +53,24 @@ const (
 // phase 20's render-drift-results.json/dryrun-results.json record.
 func TargetKey(t Target) string {
 	return t.Repo + ":" + t.Path
+}
+
+// FilesUnderPath returns every entry of changed that equals path or
+// lies under path+"/" — a prefix match (terraform's own convention),
+// shared by every addon whose own targets never nest a second,
+// independent target beneath a first (a chart's/overlay's own changed
+// content routinely lives in a subdirectory of the target's own root —
+// "templates/", "patches/" — which a direct-child match would silently
+// drop from Target.Files). kubectl's own raw-manifests directories can
+// legitimately nest, so that addon keeps its own direct-child match
+// rather than calling this.
+func FilesUnderPath(path string, changed []string) []string {
+	var files []string
+	prefix := path + "/"
+	for _, f := range changed {
+		if f == path || strings.HasPrefix(f, prefix) {
+			files = append(files, f)
+		}
+	}
+	return files
 }

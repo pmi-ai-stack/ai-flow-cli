@@ -14,7 +14,9 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/gitops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/helm"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kubectl"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kustomize"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/terraform"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/envs"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -37,9 +39,16 @@ var newOpsExecer = func() exec.Execer { return exec.NewRunner() }
 // implementations of a package-level interface. Phase 22 adds
 // kubectl.New as this registry's second addon — it takes no home
 // parameter (unlike terraform.New), a deliberate divergence recorded
-// in internal/ops/addons/kubectl/addon.go's own doc comment.
+// in internal/ops/addons/kubectl/addon.go's own doc comment. Phase 26
+// adds helm.New and kustomize.New as the third and fourth addons,
+// both following kubectl's own no-home-parameter shape.
 func buildOpsRegistry(f Flags, cfg *config.Config) *ops.Registry {
-	return ops.NewRegistry(terraform.New(newOpsExecer(), cfg, f.Home), kubectl.New(newOpsExecer(), cfg))
+	return ops.NewRegistry(
+		terraform.New(newOpsExecer(), cfg, f.Home),
+		kubectl.New(newOpsExecer(), cfg),
+		helm.New(newOpsExecer(), cfg),
+		kustomize.New(newOpsExecer(), cfg),
+	)
 }
 
 func newOpsCmd(cio cmdIO) *cobra.Command {

@@ -76,13 +76,14 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Phase 25: the reference pack's own rego tests
-      # (packs/reference/infra/{terraform,kubernetes}/checks/policy/*_test.rego)
+      # Phase 25/26: the reference pack's own rego tests
+      # (packs/reference/infra/{terraform,kubernetes,helm}/checks/policy/*_test.rego)
       # against the real conftest binary just installed above.
       - name: conftest verify (reference pack rego)
         run: |
           conftest verify --policy packs/reference/infra/terraform/checks/policy
           conftest verify --policy packs/reference/infra/kubernetes/checks/policy
+          conftest verify --policy packs/reference/infra/helm/checks/policy
 
       - name: build ai-flow
         run: go build -o /tmp/ai-flow-dogfood ./cmd/ai-flow

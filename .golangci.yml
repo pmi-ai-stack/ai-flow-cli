@@ -158,6 +158,20 @@ linters:
         linters: [gochecknoglobals] # volatileMetadataKeys is a lookup table, not mutable state
       - path: ^internal/ops/addons/kubectl/rollback\.go$
         linters: [gochecknoglobals] # nonRevertibleClasses is a lookup table, not mutable state
+      - path: ^internal/ops/addons/kustomize/harness\.go$
+        linters: [gochecknoglobals] # e2eHarnessFiles is a lookup table, not mutable state
+      - path: ^internal/ops/addons/kustomize/kindclass\.go$
+        linters: [gochecknoglobals] # kindClasses is a lookup table, not mutable state
+      - path: ^internal/ops/addons/kustomize/normalize\.go$
+        linters: [gochecknoglobals] # volatileMetadataKeys is a lookup table, not mutable state
+      - path: ^internal/ops/addons/kustomize/rollback\.go$
+        linters: [gochecknoglobals] # nonRevertibleClasses is a lookup table, not mutable state
+      - path: ^internal/ops/addons/helm/kindclass\.go$
+        linters: [gochecknoglobals] # kindClasses is a lookup table, not mutable state
+      - path: ^internal/ops/addons/helm/normalize\.go$
+        linters: [gochecknoglobals] # volatileMetadataKeys is a lookup table, not mutable state
+      - path: ^internal/ops/addons/helm/rollback\.go$
+        linters: [gochecknoglobals] # nonRevertibleClasses is a lookup table, not mutable state
       - path: _test\.go$
         linters: [errcheck, bodyclose, gochecknoglobals, forbidigo, gosec]
 formatters:

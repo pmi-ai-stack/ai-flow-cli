@@ -177,14 +177,14 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	}
 }
 
-// TestOpsAddonsCommandListsTerraformAndKubectl proves `ops addons`
-// reports the real registry buildOpsRegistry constructs — "terraform"
-// then "kubectl," in registration order, from phase 22 on
-// (internal/ops.DefaultRegistry() itself stays empty forever, by
+// TestOpsAddonsCommandListsAllFourAddons proves `ops addons` reports
+// the real registry buildOpsRegistry constructs — "terraform,"
+// "kubectl," "helm," "kustomize," in registration order, from phase 26
+// on (internal/ops.DefaultRegistry() itself stays empty forever, by
 // design; see its own doc comment). Renamed from
-// TestOpsAddonsCommandListsTerraform (phase 21) now that a second
-// addon is registered.
-func TestOpsAddonsCommandListsTerraformAndKubectl(t *testing.T) {
+// TestOpsAddonsCommandListsTerraformAndKubectl (phase 22) now that a
+// third and fourth addon are registered.
+func TestOpsAddonsCommandListsAllFourAddons(t *testing.T) {
 	home := t.TempDir()
 	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
 		t.Fatalf("config init: exitCode = %d", ec)
@@ -207,9 +207,16 @@ func TestOpsAddonsCommandListsTerraformAndKubectl(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("decode: %v\n%s", err, stdout.String())
 	}
-	if len(env.Result.Addons) != 2 || env.Result.Addons[0].Name != "terraform" || env.Result.Addons[1].Name != "kubectl" {
-		t.Fatalf("ops addons = %+v, want exactly two, named terraform then kubectl", env.Result.Addons)
+	wantNames := []string{"terraform", "kubectl", "helm", "kustomize"}
+	if len(env.Result.Addons) != len(wantNames) {
+		t.Fatalf("ops addons = %+v, want exactly %d addons", env.Result.Addons, len(wantNames))
 	}
+	for i, want := range wantNames {
+		if env.Result.Addons[i].Name != want {
+			t.Errorf("Addons[%d].Name = %q, want %q", i, env.Result.Addons[i].Name, want)
+		}
+	}
+
 	tf := env.Result.Addons[0].Capabilities
 	if !tf.Render || !tf.Validate || !tf.Drift || !tf.DryRun || !tf.Rollback || !tf.UnitTest || !tf.E2ETest {
 		t.Errorf("terraform capabilities = %+v, want every one true", tf)
@@ -217,5 +224,13 @@ func TestOpsAddonsCommandListsTerraformAndKubectl(t *testing.T) {
 	kc := env.Result.Addons[1].Capabilities
 	if !kc.Render || !kc.Validate || !kc.Drift || !kc.DryRun || !kc.Rollback || kc.UnitTest || !kc.E2ETest {
 		t.Errorf("kubectl capabilities = %+v, want every one true except unit_test", kc)
+	}
+	hm := env.Result.Addons[2].Capabilities
+	if !hm.Render || !hm.Validate || !hm.Drift || !hm.DryRun || !hm.Rollback || !hm.UnitTest || !hm.E2ETest {
+		t.Errorf("helm capabilities = %+v, want every one true", hm)
+	}
+	ku := env.Result.Addons[3].Capabilities
+	if !ku.Render || !ku.Validate || !ku.Drift || !ku.DryRun || !ku.Rollback || ku.UnitTest || !ku.E2ETest {
+		t.Errorf("kustomize capabilities = %+v, want every one true except unit_test", ku)
 	}
 }

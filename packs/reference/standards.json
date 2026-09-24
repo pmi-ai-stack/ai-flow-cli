@@ -87,7 +87,8 @@
     { "id": "java.pr-checklist", "path": "languages/java/guidance/09-pr-checklist.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["ship", "review"] } },
 
     { "id": "infra.terraform.baseline", "path": "infra/terraform/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["terraform"], "stages": ["implement", "review"] } },
-    { "id": "infra.kubernetes.baseline", "path": "infra/kubernetes/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["kubectl", "helm", "kustomize"], "stages": ["implement", "review"] } }
+    { "id": "infra.kubernetes.baseline", "path": "infra/kubernetes/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["kubectl", "helm", "kustomize"], "stages": ["implement", "review"] } },
+    { "id": "infra.helm.baseline", "path": "infra/helm/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["helm"], "stages": ["implement", "review"] } }
   ],
   "checks": [
     { "id": "go.format", "kind": "format", "tool": "gofmt", "severity": "must", "applies_to": { "languages": ["go"] } },
@@ -140,6 +141,8 @@
     { "id": "infra.kubernetes.policy", "kind": "policy", "tool": "conftest", "config": "infra/kubernetes/checks/policy", "severity": "must", "input": "render",
       "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } },
     { "id": "infra.kubernetes.scan", "kind": "scan", "tool": "trivy", "severity": "should", "input": "render",
-      "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } }
+      "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } },
+    { "id": "infra.helm.policy", "kind": "policy", "tool": "conftest", "config": "infra/helm/checks/policy", "severity": "must", "input": "render",
+      "applies_to": { "addons": ["helm"] } }
   ]
 }
