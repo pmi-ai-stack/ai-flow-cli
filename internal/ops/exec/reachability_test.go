@@ -65,10 +65,18 @@ func suppressWorktreeAdd(callLiterals []string, literal string) bool {
 // below are exactly its own non-ephemeral call sites, added in that
 // phase's own PR — not internal/ops/addons/terraform/harness.go,
 // which only detects .tftest.hcl files on disk and calls no
-// subprocess at all. No command exists yet for the ephemeral verb
-// itself ("terraform test", "kuttl", "chainsaw", ...) — phase 24 will
-// need its own, separate, explicit update to allowed the day it adds
-// the first real caller of that verb.
+// subprocess at all.
+//
+// Phase 24 adds the first real callers of the ephemeral verbs
+// themselves ("terraform test", "kuttl", "chainsaw", "kind create/
+// delete cluster") — every one of them lives in internal/ops/harness,
+// this phase's own package, so its allowed entries below are that
+// package's own tool-specific files. kuttl/chainsaw share one runner
+// (textscan.go's runTextScanTool) dispatched from harness.go's own Run
+// via the RunInput.Tool variable, never a "kuttl"/"chainsaw" literal
+// call argument anywhere in the package, so neither needs its own
+// allowed entry (nor does terratest.go, which calls only "go", a tool
+// this test does not watch).
 func TestEphemeralRowsReachableOnlyFromDesignatedCallers(t *testing.T) {
 	watched := map[string]bool{}
 	for _, r := range Table {
@@ -85,6 +93,8 @@ func TestEphemeralRowsReachableOnlyFromDesignatedCallers(t *testing.T) {
 		filepath.Join("internal", "ops", "addons", "terraform", "drift.go"),
 		filepath.Join("internal", "ops", "addons", "terraform", "dryrun.go"),
 		filepath.Join("internal", "ops", "addons", "terraform", "env.go"),
+		filepath.Join("internal", "ops", "harness", "terraformtest.go"),
+		filepath.Join("internal", "ops", "harness", "kind.go"),
 	}
 	violations := scanCallArgLiterals(t, moduleRoot(t), watched, allowed, nil)
 	for _, v := range violations {

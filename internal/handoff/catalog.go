@@ -121,6 +121,11 @@ var catalog = []CommandSpec{
 	// Phase 23.
 	{Name: "ops impact", TicketScoped: true},
 	{Name: "ops rollback", TicketScoped: true},
+
+	// Phase 24.
+	{Name: "ops test detect", TicketScoped: true},
+	{Name: "ops test run", TicketScoped: true, Flags: []string{"harness", "ref"}},
+	{Name: "ops test teardown", TicketScoped: true},
 }
 
 // Catalog returns every command's spec. The caller's to keep — always

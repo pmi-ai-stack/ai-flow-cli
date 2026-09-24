@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -16,11 +15,11 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/agenthost"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host/github"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/harness"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
@@ -150,6 +149,14 @@ type doctorResult struct {
 	// line: config.ops.environments's own kube-bound entries, probed
 	// with "kubectl auth can-i --list" (spec's own literal example).
 	LiveEnvironments []doctorLiveEnvironment `json:"live_environments"`
+
+	// LeakedInfraTestClusters is the phase-24 growing-surfaces "kind
+	// clusters left by a crashed run" line: every kind cluster whose
+	// name matches the ticket-key-derived pattern
+	// (internal/ops/harness.ClusterName's own lowercased-key shape) but
+	// is not the currently active ticket's own cluster — see
+	// doctorProbeInfraTestClusters.
+	LeakedInfraTestClusters []string `json:"leaked_infra_test_clusters"`
 }
 
 // doctorLiveEnvironment is one config.ops.environments entry's live
@@ -202,6 +209,10 @@ var mutationToolBinaries = []string{"gremlins", "npx", "mutmut", "mvn"}
 var addonToolBinaries = []string{
 	"terraform", "tflint", "kubectl", "kubeconform", "kuttl", "chainsaw",
 	"helm", "ct", "kustomize", "actionlint", "act", "jenkinsfile-runner",
+	// Phase 24's own addition: the per-ticket kind cluster's own tool.
+	// A plain slice element, never a call argument, so this has no
+	// effect on internal/ops/exec's own reachability scanner.
+	"kind",
 }
 
 func newDoctorCmd(cio cmdIO) *cobra.Command {
@@ -285,6 +296,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			result.LiveEnvironments, liveWarnings = doctorProbeLiveEnvironments(cmd.Context(), cfg)
 			warnings = append(warnings, liveWarnings...)
 
+			var clusterWarnings []string
+			result.LeakedInfraTestClusters, clusterWarnings = doctorProbeInfraTestClusters(cmd.Context(), result.Active)
+			warnings = append(warnings, clusterWarnings...)
+
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
 	}
@@ -301,8 +316,7 @@ func doctorLoadConfig(f Flags, dc *doctorConfig) *config.Config {
 
 	cfg, err := config.Load(f.Home, f.Config)
 	if err != nil {
-		var envErr *envelope.Error
-		if errors.As(err, &envErr) && envErr.Code == "missing_artifact" {
+		if isMissingArtifact(err) {
 			dc.Exists = false
 		} else {
 			dc.Exists = true
@@ -773,4 +787,53 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// isTicketClusterName reports whether n is shaped like
+// harness.ClusterName's own output (a lowercased ticket key) — reusing
+// handoff.ValidateKey's own canonical pattern (case-inverted, since
+// kind's own cluster names are lowercase) rather than hand-maintaining
+// a second regexp that would need to be kept in sync by hand — the
+// pattern doctorProbeInfraTestClusters uses to tell an ai-flow-owned
+// cluster apart from one that belongs to something else entirely on
+// the same machine.
+func isTicketClusterName(n string) bool {
+	return handoff.ValidateKey(strings.ToUpper(n)) == nil
+}
+
+// doctorProbeInfraTestClusters is the phase-24 growing-surfaces "kind
+// clusters left by a crashed run" line: every kind cluster whose name
+// looks like an ai-flow ticket's own (isTicketClusterName) but is not
+// the currently active ticket's own cluster is reported as a leak —
+// the doctor-philosophy "report as data, never fail" shape every other
+// probe in this file already uses. Calls
+// internal/ops/harness.ListClusters rather than the "kind" tool
+// directly, so this file's own literal "kind" call-argument count
+// stays zero (see internal/ops/exec/reachability_test.go's own allowed
+// list, which does not name doctor.go). A missing kind binary reports
+// no leaks at all — ListClusters' own tolerant contract, identical to
+// how TeardownCluster treats it.
+func doctorProbeInfraTestClusters(ctx context.Context, active *doctorActive) ([]string, []string) {
+	names, err := harness.ListClusters(ctx, newExecer())
+	if err != nil {
+		return nil, []string{"ops: listing kind clusters: " + redactMessage(err)}
+	}
+	activeCluster := ""
+	if active != nil {
+		activeCluster = harness.ClusterName(active.Key)
+	}
+
+	var leaked []string
+	for _, n := range names {
+		if isTicketClusterName(n) && n != activeCluster {
+			leaked = append(leaked, n)
+		}
+	}
+	sort.Strings(leaked)
+
+	var warnings []string
+	for _, n := range leaked {
+		warnings = append(warnings, fmt.Sprintf("ops: kind cluster %q looks like a leaked ai-flow infra-test cluster; run `ai-flow ops test teardown` for the ticket it belongs to, or delete it by hand", n))
+	}
+	return leaked, warnings
 }

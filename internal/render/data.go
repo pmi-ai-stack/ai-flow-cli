@@ -93,6 +93,23 @@ type Data struct {
 	HasRollback   bool
 	NonRevertible []string
 	WatchList     []string
+
+	// HasInfraTest is true once infra-test-results.json has been
+	// written (phase 24) — the same "absent entirely, not zeroed"
+	// convention HasImpact/HasRollback already established.
+	HasInfraTest bool
+	InfraTest    []InfraTestSummary
+}
+
+// InfraTestSummary is one infra-test-results.json target/harness entry,
+// the subset Output/PRBlock render.
+type InfraTestSummary struct {
+	Target  string
+	Harness string
+	Tool    string
+	Total   int
+	Passed  int
+	Failed  int
 }
 
 // repoArtifactWire is the subset of repo.schema.json Load needs.
@@ -174,7 +191,47 @@ func Load(ticketDir, key string) (Data, error) {
 	d.NonRevertible = nonRevertible
 	d.WatchList = watchList
 
+	hasInfraTest, infraTest, err := LoadInfraTest(ticketDir)
+	if err != nil {
+		return Data{}, err
+	}
+	d.HasInfraTest = hasInfraTest
+	d.InfraTest = infraTest
+
 	return d, nil
+}
+
+// infraTestResultsWire is the subset of infra-test-results.schema.json
+// Load needs.
+type infraTestResultsWire struct {
+	Targets []struct {
+		Target  string `json:"target"`
+		Harness string `json:"harness"`
+		Tool    string `json:"tool"`
+		Total   int    `json:"total"`
+		Passed  int    `json:"passed"`
+		Failed  int    `json:"failed"`
+	} `json:"targets"`
+}
+
+// LoadInfraTest reads ticketDir's infra-test-results.json (optional —
+// absent before the infra-test stage has run).
+func LoadInfraTest(ticketDir string) (hasInfraTest bool, summaries []InfraTestSummary, err error) {
+	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "infra-test-results.json"))
+	if err != nil {
+		return false, nil, err
+	}
+	if data == nil {
+		return false, nil, nil
+	}
+	var w infraTestResultsWire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return false, nil, fmt.Errorf("render: decode infra-test-results.json: %w", err)
+	}
+	for _, t := range w.Targets {
+		summaries = append(summaries, InfraTestSummary{Target: t.Target, Harness: t.Harness, Tool: t.Tool, Total: t.Total, Passed: t.Passed, Failed: t.Failed})
+	}
+	return true, summaries, nil
 }
 
 // impactResultsWire is the subset of impact-results.schema.json Load

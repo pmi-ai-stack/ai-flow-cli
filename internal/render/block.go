@@ -48,8 +48,31 @@ func block(d Data, level int) string {
 	}
 
 	writeImpactAndRollbackSection(&b, d, level)
+	writeInfraTestSection(&b, d, level)
 
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// writeInfraTestSection renders infra-test-results.json's own
+// per-target-harness totals (phase 24) — absent entirely, not the
+// heading with an empty body, before infra-test-results.json exists
+// for this ticket, the same convention writeChecksSection/
+// writeImpactAndRollbackSection already established.
+func writeInfraTestSection(b *strings.Builder, d Data, level int) {
+	if !d.HasInfraTest {
+		return
+	}
+	b.WriteString(heading(level, "Infra tests"))
+	if len(d.InfraTest) == 0 {
+		b.WriteString("(no harnesses run)\n\n")
+		return
+	}
+	b.WriteString("| Target | Harness | Tool | Total | Passed | Failed |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
+	for _, s := range d.InfraTest {
+		fmt.Fprintf(b, "| %s | %s | %s | %d | %d | %d |\n", s.Target, s.Harness, s.Tool, s.Total, s.Passed, s.Failed)
+	}
+	b.WriteString("\n")
 }
 
 // writeImpactAndRollbackSection renders score, blast radius and the

@@ -1,5 +1,5 @@
 {
   "targets": [
-    { "target": "infra/prod", "harness": "terraform test", "total": 3, "passed": 3 }
+    { "target": "acme.infra:infra/prod", "harness": "infra/prod/main.tftest.hcl", "kind": "unit", "tool": "terraform-test", "total": 3, "passed": 3 }
   ]
 }

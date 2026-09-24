@@ -171,6 +171,21 @@ var Table = []Row{
 	{Tool: "act", Verb: []string{}, RequiredFlags: []string{"-j"}, ForbiddenFlags: []string{"-n"}, Mutating: true, Class: ClassEphemeral},
 
 	{Tool: "jenkinsfile-runner", Verb: []string{}, Mutating: true, Class: ClassEphemeral},
+
+	// Phase 24's own addition, named but deliberately withheld by phase
+	// 18's own comment above: the per-ticket kind cluster infra-test
+	// creates lazily and always deletes (the spec's own line 367 list —
+	// "kind create cluster", "kind delete cluster" — and the phase's own
+	// goal, "the only place ai-flow creates anything, and it deletes
+	// it"). Only internal/ops/harness/kind.go ever calls "kind" (see
+	// reachability_test.go's own allowed list) — get clusters is a
+	// non-mutating existence check (kind tracks clusters by Docker
+	// container label, not a live infrastructure target, so it needs no
+	// ClassReadOnlyLive-style config binding), create/delete cluster are
+	// the two ephemeral rows.
+	{Tool: "kind", Verb: []string{"get", "clusters"}, Class: ClassNone},
+	{Tool: "kind", Verb: []string{"create", "cluster"}, Mutating: true, Class: ClassEphemeral},
+	{Tool: "kind", Verb: []string{"delete", "cluster"}, Mutating: true, Class: ClassEphemeral},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

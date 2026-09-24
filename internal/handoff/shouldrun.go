@@ -76,16 +76,24 @@ type ShouldRunInput struct {
 	// ("changeset_empty"): a changed target whose dry-run computed
 	// nothing to change needs no rollback plan.
 	HasChangesetAction bool
+	// HasHarness is true when some changed target's own addon reports
+	// at least one ops.Harness via Addon.Harnesses — infra-test's own
+	// rule, phase 24 ("no_changed_target_or_no_harness"): detection
+	// only, not gated on ops.e2e.enabled (that gate lives inside
+	// `ops test run` itself, which harness kind it is allowed to
+	// actually execute — see the phase-24 plan's design decision 13).
+	HasHarness bool
 }
 
 // ShouldRun implements `stage should-run KEY <stage>`: it is read-only
 // and never mutates status.json. visual-test and e2e are real as of
 // phase 6, mutation as of phase 7, render-drift and dry-run as of
-// phase 20, impact and rollback as of phase 23; every other stage
-// ignores in entirely and answers run: true, exactly as it did before
-// this type existed — a dedicated test pins that this stays true
-// regardless of what in carries, so a future phase's own field
-// additions cannot accidentally change a rule they don't own.
+// phase 20, impact and rollback as of phase 23, infra-test as of phase
+// 24; every other stage ignores in entirely and answers run: true,
+// exactly as it did before this type existed — a dedicated test pins
+// that this stays true regardless of what in carries, so a future
+// phase's own field additions cannot accidentally change a rule they
+// don't own.
 func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 	switch stage {
 	case StageVisualTest:
@@ -98,6 +106,8 @@ func ShouldRun(stage Stage, in ShouldRunInput) (run bool, rule string) {
 		return in.HasChangedTarget, skipRuleFor(stage)
 	case StageRollback:
 		return in.HasChangesetAction, skipRuleFor(stage)
+	case StageInfraTest:
+		return in.HasChangedTarget && in.HasHarness, skipRuleFor(stage)
 	default:
 		return true, skipRuleFor(stage)
 	}

@@ -17,14 +17,13 @@ func TestShouldRunNeverStagesAlwaysRun(t *testing.T) {
 
 // TestShouldRunStillDeferredStagesAlwaysRun pins phase 6's design
 // decision 2, now covering the skip rules still deferred after phases
-// 7/20/23: they must keep answering run: true, and must do so
+// 7/20/23/24: they must keep answering run: true, and must do so
 // regardless of what ShouldRunInput carries — a future phase adding
 // its own fields to the struct must not accidentally change a rule it
 // does not own yet.
 func TestShouldRunStillDeferredStagesAlwaysRun(t *testing.T) {
 	want := map[Stage]string{
-		StageChecks:    "no_check_applies",
-		StageInfraTest: "no_changed_target_or_no_harness",
+		StageChecks: "no_check_applies",
 	}
 	inputs := []ShouldRunInput{
 		{},
@@ -218,6 +217,37 @@ func TestShouldRunRollback(t *testing.T) {
 			}
 			if rule != "changeset_empty" {
 				t.Errorf("rule = %q, want changeset_empty", rule)
+			}
+		})
+	}
+}
+
+// TestShouldRunInfraTest pins phase 24's real rule:
+// no_changed_target_or_no_harness — both HasChangedTarget and
+// HasHarness must be true for the stage to run; HasHarness alone (a
+// changed target whose own addon happens to report a harness, but with
+// no target marked changed — not reachable in production, since
+// ops-targets.json only carries harness detection for targets it also
+// marks changed, but still worth pinning as a boundary) does not.
+func TestShouldRunInfraTest(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ShouldRunInput
+		want bool
+	}{
+		{"changed target with a harness", ShouldRunInput{HasChangedTarget: true, HasHarness: true}, true},
+		{"changed target, no harness detected", ShouldRunInput{HasChangedTarget: true, HasHarness: false}, false},
+		{"harness detected, no changed target", ShouldRunInput{HasChangedTarget: false, HasHarness: true}, false},
+		{"neither", ShouldRunInput{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			run, rule := ShouldRun(StageInfraTest, c.in)
+			if run != c.want {
+				t.Errorf("ShouldRun(infra-test, %+v) run = %v, want %v", c.in, run, c.want)
+			}
+			if rule != "no_changed_target_or_no_harness" {
+				t.Errorf("rule = %q, want no_changed_target_or_no_harness", rule)
 			}
 		})
 	}

@@ -45,6 +45,7 @@ func TestDoctorLiveEnvironmentsOnlyProbesKubeBound(t *testing.T) {
 
 	x := exectest.New(t)
 	x.On("kubectl", []string{"auth", "can-i", "--list", "--context", "prod-ro"}, exec.Output{Stdout: "get\tpods\nlist\tpods\n"})
+	x.On("kind", []string{"get", "clusters", "-q"}, exec.Output{})
 	useScriptedExecer(t, x)
 
 	got := runDoctor(t, home)
@@ -72,6 +73,7 @@ func TestDoctorLiveEnvironmentsFlagsMutatingContext(t *testing.T) {
 
 	x := exectest.New(t)
 	x.On("kubectl", []string{"auth", "can-i", "--list", "--context", "prod-ro"}, exec.Output{Stdout: "get\tpods\ncreate\tpods\n"})
+	x.On("kind", []string{"get", "clusters", "-q"}, exec.Output{})
 	useScriptedExecer(t, x)
 
 	got := runDoctor(t, home)
@@ -93,6 +95,7 @@ func TestDoctorLiveEnvironmentsToolFailedIsAFindingNotAnError(t *testing.T) {
 
 	x := exectest.New(t)
 	x.OnFail("kubectl", []string{"auth", "can-i", "--list", "--context", "prod-ro"}, &fakeToolFailedError{})
+	x.On("kind", []string{"get", "clusters", "-q"}, exec.Output{})
 	useScriptedExecer(t, x)
 
 	stdout, _, exitCode := runRoot(t, "doctor", "--home", home)
@@ -131,3 +134,41 @@ func TestDoctorLiveEnvironmentsNoKubeBindingIsEmpty(t *testing.T) {
 type fakeToolFailedError struct{}
 
 func (e *fakeToolFailedError) Error() string { return "exit status 127: kubectl: command not found" }
+
+// TestDoctorInfraTestClustersFlagsLeaked proves a kind cluster whose
+// name is not the active ticket's own (and no ticket is active here at
+// all) is reported as a leak, while a non-ticket-shaped cluster name
+// is left alone entirely.
+func TestDoctorInfraTestClustersFlagsLeaked(t *testing.T) {
+	home := t.TempDir()
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+
+	x := exectest.New(t)
+	x.On("kind", []string{"get", "clusters", "-q"}, exec.Output{Stdout: "proj-42\nkind\nsome-other-thing\n"})
+	useScriptedExecer(t, x)
+
+	got := runDoctor(t, home)
+	if len(got.LeakedInfraTestClusters) != 1 || got.LeakedInfraTestClusters[0] != "proj-42" {
+		t.Errorf("LeakedInfraTestClusters = %v, want exactly [\"proj-42\"]", got.LeakedInfraTestClusters)
+	}
+}
+
+// TestDoctorInfraTestClustersNoneIsEmpty proves a clean machine (no
+// kind clusters at all) reports no leaks.
+func TestDoctorInfraTestClustersNoneIsEmpty(t *testing.T) {
+	home := t.TempDir()
+	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
+		t.Fatalf("config init: exitCode = %d", ec)
+	}
+
+	x := exectest.New(t)
+	x.On("kind", []string{"get", "clusters", "-q"}, exec.Output{})
+	useScriptedExecer(t, x)
+
+	got := runDoctor(t, home)
+	if len(got.LeakedInfraTestClusters) != 0 {
+		t.Errorf("LeakedInfraTestClusters = %v, want none", got.LeakedInfraTestClusters)
+	}
+}

@@ -65,6 +65,11 @@ type Addon struct {
 	// the unbound Env (env.Name == "", phase 20's own offline signal —
 	// see internal/cli/ops.go) always succeeds regardless of this flag.
 	LiveUnreachable bool
+	// HarnessList, when non-nil, is the Harnesses method's own fixed
+	// answer — phase 24's own way of driving `ops test detect/run`
+	// through the fixture without a real tool. Named HarnessList, not
+	// Harnesses, because a field and a method cannot share one name.
+	HarnessList []ops.Harness
 }
 
 var _ ops.Addon = (*Addon)(nil)
@@ -171,5 +176,5 @@ func (a *Addon) Rollback(_ context.Context, _ ops.Target, _ ops.Env, _ *ops.Chan
 }
 
 func (a *Addon) Harnesses(_ detect.Repo, _ ops.Target) ([]ops.Harness, error) {
-	return nil, nil
+	return a.HarnessList, nil
 }

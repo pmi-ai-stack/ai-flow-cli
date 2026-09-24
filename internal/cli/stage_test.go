@@ -38,8 +38,11 @@ func writeFixture(t *testing.T, home, key, artifact, filename string) {
 // internal/detect.Mutation all find a match: a frontend-recognizable
 // path added to in_scope_files, and the first repository's local_path
 // repointed at a fresh temp directory carrying a real
-// playwright.config.js and a go.mod.
-func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
+// playwright.config.js and a go.mod. Returns repoDir so a caller that
+// needs to add its own fixture files there (phase 24's own
+// infra/prod/*.tftest.hcl, for the infra-test step) does not need a
+// second, separately-repointed checkout.
+func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) string {
 	t.Helper()
 	repoDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repoDir, "playwright.config.js"), []byte("module.exports = {}\n"), 0o600); err != nil {
@@ -65,6 +68,7 @@ func amendRepoJSONForVisualE2EAndMutation(t *testing.T, home, key string) {
 		a.InScopeFiles = append(a.InScopeFiles, "web/src/App.tsx")
 		a.Repositories[0].LocalPath = repoDir
 	})
+	return repoDir
 }
 
 // amendRepoJSON rewrites key's repo.json in place through mutate — the
@@ -216,6 +220,24 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 	walkthroughTarget := ops.Target{Addon: "no-such-addon", Repo: "acme.infra", Path: "infra/prod"}
 
 	for _, s := range steps {
+		if s.stage == "infra-test" {
+			// Phase 24: infra-test's own real ShouldRun rule
+			// (HasChangedTarget && HasHarness) needs an ops-targets.json
+			// target that resolves against a *real*, registered addon
+			// (terraform) and a *real* repository name from repo.json
+			// ("acme.billing.api" — the shared schema fixture's only
+			// repository; walkthroughTarget's own "acme.infra"/
+			// "no-such-addon" are deliberately never resolved against a
+			// real addon anywhere else in this test), so
+			// harnessesForChangedTargets can find the infra/prod/
+			// main.tftest.hcl file the "locate" step below wrote into that
+			// repository's own checkout. Written here, before `stage
+			// start infra-test` runs (unlike every other per-stage
+			// fixture below, which is written after start), because
+			// ShouldRun's own answer is decided at start time.
+			trueVal := true
+			writeOpsTargetsFixture(t, home, key, []ops.Target{{Addon: "terraform", Repo: "acme.billing.api", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: &trueVal}})
+		}
 		runStage(t, home, 0, "start", key, s.stage)
 		switch {
 		case s.stage == "dry-run":
@@ -263,7 +285,19 @@ func TestStageFullSixteenStageWalkthrough(t *testing.T) {
 			// playwright.config.js and a go.mod keeps this test proving
 			// the full sixteen-stage walk end to end, not just thirteen
 			// of them.
-			amendRepoJSONForVisualE2EAndMutation(t, home, key)
+			repoDir := amendRepoJSONForVisualE2EAndMutation(t, home, key)
+			// Phase 24: infra-test's own real HasHarness rule needs a
+			// real .tftest.hcl file terraform.Harnesses can find via an
+			// actual filepath.WalkDir over this same checkout, at the
+			// path the infra-test step's own ops-targets.json fixture
+			// above names ("infra/prod").
+			harnessDir := filepath.Join(repoDir, "infra", "prod")
+			if err := os.MkdirAll(harnessDir, 0o700); err != nil {
+				t.Fatalf("MkdirAll(%s): %v", harnessDir, err)
+			}
+			if err := os.WriteFile(filepath.Join(harnessDir, "main.tftest.hcl"), []byte("run \"smoke\" {}\n"), 0o600); err != nil {
+				t.Fatalf("write main.tftest.hcl: %v", err)
+			}
 		}
 		env := runStage(t, home, 0, "complete", key, s.stage)
 		if s.stage == "implement" {
@@ -835,14 +869,18 @@ func TestStageShouldRunE2EReal(t *testing.T) {
 // TestStageShouldRunOtherStagesIgnoreRepoContent proves the seven
 // stages phase 6 does not own stay run: true regardless of repo.json's
 // content — a regression test for the plan's design decision 2. impact
-// and rollback are no longer in this list as of phase 23, which made
-// both real (they read ops-targets.json/dryrun-results.json, not
-// repo.json, so they are exercised by TestShouldRunImpact/
-// TestShouldRunRollback in internal/handoff instead).
+// and rollback are no longer in this list as of phase 23 (they read
+// ops-targets.json/dryrun-results.json, not repo.json, exercised by
+// TestShouldRunImpact/TestShouldRunRollback in internal/handoff
+// instead), and infra-test is no longer in it as of phase 24 (it reads
+// ops-targets.json too — no changed target and no config.json at all
+// both mean run: false here, which
+// TestStageShouldRunInfraTestNoConfigIsFalseNotError below pins
+// directly rather than through this "still stubbed" list).
 func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
 	home := t.TempDir()
 	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
-	for _, stage := range []string{"checks", "infra-test", "mutation"} {
+	for _, stage := range []string{"checks", "mutation"} {
 		stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", stage, "--home", home)
 		if exitCode != 0 {
 			t.Fatalf("stage %s: exitCode = %d\n%s", stage, exitCode, stdout.String())
@@ -851,6 +889,28 @@ func TestStageShouldRunOtherStagesIgnoreRepoContent(t *testing.T) {
 		if !env.Result.Run {
 			t.Errorf("stage %s: run = false, want true (still stubbed)", stage)
 		}
+	}
+}
+
+// TestStageShouldRunInfraTestNoConfigIsFalseNotError pins the
+// phase-24 tolerance: a should-run probe made with repo.json present
+// but no config.json at all (and so no ops-targets.json either, since
+// `ops detect` cannot have run) reports run: false, not an error —
+// the same "zero value is harmless" convention this function already
+// applies to a missing repo.json.
+func TestStageShouldRunInfraTestNoConfigIsFalseNotError(t *testing.T) {
+	home := t.TempDir()
+	writeRepoJSONFixture(t, home, "PROJ-1", []fixtureRepo{{"web", fixtureRepoPath(t, "typescript")}}, []string{"src/App.tsx"})
+	stdout, _, exitCode := runRoot(t, "stage", "should-run", "PROJ-1", "infra-test", "--home", home)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d\n%s", exitCode, stdout.String())
+	}
+	env := decodeShouldRun(t, stdout.Bytes())
+	if env.Result.Run {
+		t.Errorf("run = true, want false (no config.json, no ops-targets.json)")
+	}
+	if env.Result.Rule != "no_changed_target_or_no_harness" {
+		t.Errorf("rule = %q, want no_changed_target_or_no_harness", env.Result.Rule)
 	}
 }
 

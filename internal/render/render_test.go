@@ -377,6 +377,47 @@ func writeRollbackResults(t *testing.T, dir string, nonRevertible, watchList []s
 	}
 }
 
+func writeInfraTestResults(t *testing.T, dir string, entries []map[string]any) {
+	t.Helper()
+	artifact := map[string]any{"targets": entries}
+	if _, err := handoff.WriteArtifact(dir, "infra-test-results.json", "infra-test-results", artifact); err != nil {
+		t.Fatalf("write infra-test-results.json: %v", err)
+	}
+}
+
+func TestLoad_InfraTestAbsent(t *testing.T) {
+	dir := t.TempDir()
+	writeRepo(t, dir)
+
+	d, err := Load(dir, "TEST-1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if d.HasInfraTest {
+		t.Errorf("HasInfraTest = true, want false (infra-test-results.json not written)")
+	}
+}
+
+func TestLoad_InfraTestPresent(t *testing.T) {
+	dir := t.TempDir()
+	writeRepo(t, dir)
+	writeInfraTestResults(t, dir, []map[string]any{
+		{"target": "acme.infra:infra/prod", "harness": "infra/prod/main.tftest.hcl", "kind": "unit", "tool": "terraform-test", "total": 3, "passed": 3, "failed": 0, "skipped": 0, "failures": []any{}, "report": "infra-test-reports/x.log"},
+	})
+
+	d, err := Load(dir, "TEST-1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !d.HasInfraTest || len(d.InfraTest) != 1 {
+		t.Fatalf("HasInfraTest = %v, InfraTest = %+v", d.HasInfraTest, d.InfraTest)
+	}
+	got := d.InfraTest[0]
+	if got.Target != "acme.infra:infra/prod" || got.Harness != "infra/prod/main.tftest.hcl" || got.Tool != "terraform-test" || got.Total != 3 || got.Passed != 3 || got.Failed != 0 {
+		t.Errorf("InfraTest[0] = %+v, unexpected", got)
+	}
+}
+
 func TestLoad_ImpactAndRollbackAbsent(t *testing.T) {
 	dir := t.TempDir()
 	writeRepo(t, dir)
@@ -468,6 +509,46 @@ func TestOutputAndPRBlock_ByteStableWithImpactAndRollback(t *testing.T) {
 		HasRollback:   true,
 		NonRevertible: []string{"aws_s3_bucket.data"},
 		WatchList:     []string{"aws_s3_bucket.data"},
+	}
+	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(Output(d)), nil })
+	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(PRBlock(d)), nil })
+}
+
+// TestOutput_InfraTestAbsentOmitsSection proves phase 24's own section
+// follows the same "absent entirely, not present with a placeholder"
+// convention as Impact and rollback.
+func TestOutput_InfraTestAbsentOmitsSection(t *testing.T) {
+	out := Output(Data{Key: "TEST-1"})
+	if strings.Contains(out, "Infra tests") {
+		t.Errorf("Output() must omit the Infra tests heading entirely when infra-test-results.json does not exist\nfull output:\n%s", out)
+	}
+}
+
+func TestOutput_InfraTestPresent(t *testing.T) {
+	d := Data{
+		Key: "TEST-1", HasInfraTest: true,
+		InfraTest: []InfraTestSummary{
+			{Target: "acme.infra:infra/prod", Harness: "infra/prod/main.tftest.hcl", Tool: "terraform-test", Total: 3, Passed: 3, Failed: 0},
+		},
+	}
+	out := Output(d)
+	for _, want := range []string{
+		"## Infra tests",
+		"| Target | Harness | Tool | Total | Passed | Failed |",
+		"| acme.infra:infra/prod | infra/prod/main.tftest.hcl | terraform-test | 3 | 3 | 0 |",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Output() missing %q\nfull output:\n%s", want, out)
+		}
+	}
+}
+
+func TestOutputAndPRBlock_ByteStableWithInfraTest(t *testing.T) {
+	d := Data{
+		Key: "TEST-1", HasInfraTest: true,
+		InfraTest: []InfraTestSummary{
+			{Target: "acme.infra:infra/prod", Harness: "infra/prod/main.tftest.hcl", Tool: "terraform-test", Total: 3, Passed: 3, Failed: 0},
+		},
 	}
 	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(Output(d)), nil })
 	handofftest.RequireByteStable(t, func() ([]byte, error) { return []byte(PRBlock(d)), nil })

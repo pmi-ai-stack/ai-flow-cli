@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -83,6 +84,15 @@ func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Statu
 	return handoff.AppendEvent(handoff.TicketEventsPath(home, key), handoff.StageTransitionEvent(stage, from, to, command, reason))
 }
 
+// isMissingArtifact reports whether err is the envelope.Error a caller
+// gets for a prerequisite file that simply has not been written yet
+// (missing_artifact) — the same distinction doctor.go's own
+// doctorLoadConfig already draws inline, named here for reuse.
+func isMissingArtifact(err error) bool {
+	var envErr *envelope.Error
+	return errors.As(err, &envErr) && envErr.Code == "missing_artifact"
+}
+
 // buildShouldRunInput computes handoff.ShouldRunInput for stage — the
 // phase-6 plan's design decision 7, extended by phase 7 for mutation,
 // phase 20 for render-drift/dry-run and phase 23 for impact/rollback.
@@ -109,6 +119,31 @@ func buildShouldRunInput(f Flags, key string, stage handoff.Stage) (handoff.Shou
 			return handoff.ShouldRunInput{}, err
 		}
 		return handoff.ShouldRunInput{HasChangesetAction: has}, nil
+	}
+	if stage == handoff.StageInfraTest {
+		hasTarget, err := hasChangedTarget(f, key)
+		if err != nil {
+			return handoff.ShouldRunInput{}, err
+		}
+		// A missing config.json is tolerated exactly like a missing
+		// repo.json elsewhere in this function (the zero value, false,
+		// is harmless): ops-targets.json cannot exist at all without
+		// config already having existed when `ops detect` wrote it, so
+		// this only matters for a should-run probe made before any real
+		// pipeline run — an invalid (present but broken) config still
+		// propagates, since that is a real problem, not an absence.
+		cfg, err := config.Load(f.Home, f.Config)
+		if err != nil {
+			if isMissingArtifact(err) {
+				return handoff.ShouldRunInput{HasChangedTarget: hasTarget}, nil
+			}
+			return handoff.ShouldRunInput{}, err
+		}
+		hasH, err := hasHarness(f, cfg, key)
+		if err != nil {
+			return handoff.ShouldRunInput{}, err
+		}
+		return handoff.ShouldRunInput{HasChangedTarget: hasTarget, HasHarness: hasH}, nil
 	}
 	if stage != handoff.StageVisualTest && stage != handoff.StageE2E && stage != handoff.StageMutation {
 		return handoff.ShouldRunInput{}, nil
@@ -468,6 +503,11 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 						return Outcome{}, err
 					}
 				}
+				if stage == handoff.StageInfraTest {
+					if err := checkNoInfraTestFailure(artifactData); err != nil {
+						return Outcome{}, err
+					}
+				}
 			}
 
 			if err := handoff.Complete(st, stage, failFlag, gi); err != nil {
@@ -477,6 +517,17 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 
 			if err := resolveOpsDetectForComplete(f, key, stage, failFlag); err != nil {
 				return Outcome{NeedsInput: needsInputFor(err, key)}, err
+			}
+
+			if stage == handoff.StageInfraTest {
+				// Unconditional on both pass and fail (the spec's own
+				// "called by stage complete KEY infra-test (pass or fail)"),
+				// but only once the transition itself is real — a --fail
+				// completion still reaches here via handoff.Complete above,
+				// while a refused (blocked) completion never does.
+				if err := teardownInfraTestCluster(cmd.Context(), f, key); err != nil {
+					return Outcome{}, err
+				}
 			}
 
 			if err := finalizeTransition(f.Home, key, stage, st, "stage complete", from, to, ""); err != nil {
@@ -749,6 +800,12 @@ func newStageResetCmd(cio cmdIO) *cobra.Command {
 				}
 				if err := os.RemoveAll(filepath.Join(ticketDir, "plans")); err != nil {
 					return Outcome{}, fmt.Errorf("stage reset: remove plans/: %w", err)
+				}
+			}
+
+			if stage == handoff.StageInfraTest {
+				if err := teardownInfraTestCluster(cmd.Context(), f, key); err != nil {
+					return Outcome{}, err
 				}
 			}
 

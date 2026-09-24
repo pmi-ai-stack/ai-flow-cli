@@ -25,6 +25,7 @@ func TestCatalogTicketScopedCommandsHaveKeyFirst(t *testing.T) {
 		"summary render",
 		"standards resolve", "standards show", "standards waive", "standards check",
 		"ops detect", "ops render", "ops drift", "ops dry-run", "ops impact", "ops rollback",
+		"ops test detect", "ops test run", "ops test teardown",
 	}
 	for _, name := range ticketScoped {
 		if !found[name] {
