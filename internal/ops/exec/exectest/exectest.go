@@ -20,9 +20,10 @@ import (
 
 // Call is one recorded Scripted.Run invocation.
 type Call struct {
-	Tool string
-	Args []string
-	Dir  string
+	Tool  string
+	Args  []string
+	Dir   string
+	Stdin string
 }
 
 // Scripted is a scripted exec.Execer: responses are matched by the
@@ -84,7 +85,7 @@ func (s *Scripted) OnFailWithOutput(tool string, args []string, out exec.Output,
 // Run implements exec.Execer against the registered script.
 func (s *Scripted) Run(_ context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
 	s.t.Helper()
-	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir})
+	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir, Stdin: opts.Stdin})
 	k := key(tool, args)
 	if f, ok := s.fail[k]; ok {
 		return f.out, f.err

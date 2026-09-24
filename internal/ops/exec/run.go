@@ -16,11 +16,19 @@ import (
 
 // RunOpts carries a subprocess's working directory, extra environment
 // variables (appended to the inherited environment, never replacing
-// it) and its timeout. A zero Timeout means no timeout is applied —
-// every production call site sets one from config.ops.tool_timeout_minutes.
+// it), its timeout and (phase 27) its stdin content. A zero Timeout
+// means no timeout is applied — every production call site sets one
+// from config.ops.tool_timeout_minutes. Stdin is empty for every call
+// site before phase 27; jenkins-cli's own "declarative-linter"
+// subcommand is the first tool in this codebase's history that reads
+// its input from stdin rather than a file path or a flag (Jenkins's
+// own documented CLI contract — see internal/ops/addons/jenkins's own
+// Validate) — a small, additive field, not a redesign of the
+// execution path (the phase-27 plan's own §0.6).
 type RunOpts struct {
 	Dir     string
 	Env     []string
+	Stdin   string
 	Timeout time.Duration
 }
 
@@ -93,6 +101,9 @@ func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOp
 	cmd.Dir = opts.Dir
 	if len(opts.Env) > 0 {
 		cmd.Env = append(os.Environ(), opts.Env...)
+	}
+	if opts.Stdin != "" {
+		cmd.Stdin = strings.NewReader(opts.Stdin)
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

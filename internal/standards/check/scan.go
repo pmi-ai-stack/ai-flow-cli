@@ -11,18 +11,19 @@ import (
 )
 
 // runScan implements the "scan" kind: checkov, trivy config, kyverno
-// apply — scanners with their own graded severity, mapped through
-// CapSeverity and capped at the check's own declared severity (the
-// spec's own "scan" table row: "tool; severity mapped" — unlike
-// "policy", which has no graded severity of its own to map). Always
-// OPS-target-scoped, the identical reasoning runPolicy's own doc
-// comment states. Dispatches on Check.Tool, mirroring lint.go's own
-// runLint shape.
+// apply, zizmor (phase 27) — scanners with their own graded severity,
+// mapped through CapSeverity and capped at the check's own declared
+// severity (the spec's own "scan" table row: "tool; severity mapped" —
+// unlike "policy", which has no graded severity of its own to map).
+// Always OPS-target-scoped, the identical reasoning runPolicy's own
+// doc comment states. Dispatches on Check.Tool, mirroring lint.go's
+// own runLint shape.
 //
-// None of the three tools' own output shapes is verified against a
-// real binary in this development environment — flagged provisional in
-// each helper's own doc comment, the same posture every tool this
-// codebase could not hand-check already carries.
+// checkov/trivy/kyverno's own output shapes are not verified against a
+// real binary in this development environment — flagged provisional
+// in each helper's own doc comment; zizmor's own shape (runZizmor,
+// below) is the first in this file verified for real (phase-27 plan
+// §0.1).
 func runScan(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
 	switch in.Check.Tool {
 	case "checkov":
@@ -31,6 +32,8 @@ func runScan(ctx context.Context, in RunInput, x exec.Execer, timeout time.Durat
 		return runTrivyConfig(ctx, in, x, timeout)
 	case "kyverno":
 		return runKyvernoApply(ctx, in, x, timeout)
+	case "zizmor":
+		return runZizmor(ctx, in, x, timeout)
 	default:
 		return nil, fmt.Errorf("check: scan: no runner for tool %q", in.Check.Tool)
 	}
@@ -250,6 +253,76 @@ func runKyvernoApply(ctx context.Context, in RunInput, x exec.Execer, timeout ti
 		for _, res := range r.Resources {
 			findings = append(findings, scanFinding(in, "kyverno", res.Name, 0, msg, sev))
 		}
+	}
+	return findings, nil
+}
+
+// zizmorFinding mirrors zizmor's own "--format json" shape closely
+// enough for this addon's needs — verified for real against a real
+// zizmor v1.30.1 binary (the phase-27 plan's own §0.1), including its
+// own capitalized severity strings ("Medium", "High" confirmed for
+// real) and its 0-indexed location row.
+type zizmorFinding struct {
+	Ident          string `json:"ident"`
+	Desc           string `json:"desc"`
+	Determinations struct {
+		Severity string `json:"severity"`
+	} `json:"determinations"`
+	Locations []struct {
+		Symbolic struct {
+			Key struct {
+				Local struct {
+					VerbatimPath string `json:"verbatim_path"`
+				} `json:"Local"`
+			} `json:"key"`
+		} `json:"symbolic"`
+		Concrete struct {
+			Location struct {
+				StartPoint struct {
+					Row int `json:"row"`
+				} `json:"start_point"`
+			} `json:"location"`
+		} `json:"concrete"`
+	} `json:"locations"`
+}
+
+// runZizmor implements the github-actions-specific half of "scan"
+// (the spec's own literal line: "checkov, trivy config, zizmor,
+// kyverno apply"). zizmor scans a directory itself (it recursively
+// finds .github/workflows/*.yml under whatever path it is given, not
+// a single file — confirmed for real), so this runner passes "."
+// against the target's own resolved input directory exactly like
+// runCheckov/runTrivyConfig already do.
+func runZizmor(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
+	dir, err := targetInputDir(in)
+	if err != nil {
+		return nil, err
+	}
+
+	stdout, ok, err := runToolJSON(ctx, x, "zizmor", []string{"--format", "json", "."}, dir, timeout)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	var report []zizmorFinding
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+		return nil, fmt.Errorf("check: zizmor: output does not parse: %w", err)
+	}
+
+	var findings []Finding
+	for _, f := range report {
+		sev := CapSeverity(strings.ToLower(f.Determinations.Severity), in.Check.Severity)
+		file := ""
+		line := 0
+		if len(f.Locations) > 0 {
+			file = f.Locations[0].Symbolic.Key.Local.VerbatimPath
+			line = f.Locations[0].Concrete.Location.StartPoint.Row + 1 // zizmor's own row is 0-indexed
+		}
+		msg := fmt.Sprintf("[%s] %s", f.Ident, f.Desc)
+		findings = append(findings, scanFinding(in, "zizmor", file, line, msg, sev))
 	}
 	return findings, nil
 }

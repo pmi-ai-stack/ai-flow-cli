@@ -177,14 +177,15 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	}
 }
 
-// TestOpsAddonsCommandListsAllFourAddons proves `ops addons` reports
+// TestOpsAddonsCommandListsAllSixAddons proves `ops addons` reports
 // the real registry buildOpsRegistry constructs — "terraform,"
-// "kubectl," "helm," "kustomize," in registration order, from phase 26
-// on (internal/ops.DefaultRegistry() itself stays empty forever, by
-// design; see its own doc comment). Renamed from
-// TestOpsAddonsCommandListsTerraformAndKubectl (phase 22) now that a
-// third and fourth addon are registered.
-func TestOpsAddonsCommandListsAllFourAddons(t *testing.T) {
+// "kubectl," "helm," "kustomize," "github-actions," "jenkins," in
+// registration order, from phase 27 on, the capability matrix's own
+// full six-addon set (internal/ops.DefaultRegistry() itself stays
+// empty forever, by design; see its own doc comment). Renamed from
+// TestOpsAddonsCommandListsAllFourAddons (phase 26) now that a fifth
+// and sixth addon are registered.
+func TestOpsAddonsCommandListsAllSixAddons(t *testing.T) {
 	home := t.TempDir()
 	if _, _, ec := runRoot(t, "config", "init", "--home", home); ec != 0 {
 		t.Fatalf("config init: exitCode = %d", ec)
@@ -207,7 +208,7 @@ func TestOpsAddonsCommandListsAllFourAddons(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
 		t.Fatalf("decode: %v\n%s", err, stdout.String())
 	}
-	wantNames := []string{"terraform", "kubectl", "helm", "kustomize"}
+	wantNames := []string{"terraform", "kubectl", "helm", "kustomize", "github-actions", "jenkins"}
 	if len(env.Result.Addons) != len(wantNames) {
 		t.Fatalf("ops addons = %+v, want exactly %d addons", env.Result.Addons, len(wantNames))
 	}
@@ -232,5 +233,13 @@ func TestOpsAddonsCommandListsAllFourAddons(t *testing.T) {
 	ku := env.Result.Addons[3].Capabilities
 	if !ku.Render || !ku.Validate || !ku.Drift || !ku.DryRun || !ku.Rollback || ku.UnitTest || !ku.E2ETest {
 		t.Errorf("kustomize capabilities = %+v, want every one true except unit_test", ku)
+	}
+	ga := env.Result.Addons[4].Capabilities
+	if !ga.Render || !ga.Validate || ga.Drift || !ga.DryRun || !ga.Rollback || !ga.UnitTest || !ga.E2ETest {
+		t.Errorf("github-actions capabilities = %+v, want every one true except drift (not_applicable)", ga)
+	}
+	jk := env.Result.Addons[5].Capabilities
+	if !jk.Render || !jk.Validate || !jk.Drift || !jk.DryRun || !jk.Rollback || !jk.UnitTest || !jk.E2ETest {
+		t.Errorf("jenkins capabilities = %+v, want every one true", jk)
 	}
 }

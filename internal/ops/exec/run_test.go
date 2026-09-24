@@ -110,6 +110,35 @@ func TestRunRespectsTimeout(t *testing.T) {
 	}
 }
 
+func TestRunPipesStdin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses /bin/cat")
+	}
+	r := testRunner(Row{Tool: "cat", Verb: nil, Class: ClassRepoWrite})
+	out, err := r.Run(context.Background(), "cat", nil, RunOpts{Stdin: "hello from stdin"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if out.Stdout != "hello from stdin" {
+		t.Errorf("Stdout = %q, want the piped stdin content echoed back", out.Stdout)
+	}
+}
+
+func TestRunEmptyStdinLeavesProcessStdinUnset(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses /bin/cat")
+	}
+	// A zero-value RunOpts.Stdin must not block a tool that reads
+	// stdin only when something is actually piped (cat with no input
+	// and a closed/inherited stdin still exits promptly here since the
+	// test process's own stdin is not a terminal).
+	r := testRunner(Row{Tool: "true", Verb: nil, Class: ClassRepoWrite})
+	_, err := r.Run(context.Background(), "true", nil, RunOpts{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}
+
 func TestRunUsesDir(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/pwd")

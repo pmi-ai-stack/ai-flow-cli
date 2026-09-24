@@ -140,6 +140,52 @@ func TestRunScanKyvernoApplyNoConfigIsError(t *testing.T) {
 	}
 }
 
+// TestRunScanZizmor uses the real, verified shape a zizmor v1.30.1
+// binary produced against a throwaway workflow fixture (the phase-27
+// plan's own §0.1), trimmed to one finding.
+func TestRunScanZizmor(t *testing.T) {
+	report := `[{"ident":"unpinned-uses","desc":"unpinned action reference","url":"https://docs.zizmor.sh/audits/#unpinned-uses",` +
+		`"determinations":{"confidence":"High","severity":"High","persona":"Regular"},` +
+		`"locations":[{"symbolic":{"key":{"Local":{"verbatim_path":".github/workflows/ci.yml"}}}},` +
+		`{"concrete":{"location":{"start_point":{"row":8,"column":14}}}}],"ignored":false,"fixes":[]}]`
+	x := exectest.New(t).On("zizmor", []string{"--format", "json", "."}, exec.Output{Stdout: report})
+
+	c := standards.EffectiveCheck{ID: "infra.github-actions.scan", Kind: "scan", Tool: "zizmor", Severity: "should", Input: "render"}
+	runner, _ := check.ForKind("scan")
+	findings, err := runner.Run(context.Background(), check.RunInput{
+		Check: c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
+	}, x, time.Second)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings = %#v, want 1", findings)
+	}
+	f := findings[0]
+	if f.Message != "[unpinned-uses] unpinned action reference" {
+		t.Errorf("message = %q", f.Message)
+	}
+	want := check.CapSeverity("high", c.Severity)
+	if f.Severity != want {
+		t.Errorf("severity = %q, want %q", f.Severity, want)
+	}
+}
+
+func TestRunScanZizmorNoFindingsHasNoLocationCrash(t *testing.T) {
+	x := exectest.New(t).On("zizmor", []string{"--format", "json", "."}, exec.Output{Stdout: `[]`})
+	c := standards.EffectiveCheck{ID: "infra.github-actions.scan", Kind: "scan", Tool: "zizmor", Severity: "should", Input: "render"}
+	runner, _ := check.ForKind("scan")
+	findings, err := runner.Run(context.Background(), check.RunInput{
+		Check: c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
+	}, x, time.Second)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("findings = %#v, want none", findings)
+	}
+}
+
 func TestRunScanUnknownToolIsError(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "x", Kind: "scan", Tool: "snyk", Severity: "must"}
 	runner, _ := check.ForKind("scan")

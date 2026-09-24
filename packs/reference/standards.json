@@ -88,7 +88,9 @@
 
     { "id": "infra.terraform.baseline", "path": "infra/terraform/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["terraform"], "stages": ["implement", "review"] } },
     { "id": "infra.kubernetes.baseline", "path": "infra/kubernetes/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["kubectl", "helm", "kustomize"], "stages": ["implement", "review"] } },
-    { "id": "infra.helm.baseline", "path": "infra/helm/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["helm"], "stages": ["implement", "review"] } }
+    { "id": "infra.helm.baseline", "path": "infra/helm/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["helm"], "stages": ["implement", "review"] } },
+    { "id": "infra.github-actions.baseline", "path": "infra/github-actions/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["github-actions"], "stages": ["implement", "review"] } },
+    { "id": "infra.jenkins.baseline", "path": "infra/jenkins/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["jenkins"], "stages": ["implement", "review"] } }
   ],
   "checks": [
     { "id": "go.format", "kind": "format", "tool": "gofmt", "severity": "must", "applies_to": { "languages": ["go"] } },
@@ -143,6 +145,12 @@
     { "id": "infra.kubernetes.scan", "kind": "scan", "tool": "trivy", "severity": "should", "input": "render",
       "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } },
     { "id": "infra.helm.policy", "kind": "policy", "tool": "conftest", "config": "infra/helm/checks/policy", "severity": "must", "input": "render",
-      "applies_to": { "addons": ["helm"] } }
+      "applies_to": { "addons": ["helm"] } },
+    { "id": "infra.github-actions.policy", "kind": "policy", "tool": "conftest", "config": "infra/github-actions/checks/policy", "severity": "must", "input": "render",
+      "applies_to": { "addons": ["github-actions"] } },
+    { "id": "infra.github-actions.scan", "kind": "scan", "tool": "zizmor", "severity": "should", "input": "render",
+      "applies_to": { "addons": ["github-actions"] } },
+    { "id": "infra.jenkins.policy", "kind": "policy", "tool": "conftest", "config": "infra/jenkins/checks/policy", "severity": "must", "input": "render",
+      "applies_to": { "addons": ["jenkins"] } }
   ]
 }

@@ -95,6 +95,13 @@ func TestEphemeralRowsReachableOnlyFromDesignatedCallers(t *testing.T) {
 		filepath.Join("internal", "ops", "addons", "terraform", "env.go"),
 		filepath.Join("internal", "ops", "harness", "terraformtest.go"),
 		filepath.Join("internal", "ops", "harness", "kind.go"),
+		// Phase 27's own real, non-ephemeral "act" caller: DryRun
+		// always passes "-n" (act's own row-ordering comment in
+		// table.go — "-j JOB -n" still matches the dry-run row first),
+		// never reaching the ephemeral "-j" (without "-n") row. The
+		// same "watched by bare tool name" property phase 21's own
+		// terraform calls already trip applies here.
+		filepath.Join("internal", "ops", "addons", "githubactions", "dryrun.go"),
 	}
 	violations := scanCallArgLiterals(t, moduleRoot(t), watched, allowed, nil)
 	for _, v := range violations {

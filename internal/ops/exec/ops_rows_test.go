@@ -42,6 +42,8 @@ func TestOpsRowsCoverCapabilityMatrixVerbs(t *testing.T) {
 		{"actionlint", nil, ClassNone, false},
 		{"act", nil, ClassNone, true},
 		{"jenkinsfile-runner", nil, ClassEphemeral, true},
+		{"jenkins-cli", []string{"declarative-linter"}, ClassReadOnlyLive, false}, // phase 27
+		{"jenkins-cli", []string{"get-job"}, ClassReadOnlyLive, false},            // phase 27
 	}
 
 	for _, w := range want {

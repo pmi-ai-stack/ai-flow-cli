@@ -14,7 +14,9 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/gitops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/githubactions"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/helm"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/jenkins"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kubectl"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kustomize"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/terraform"
@@ -41,13 +43,18 @@ var newOpsExecer = func() exec.Execer { return exec.NewRunner() }
 // parameter (unlike terraform.New), a deliberate divergence recorded
 // in internal/ops/addons/kubectl/addon.go's own doc comment. Phase 26
 // adds helm.New and kustomize.New as the third and fourth addons,
-// both following kubectl's own no-home-parameter shape.
+// both following kubectl's own no-home-parameter shape. Phase 27 adds
+// githubactions.New and jenkins.New as the fifth and sixth (and
+// final, per the capability matrix) addons, completing it — both
+// follow the same no-home-parameter shape.
 func buildOpsRegistry(f Flags, cfg *config.Config) *ops.Registry {
 	return ops.NewRegistry(
 		terraform.New(newOpsExecer(), cfg, f.Home),
 		kubectl.New(newOpsExecer(), cfg),
 		helm.New(newOpsExecer(), cfg),
 		kustomize.New(newOpsExecer(), cfg),
+		githubactions.New(newOpsExecer(), cfg),
+		jenkins.New(newOpsExecer(), cfg),
 	)
 }
 
@@ -164,9 +171,22 @@ func runOpsDetect(f Flags, cfg *config.Config, artifact *repoArtifact, scope str
 	}
 
 	for i, t := range result.Targets {
-		bound, err := envs.Bind(cfg, t.Repo, t.Path, t.Files, true)
+		// Phase 27's own first hasLiveCounterpart=false caller
+		// (internal/ops/envs.Bind's own doc comment already named this
+		// exact call site as "the first caller that will"): a workflow
+		// file has no live counterpart at all, so github-actions always
+		// binds unbound, unconditionally, without consulting cfg.
+		bound, err := envs.Bind(cfg, t.Repo, t.Path, t.Files, t.Addon != "github-actions")
 		if err != nil {
 			return ops.DetectResult{}, err
+		}
+		// A jenkins target resolved (by target_map/convention/default)
+		// to an environment with no jenkins binding configured is the
+		// spec's own literal "a Jenkins job DSL with no configured URL"
+		// case — rebound to unbound rather than left pointing at an
+		// environment with nothing to bind to.
+		if t.Addon == "jenkins" && bound.Name != "" && cfg.Ops.Environments[bound.Name].Jenkins == nil {
+			bound = envs.Result{Tier: "nonprod"}
 		}
 		if bound.Name != "" {
 			result.Targets[i].Environment = &bound.Name

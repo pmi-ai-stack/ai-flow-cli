@@ -98,10 +98,10 @@ var Table = []Row{
 	// caller to exist yet, only a test (this file's own
 	// TestAllowlistNeverMutatesPersistentState, extended below).
 	//
-	// Deliberately absent: Jenkins's declarative-linter/get-job (Jenkins
-	// CLI reachability is an open question owned by phase 27, not this
-	// one — inventing an invocation shape now would be a guess this
-	// phase has no authority to make); kind create/delete cluster (the
+	// Deliberately absent (through phase 26): Jenkins's
+	// declarative-linter/get-job — added below, credited to phase 27
+	// by name, once that phase settled the "Jenkins CLI reachability"
+	// question it alone owns; kind create/delete cluster (the
 	// growing-surfaces registry credits phase 24, not 18, and no addon
 	// name lists "kind" at all — it is infra-test's own cluster, not a
 	// capability-matrix tool); conftest/checkov/trivy config/kyverno
@@ -201,6 +201,29 @@ var Table = []Row{
 	{Tool: "checkov", Verb: []string{}, Class: ClassNone},
 	{Tool: "trivy", Verb: []string{"config"}, Class: ClassNone},
 	{Tool: "kyverno", Verb: []string{"apply"}, ForbiddenFlags: []string{"--cluster"}, Class: ClassNone},
+
+	// Phase 27 adds internal/standards/check's own last scan tool
+	// (zizmor, github-actions-specific — the spec's own literal
+	// "zizmor as a scan check" line) and the two Jenkins CLI rows
+	// phase 18's own table.go comment explicitly withheld and credited
+	// here by name ("Jenkins CLI reachability is an open question
+	// owned by phase 27"). Both jenkins-cli rows are ClassReadOnlyLive,
+	// not ClassNone: unlike every other check/lint tool in this table,
+	// declarative-linter and get-job each read through a real
+	// config.ops.environments[name].jenkins binding (a live Jenkins
+	// server), the same class kubectl's own "diff"/"get" rows already
+	// use for an addon-tool's live read. Neither mutates anything.
+	// jenkins-cli's own verb comes before "-s"/"-auth" (the phase-27
+	// plan's own design decision 3): this package's own allowlist
+	// matches the verb strictly at argv[1] (see allowlist.go's
+	// verbMatches), which the real jenkins-cli.jar's own documented
+	// "-s URL command args" ordering cannot satisfy — this table's own
+	// row therefore fixes the convention this addon's own calls use,
+	// not a literal transcription of an unverifiable real binary (no
+	// Jenkins server was reachable to confirm either way).
+	{Tool: "zizmor", Verb: []string{}, Class: ClassNone},
+	{Tool: "jenkins-cli", Verb: []string{"declarative-linter"}, Class: ClassReadOnlyLive},
+	{Tool: "jenkins-cli", Verb: []string{"get-job"}, Class: ClassReadOnlyLive},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current
