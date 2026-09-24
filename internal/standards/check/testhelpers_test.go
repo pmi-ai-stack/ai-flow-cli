@@ -31,3 +31,18 @@ func packWithConfig(configPath, content string) *standards.Pack {
 		FS: fstest.MapFS{configPath: &fstest.MapFile{Data: []byte(content)}},
 	}
 }
+
+// packWithConfigDir builds a *standards.Pack whose FS holds every file
+// in files (relative to configDir) — enough for materializeConfigDir
+// (the "policy"/"scan" kinds' own directory-of-rego/policy-YAML
+// config, phase 25) to copy a whole directory out of Check.Pack.FS.
+func packWithConfigDir(configDir string, files map[string]string) *standards.Pack {
+	mapFS := fstest.MapFS{}
+	for name, content := range files {
+		mapFS[configDir+"/"+name] = &fstest.MapFile{Data: []byte(content)}
+	}
+	return &standards.Pack{
+		ID: "test", Layer: standards.LayerOrg, Ref: "test",
+		FS: mapFS,
+	}
+}

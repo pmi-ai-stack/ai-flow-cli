@@ -84,7 +84,10 @@
     { "id": "java.lint-format-config", "path": "languages/java/guidance/06-lint-format-config.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["implement", "review"] } },
     { "id": "java.logging-observability", "path": "languages/java/guidance/07-logging-observability.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["implement", "review"] } },
     { "id": "java.anti-patterns", "path": "languages/java/guidance/08-anti-patterns.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["implement", "review"] } },
-    { "id": "java.pr-checklist", "path": "languages/java/guidance/09-pr-checklist.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["ship", "review"] } }
+    { "id": "java.pr-checklist", "path": "languages/java/guidance/09-pr-checklist.md", "severity": "should", "applies_to": { "languages": ["java"], "stages": ["ship", "review"] } },
+
+    { "id": "infra.terraform.baseline", "path": "infra/terraform/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["terraform"], "stages": ["implement", "review"] } },
+    { "id": "infra.kubernetes.baseline", "path": "infra/kubernetes/guidance/baseline.md", "severity": "should", "applies_to": { "addons": ["kubectl", "helm", "kustomize"], "stages": ["implement", "review"] } }
   ],
   "checks": [
     { "id": "go.format", "kind": "format", "tool": "gofmt", "severity": "must", "applies_to": { "languages": ["go"] } },
@@ -128,6 +131,15 @@
     { "id": "org.secrets", "kind": "secrets", "tool": "gitleaks", "config": "checks/gitleaks.toml", "severity": "must" },
     { "id": "org.docs", "kind": "docs", "severity": "should" },
     { "id": "process.commit-conventional", "kind": "commit", "severity": "must", "applies_to": { "stages": ["ship"] } },
-    { "id": "process.pr", "kind": "pr", "severity": "must", "applies_to": { "stages": ["ship"] } }
+    { "id": "process.pr", "kind": "pr", "severity": "must", "applies_to": { "stages": ["ship"] } },
+
+    { "id": "infra.terraform.policy", "kind": "policy", "tool": "conftest", "config": "infra/terraform/checks/policy", "severity": "must", "input": "source",
+      "applies_to": { "addons": ["terraform"] } },
+    { "id": "infra.terraform.scan", "kind": "scan", "tool": "checkov", "severity": "should",
+      "applies_to": { "addons": ["terraform"] } },
+    { "id": "infra.kubernetes.policy", "kind": "policy", "tool": "conftest", "config": "infra/kubernetes/checks/policy", "severity": "must", "input": "render",
+      "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } },
+    { "id": "infra.kubernetes.scan", "kind": "scan", "tool": "trivy", "severity": "should", "input": "render",
+      "applies_to": { "addons": ["kubectl", "helm", "kustomize"] } }
   ]
 }

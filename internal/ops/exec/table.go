@@ -186,6 +186,21 @@ var Table = []Row{
 	{Tool: "kind", Verb: []string{"get", "clusters"}, Class: ClassNone},
 	{Tool: "kind", Verb: []string{"create", "cluster"}, Mutating: true, Class: ClassEphemeral},
 	{Tool: "kind", Verb: []string{"delete", "cluster"}, Mutating: true, Class: ClassEphemeral},
+
+	// Phase 25 adds internal/standards/check's last two kinds' tools —
+	// the four the phase-18 table.go comment explicitly withheld and
+	// credited here by name. Same class: none reasoning as phase 14's
+	// own eight rows: each only reads source or an already-written
+	// rendering and writes a report, reaching no persistent
+	// infrastructure target. kyverno apply forbids --cluster (spec
+	// line 360's own literal example, the same shape terraform plan's
+	// own -auto-approve forbidden-flag row already uses) so this row
+	// can never reach a live cluster — only kyverno's own
+	// manifest-against-policy check, never its live admission-mode use.
+	{Tool: "conftest", Verb: []string{"test"}, Class: ClassNone},
+	{Tool: "checkov", Verb: []string{}, Class: ClassNone},
+	{Tool: "trivy", Verb: []string{"config"}, Class: ClassNone},
+	{Tool: "kyverno", Verb: []string{"apply"}, ForbiddenFlags: []string{"--cluster"}, Class: ClassNone},
 }
 
 // Hash returns a stable hex-encoded SHA-256 digest of Table's current

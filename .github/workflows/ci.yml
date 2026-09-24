@@ -58,18 +58,37 @@ jobs:
       # step above already covers linting via `go tool golangci-lint`,
       # which is a different invocation from the bare `golangci-lint`
       # `standards check` shells out to — so both are provisioned here,
-      # not assumed present.
-      - name: install check-runner tools (gitleaks, golangci-lint shim)
+      # not assumed present. `conftest` (phase 25) is pinned to the
+      # exact version this phase's own implementation verified by hand
+      # (`conftest verify` and `conftest test --output json` against a
+      # throwaway .tf/.yaml fixture, confirming both the reference
+      # pack's own rego rules fire and internal/standards/check's
+      # conftestFileResult Go type matches conftest's real --output
+      # json shape byte for byte — see
+      # .ai/phase-25/implementation-log.md).
+      - name: install check-runner tools (gitleaks, golangci-lint shim, conftest)
         run: |
           go install github.com/zricethezav/gitleaks/v8@v8.21.2
+          go install github.com/open-policy-agent/conftest@v0.70.1
           mkdir -p "$HOME/.local/bin"
           printf '#!/bin/sh\nexec go tool golangci-lint "$@"\n' > "$HOME/.local/bin/golangci-lint"
           chmod +x "$HOME/.local/bin/golangci-lint"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # Phase 25: the reference pack's own rego tests
+      # (packs/reference/infra/{terraform,kubernetes}/checks/policy/*_test.rego)
+      # against the real conftest binary just installed above.
+      - name: conftest verify (reference pack rego)
+        run: |
+          conftest verify --policy packs/reference/infra/terraform/checks/policy
+          conftest verify --policy packs/reference/infra/kubernetes/checks/policy
+
       - name: build ai-flow
         run: go build -o /tmp/ai-flow-dogfood ./cmd/ai-flow
+
+      - name: standards validate packs/reference
+        run: /tmp/ai-flow-dogfood standards validate packs/reference
 
       - name: standards check . (dogfood the reference pack)
         run: |

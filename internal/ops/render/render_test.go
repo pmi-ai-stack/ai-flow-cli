@@ -213,6 +213,33 @@ func TestRenderPassesResolvedSourceDirToAddon(t *testing.T) {
 	}
 }
 
+// TestRedactedDirMatchesWhatRenderItselfWrote is phase 25's own first
+// caller of RedactedDir: given a hash a prior Render call already
+// produced, RedactedDir must resolve to the exact same directory
+// Render's own Result.RedactedDir named — the property the
+// "policy"/"scan" check dispatch (internal/cli/checks.go) depends on
+// to locate a target's rendering without rendering it again.
+func TestRedactedDirMatchesWhatRenderItselfWrote(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	writeSource(t, src, map[string]string{"main.tf": "resource \"x\" {}\n"})
+
+	addon := fixtureaddon.New("fixture", "infra")
+	tgt := target("acme.infra", "infra")
+	res, err := render.Render(context.Background(), render.Options{
+		Addon: addon, Target: tgt, Ref: ops.RefBranch, SourceDir: src, Home: home, Key: "PROJ-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := render.RedactedDir(filepath.Join(home, "PROJ-1"), tgt, res.Hash)
+	want := filepath.Join(home, "PROJ-1", res.RedactedDir)
+	if got != want {
+		t.Errorf("RedactedDir = %q, want %q (Render's own result)", got, want)
+	}
+}
+
 // TestLoadReturnsTheRealRenderingAndItsMarkings is phase 20's own first
 // caller of Load: given a hash Render already produced, Load returns
 // the *ops.Rendered (real, unredacted dir + markings) Addon.Validate/

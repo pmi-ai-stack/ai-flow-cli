@@ -15,7 +15,9 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards/check"
 )
@@ -25,6 +27,13 @@ import (
 // repository's own tree — run once per ticket, never per repository
 // (the phase-14 plan's design decision 4).
 var ticketOnlyKinds = map[string]bool{"docs": true, "commit": true, "pr": true}
+
+// addonScopedKinds are the two check kinds that run once per OPS
+// target rather than once per repository — every kind-"policy" or
+// kind-"scan" example in the spec's own pack format narrows by
+// applies_to.addons, never applies_to.languages (the phase-25 plan's
+// design decision 1).
+var addonScopedKinds = map[string]bool{"policy": true, "scan": true}
 
 // checksResultsWire is checks-results.json's own shape — check.Finding
 // already mirrors the schema field for field (runner.go's own doc
@@ -222,13 +231,49 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 	// every repository, and re-running detect.Languages' handful of
 	// os.Stat/os.ReadDir calls per check would multiply that work by
 	// the number of applicable non-ticket-only checks for no reason.
-	repoLangs := make(map[string][]string, len(repos))
+	// One map keyed by repo name, not two: languages and local path are
+	// both per-repository facts the per-repo and addon-scoped loops
+	// below both need, so one lookup serves both instead of a second,
+	// parallel map carrying nothing detect.Languages didn't already
+	// require visiting this repository for.
+	repoInfo := make(map[string]repoCheckInfo, len(repos))
 	for _, r := range repos {
 		langs, err := detect.Languages(toDetectRepo(r))
 		if err != nil {
 			return nil, err
 		}
-		repoLangs[r.Name] = langs
+		repoInfo[r.Name] = repoCheckInfo{Langs: langs, LocalPath: r.LocalPath}
+	}
+
+	// opsTargets/renderHashes feed the addon-scoped ("policy"/"scan")
+	// dispatch branch below — both tolerant of absence (ticketDir ==
+	// "" for the directory/CI form, or an ordinary ticket with no OPS
+	// content at all), in which case no addon-scoped check ever finds
+	// a target to run against, correctly.
+	var opsTargets []ops.Target
+	var renderHashes map[string]string
+	if ticketDir != "" {
+		targetsArt, err := loadOpsTargetsTolerant(ticketDir)
+		if err != nil {
+			return nil, err
+		}
+		if targetsArt != nil {
+			// changedOrOneTarget with no --target flag is exactly "every
+			// target ops-targets.json marks changed" — the same scope
+			// `ops drift`/`ops dry-run` already use (internal/cli/ops.go).
+			opsTargets, err = changedOrOneTarget(targetsArt.Targets, "")
+			if err != nil {
+				return nil, err
+			}
+		}
+		hashes, err := loadRenderDriftResultsTolerant(ticketDir)
+		if err != nil {
+			return nil, err
+		}
+		renderHashes = make(map[string]string, len(hashes))
+		for key, t := range hashes {
+			renderHashes[key] = t.Hash
+		}
 	}
 
 	var out []check.Finding
@@ -242,7 +287,7 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 		}
 		runner, ok := check.ForKind(c.Kind)
 		if !ok {
-			continue // no runner for this kind yet (policy/scan land in phase 25)
+			continue // no runner for this kind
 		}
 
 		if ticketOnlyKinds[c.Kind] {
@@ -254,8 +299,17 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 			continue
 		}
 
+		if addonScopedKinds[c.Kind] {
+			findings, err := runAddonScopedCheck(ctx, c, opsTargets, repoInfo, ticketDir, renderHashes, stage, fix, runner, x, timeout)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, decorateFindings(findings, c, stage)...)
+			continue
+		}
+
 		for _, r := range repos {
-			if !standards.AppliesToAnyStage(c.Check.AppliesTo, repoLangs[r.Name], e.Addons) {
+			if !standards.AppliesToAnyStage(c.Check.AppliesTo, repoInfo[r.Name].Langs, e.Addons) {
 				continue
 			}
 			findings, err := runner.Run(ctx, check.RunInput{
@@ -271,17 +325,86 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 	return out, nil
 }
 
+// repoCheckInfo is the per-repository data runEffectiveChecks's own
+// dispatch (both the per-repository loop and runAddonScopedCheck)
+// needs, keyed by repository name — one map instead of two, since both
+// fields come from the same one-per-repository pass over repos.
+type repoCheckInfo struct {
+	Langs     []string
+	LocalPath string
+}
+
+// runAddonScopedCheck runs c — a "policy" or "scan" kind check, always
+// scoped to one OPS target rather than one repository — against every
+// changed target (the same scope render-drift/dry-run already use)
+// whose addon c's own applies_to selects. Check.Input == "render" needs
+// a rendering render-drift already wrote (render.RedactedDir over the
+// hash render-drift-results.json recorded for that target); a target
+// with no such hash yet (its addon has no Render/Validate capability,
+// or render-drift has not run this run) is silently skipped — "nothing
+// to check here yet," not a failure.
+func runAddonScopedCheck(
+	ctx context.Context, c standards.EffectiveCheck, targets []ops.Target, repoInfo map[string]repoCheckInfo,
+	ticketDir string, renderHashes map[string]string, stage string, fix bool,
+	runner check.CheckRunner, x exec.Execer, timeout time.Duration,
+) ([]check.Finding, error) {
+	var out []check.Finding
+	for _, t := range targets {
+		info, ok := repoInfo[t.Repo]
+		if !ok {
+			continue // repo.json names no such repository — nothing to check
+		}
+		if !standards.AppliesToAnyStage(c.Check.AppliesTo, info.Langs, []string{t.Addon}) {
+			continue
+		}
+
+		// check.Target, not check.Repo: runPolicy/runScan (the only
+		// runners addonScopedKinds ever dispatches to) read Target.Repo/
+		// Target.SourceDir exclusively, never RunInput.Repo — the same
+		// carried-repository-name that ticketOnlyKinds' own dispatch
+		// leaves as the zero value two branches above.
+		target := check.Target{
+			Key: ops.TargetKey(t), Addon: t.Addon, Repo: t.Repo,
+			SourceDir: filepath.Join(info.LocalPath, t.Path),
+		}
+		if c.Input == "render" {
+			hash := renderHashes[target.Key]
+			if hash == "" {
+				continue // not rendered this run — nothing to check
+			}
+			target.RenderDir = render.RedactedDir(ticketDir, t, hash)
+		}
+
+		findings, err := runner.Run(ctx, check.RunInput{
+			Check: c, Target: target, Stage: stage, Fix: fix, TicketDir: ticketDir,
+		}, x, timeout)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, findings...)
+	}
+	return out, nil
+}
+
 // decorateFindings fills in what only the resolution knows — a runner
 // sees one check and nothing about its place in the layered
-// resolution, so CheckID/Layer/Kind/Severity/Stage are set here, not
-// by the runner. A waived check's otherwise-open findings become
-// status "waived" (see runEffectiveChecks's own doc comment).
+// resolution, so CheckID/Layer/Kind/Stage are set here, not by the
+// runner. Severity defaults to the check's own declared severity only
+// when the runner left it empty: every phase-14 runner does (format,
+// lint, ... never set a per-finding severity of their own), but the
+// scan runners (phase 25) compute a real, CapSeverity-capped severity
+// per finding — "capped at the check entry's severity," not "always
+// exactly the check entry's severity," the spec's own wording for
+// scan. A waived check's otherwise-open findings become status
+// "waived" (see runEffectiveChecks's own doc comment).
 func decorateFindings(findings []check.Finding, c standards.EffectiveCheck, stage string) []check.Finding {
 	for i := range findings {
 		findings[i].CheckID = c.ID
 		findings[i].Layer = c.Layer
 		findings[i].Kind = c.Kind
-		findings[i].Severity = c.Severity
+		if findings[i].Severity == "" {
+			findings[i].Severity = c.Severity
+		}
 		findings[i].Stage = stage
 		if findings[i].Tool == "" {
 			findings[i].Tool = c.Tool

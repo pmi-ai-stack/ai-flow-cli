@@ -48,19 +48,35 @@ func resolveForTicket(f Flags, key string, cfg *config.Config) (*standards.Effec
 		waivers = append(waivers, w...)
 	}
 
+	// Addons: every addon ops-targets.json names, repo-wide rather than
+	// diff-scoped (the same symmetry Languages above already has via
+	// detect.Languages, not the diff-only ops.Target.Changed) — so a
+	// section/check narrowed by applies_to.addons is part of the
+	// resolution for the whole ticket, the same way a language check
+	// is, not just once a target happens to be the one currently
+	// changed. Tolerant of ops-targets.json not existing yet (fetch,
+	// locate, or a ticket with no OPS content at all): nil Addons is
+	// the correct answer then, not an error. Not deduped here, the
+	// same reason Languages above is not: Resolve normalizes both as
+	// part of its own contract.
+	opsArtifact, err := loadOpsTargetsTolerant(ticketDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	var addons []string
+	if opsArtifact != nil {
+		for _, t := range opsArtifact.Targets {
+			addons = append(addons, t.Addon)
+		}
+	}
+
 	return standards.Resolve(standards.ResolveInput{
-		Home:  f.Home,
-		Cfg:   cfg,
-		Team:  artifact.Team,
-		Repos: repos,
-		// Not deduped here: Resolve normalizes Languages and Addons as
-		// part of its own contract, since they are resolution-hash
-		// inputs and it cannot trust a caller to have done it.
-		Languages: languages,
-		// Addons stays empty until phase 18's `ops detect` exists. Not a
-		// stub: no addon is active, so no addon-narrowed entry applies,
-		// which is the correct answer today rather than a placeholder.
-		Addons:       nil,
+		Home:         f.Home,
+		Cfg:          cfg,
+		Team:         artifact.Team,
+		Repos:        repos,
+		Languages:    languages,
+		Addons:       addons,
 		Waivers:      waivers,
 		BudgetTokens: cfg.Standards.GuidanceBudgetTokens,
 	})

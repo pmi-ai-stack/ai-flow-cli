@@ -2,10 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -172,22 +169,18 @@ func driftOneTarget(ctx context.Context, f Flags, key string, repoArt *repoArtif
 // loadRenderDriftResults reads ticketDir's render-drift-results.json,
 // keyed by target — `ops dry-run`'s own baseline for deciding which
 // targets need re-validation (the tree hash moved) and which may reuse
-// their prior validation verbatim.
+// their prior validation verbatim. loadRenderDriftResultsTolerant
+// (ops_impact.go — phase 23 already built this exact tolerant shape
+// for impact's own drift/offline counts; internal/cli/checks.go's own
+// addon-scoped "policy"/"scan" dispatch, phase 25, reuses it too) is
+// the same read without the missing_artifact error.
 func loadRenderDriftResults(ticketDir string) (map[string]opsDriftResultTarget, error) {
-	data, err := handoff.ReadArtifact(filepath.Join(ticketDir, "render-drift-results.json"))
+	out, err := loadRenderDriftResultsTolerant(ticketDir)
 	if err != nil {
 		return nil, err
 	}
-	if data == nil {
+	if out == nil {
 		return nil, &envelope.Error{Code: "missing_artifact", Message: "render-drift-results.json not found; run ops drift first"}
-	}
-	var artifact renderDriftArtifact
-	if err := json.Unmarshal(data, &artifact); err != nil {
-		return nil, fmt.Errorf("cli: decode render-drift-results.json: %w", err)
-	}
-	out := make(map[string]opsDriftResultTarget, len(artifact.Targets))
-	for _, t := range artifact.Targets {
-		out[t.Target] = t
 	}
 	return out, nil
 }

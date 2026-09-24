@@ -164,6 +164,18 @@ func writeRedactedCopy(opts Options, hash, realDir string, marked []redact.Marke
 	return relDir, nil
 }
 
+// RedactedDir returns the absolute path of t's already-written redacted
+// rendering under ticketDir, for a hash a caller already knows (from
+// render-drift-results.json, typically) — the same path Render's own
+// writeRedactedCopy builds, exported so a caller (internal/cli/checks.go's
+// addon-scoped "policy"/"scan" dispatch, phase 25) can locate an
+// existing rendering without calling Render again. Does not check the
+// directory exists — a caller that needs to tell "not rendered" from
+// "rendered but empty" stats it itself.
+func RedactedDir(ticketDir string, t ops.Target, hash string) string {
+	return filepath.Join(ticketDir, "render", targetDir(t), hash)
+}
+
 // targetDir is the redacted copy's own directory segment for t:
 // <repo>/<addon>/<path>, nested rather than flattened, so two targets
 // that would otherwise collide (two addons at the same path; two

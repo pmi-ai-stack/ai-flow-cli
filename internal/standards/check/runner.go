@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -71,6 +72,11 @@ type RunInput struct {
 	// check that is not per-repository (secrets, docs, commit, pr) —
 	// each of those runners reads its own input from TicketDir instead.
 	Repo Repo
+	// Target is the OPS target to check — set only for "policy"/"scan"
+	// kinds (phase 25), which are always target-scoped rather than
+	// repository-scoped (see policy.go's own doc comment). Zero value
+	// for every other kind, which ignores it entirely.
+	Target Target
 	// Stage is "checks" or "ship" — the finding's own Stage field.
 	Stage string
 	// Fix requests the check's own autofix, honoured only by
@@ -99,14 +105,16 @@ func (f CheckRunnerFunc) Run(ctx context.Context, in RunInput, x exec.Execer, ti
 	return f(ctx, in, x, timeout)
 }
 
-// runners is the kind → runner dispatch table. A pack may declare a
-// check whose kind this binary does not implement (none can today —
-// the eight kinds here are exactly the pack schema's own enum, and
-// policy/scan are phase 25's) but the table is still keyed by string,
-// not by an enum, so a later phase's addition is one more map entry.
+// runners is the kind → runner dispatch table, keyed by string rather
+// than an enum so a later phase's addition is one more map entry —
+// phase 25 fills in the last two, "policy" and "scan", both of which
+// dispatch on RunInput.Target rather than RunInput.Repo (see policy.go
+// and scan.go's own doc comments).
 var runners = map[string]CheckRunner{
 	"format":     CheckRunnerFunc(runFormat),
 	"lint":       CheckRunnerFunc(runLint),
+	"policy":     CheckRunnerFunc(runPolicy),
+	"scan":       CheckRunnerFunc(runScan),
 	"dependency": CheckRunnerFunc(runDependency),
 	"secrets":    CheckRunnerFunc(runSecrets),
 	"layout":     CheckRunnerFunc(runLayout),
@@ -159,6 +167,70 @@ func materializeConfig(c standards.EffectiveCheck) (path string, cleanup func(),
 		return "", nil, fmt.Errorf("check: write config for %s: %w", c.ID, err)
 	}
 	return path, func() { _ = os.Remove(path) }, nil
+}
+
+// materializeConfigDir is materializeConfig for a check whose Config
+// names a whole directory rather than one file — conftest's own
+// --policy flag (and kyverno apply's own policy argument) needs a real
+// directory of files on disk, not one config file handed by path.
+// Every file under c.Config in c.Pack.FS is copied into a fresh
+// deterministic temp directory (<tmp>/ai-flow-check-policy-<check
+// id>/, cleared first so a stale run's leftovers never leak into this
+// one — the same determinism materializeConfig's own doc comment
+// explains, for the same reason: a caller's test scripts the exact
+// argv it expects).
+func materializeConfigDir(c standards.EffectiveCheck) (dir string, cleanup func(), err error) {
+	dir = filepath.Join(os.TempDir(), "ai-flow-check-policy-"+c.ID)
+	if err := os.RemoveAll(dir); err != nil {
+		return "", nil, fmt.Errorf("check: %s: clear %s: %w", c.ID, dir, err)
+	}
+	cleanup = func() { _ = os.RemoveAll(dir) }
+
+	walkErr := fs.WalkDir(c.Pack.FS, c.Config, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(c.Config, path)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(dir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dest, 0o700)
+		}
+		data, err := fs.ReadFile(c.Pack.FS, path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+			return err
+		}
+		return os.WriteFile(dest, data, 0o600)
+	})
+	if walkErr != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("check: %s: materialize config dir %s: %w", c.ID, c.Config, walkErr)
+	}
+	return dir, cleanup, nil
+}
+
+// runToolJSON runs tool with args in dir and returns its stdout,
+// tolerating a tool_failed exit (a scanner's own "found violations"
+// signal, not an internal CLI error) — the "invoke, tolerate
+// tool_failed, treat blank stdout as clean" sequence every "policy"/
+// "scan" runner (runPolicy, runCheckov, runTrivyConfig,
+// runKyvernoApply) repeats verbatim, factored out once. ok is false
+// exactly when there is nothing to parse (a clean run), so the caller
+// returns (nil, nil) without its own strings.TrimSpace check.
+func runToolJSON(ctx context.Context, x exec.Execer, tool string, args []string, dir string, timeout time.Duration) (stdout string, ok bool, err error) {
+	out, err := x.Run(ctx, tool, args, exec.RunOpts{Dir: dir, Timeout: timeout})
+	if err != nil && !exec.IsToolFailed(err) {
+		return "", false, err
+	}
+	if strings.TrimSpace(out.Stdout) == "" {
+		return "", false, nil
+	}
+	return out.Stdout, true, nil
 }
 
 // readConfigJSON reads and unmarshals a built-in check's own Config
