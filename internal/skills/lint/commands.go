@@ -65,14 +65,17 @@ func checkInvocation(s skills.Skill, invocation string) []Finding {
 	catalog := catalogByName()
 	var spec handoff.CommandSpec
 	var nameLen int
-	if len(fields) >= 2 {
-		if cs, ok := catalog[fields[0]+" "+fields[1]]; ok {
-			spec, nameLen = cs, 2
-		}
-	}
-	if nameLen == 0 && len(fields) >= 1 {
-		if cs, ok := catalog[fields[0]]; ok {
-			spec, nameLen = cs, 1
+	// Try the longest possible name first ("ops test detect" must win
+	// over a hypothetical "ops test" entry), down to a single word —
+	// the catalog has no two entries where one is a prefix of the
+	// other today, but this order is correct even if it ever did. A
+	// miss is just a cheap map lookup, so this needs no precomputed
+	// upper bound: it already generalizes to a future catalog name of
+	// any length.
+	for n := len(fields); n >= 1; n-- {
+		if cs, ok := catalog[strings.Join(fields[:n], " ")]; ok {
+			spec, nameLen = cs, n
+			break
 		}
 	}
 	if nameLen == 0 {
