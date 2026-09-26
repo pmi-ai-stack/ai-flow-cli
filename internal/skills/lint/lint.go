@@ -9,7 +9,7 @@
 // parsed frontmatter map and body string, never a call into
 // internal/schema.Validate at runtime — see the plan's design decision 2
 // for why: this package's whole job is attributing a failure to exactly
-// one of eighteen ids, and a third-party JSON Schema library's free-text
+// one of nineteen ids, and a third-party JSON Schema library's free-text
 // error messages are not a contract this codebase controls. The schema
 // itself (schema/skill-frontmatter.schema.json) is still tightened in
 // the same phase and is exercised by internal/schema's own tests, as the

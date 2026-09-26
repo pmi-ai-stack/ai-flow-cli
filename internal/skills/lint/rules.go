@@ -26,6 +26,7 @@ const (
 	RuleMissingEvals                    = "missing-evals"
 	RuleTerminology                     = "terminology"
 	RuleAddonSectionMissing             = "addon-section-missing"
+	RuleAddonSectionMismatch            = "addon-section-mismatch"
 )
 
 // entryPointNames is the two skills disable-model-invocation is required

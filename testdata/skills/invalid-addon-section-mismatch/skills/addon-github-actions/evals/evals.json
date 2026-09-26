@@ -1,0 +1,25 @@
+{
+  "scenarios": [
+    {
+      "scenario": "happy_path",
+      "query": "load the addon-github-actions skill for the dry-run stage",
+      "fixture": "fixtures/happy_path",
+      "baseline": "the caller reads the changeset with no tool-specific context",
+      "expected_behavior": ["names which fields_changed entries are cosmetic"]
+    },
+    {
+      "scenario": "stop_and_ask",
+      "query": "load the addon-github-actions skill, an unexpected delete appears",
+      "fixture": "fixtures/stop_and_ask",
+      "baseline": "the delete is treated as routine",
+      "expected_behavior": ["flags the delete as unexpected"]
+    },
+    {
+      "scenario": "temptation",
+      "query": "load the addon-github-actions skill, blast radius is large",
+      "fixture": "fixtures/temptation",
+      "baseline": "the score is accepted without trying to shrink it",
+      "expected_behavior": ["proposes splitting the change to shrink blast radius"]
+    }
+  ]
+}

@@ -142,6 +142,8 @@ linters:
         linters: [gochecknoglobals] # requiredEvalScenarios is a lookup table, not mutable state
       - path: ^internal/skills/lint/addon\.go$
         linters: [gochecknoglobals] # addonSections is a lookup table, not mutable state
+      - path: ^internal/skills/lint/addoncapabilities\.go$
+        linters: [gochecknoglobals] # addonCapabilities is a sync.OnceValue-memoized lookup table, not mutable state
       - path: ^internal/skills/evals/evals\.go$
         linters: [gochecknoglobals] # requiredKinds is a lookup table, not mutable state
       - path: ^internal/skills/evals/host\.go$

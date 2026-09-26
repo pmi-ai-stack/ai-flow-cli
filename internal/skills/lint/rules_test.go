@@ -28,6 +28,7 @@ var allRuleIDs = []string{
 	RuleMissingEvals,
 	RuleTerminology,
 	RuleAddonSectionMissing,
+	RuleAddonSectionMismatch,
 }
 
 // TestLint_InvalidFixtures runs Lint against every testdata/skills/
@@ -59,7 +60,7 @@ func TestLint_InvalidFixtures(t *testing.T) {
 // deliberately rather than silently changing the fixture count this
 // phase's own "one invalid-<rule> tree per rule" bar depends on.
 func TestRuleCount(t *testing.T) {
-	if len(allRuleIDs) != 18 {
-		t.Fatalf("got %d rule ids, want 18", len(allRuleIDs))
+	if len(allRuleIDs) != 19 {
+		t.Fatalf("got %d rule ids, want 19", len(allRuleIDs))
 	}
 }
