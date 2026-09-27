@@ -20,6 +20,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host/github"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/harness"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
@@ -157,6 +158,11 @@ type doctorResult struct {
 	// is not the currently active ticket's own cluster — see
 	// doctorProbeInfraTestClusters.
 	LeakedInfraTestClusters []string `json:"leaked_infra_test_clusters"`
+
+	// RenderCache is the phase-30 growing-surfaces "doctor" line: entry
+	// count, how many are older than render.DefaultCacheMaxAge, and when
+	// hook session-start last actually pruned it.
+	RenderCache doctorRenderCache `json:"render_cache"`
 }
 
 // doctorLiveEnvironment is one config.ops.environments entry's live
@@ -299,6 +305,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			var clusterWarnings []string
 			result.LeakedInfraTestClusters, clusterWarnings = doctorProbeInfraTestClusters(cmd.Context(), result.Active)
 			warnings = append(warnings, clusterWarnings...)
+
+			var cacheWarnings []string
+			result.RenderCache, cacheWarnings = doctorProbeRenderCache(f.Home)
+			warnings = append(warnings, cacheWarnings...)
 
 			return Outcome{Result: result, Warnings: warnings}, nil
 		}),
@@ -836,4 +846,48 @@ func doctorProbeInfraTestClusters(ctx context.Context, active *doctorActive) ([]
 		warnings = append(warnings, fmt.Sprintf("ops: kind cluster %q looks like a leaked ai-flow infra-test cluster; run `ai-flow ops test teardown` for the ticket it belongs to, or delete it by hand", n))
 	}
 	return leaked, warnings
+}
+
+// doctorRenderCache is the phase-30 growing-surfaces "doctor" line:
+// visibility into ~/.ai-flow/cache/render/, which hook session-start
+// now prunes against render.DefaultCacheMaxAge (see hook.go's own
+// pruneStaleRenderCacheIfDue). A doctor run never prunes anything
+// itself — it only reports what the next session-start would do.
+type doctorRenderCache struct {
+	Entries      int     `json:"entries"`
+	StaleEntries int     `json:"stale_entries"`
+	LastPrunedAt *string `json:"last_pruned_at"`
+}
+
+// doctorProbeRenderCache reports the cache's own size and staleness,
+// never an error: a missing cache/render/ directory (nothing rendered
+// yet) is zero entries, not a finding.
+func doctorProbeRenderCache(home string) (doctorRenderCache, []string) {
+	var result doctorRenderCache
+
+	entries, err := render.CacheEntries(home)
+	if err != nil {
+		return result, []string{"render cache: " + redactMessage(err)}
+	}
+	result.Entries = len(entries)
+
+	now := handoff.Now()
+	for _, e := range entries {
+		if now.Sub(e.ModTime) >= render.DefaultCacheMaxAge {
+			result.StaleEntries++
+		}
+	}
+
+	if info, statErr := os.Stat(renderCachePrunedAtPath(home)); statErr == nil {
+		ts := info.ModTime().UTC().Format(time.RFC3339)
+		result.LastPrunedAt = &ts
+	}
+
+	var warnings []string
+	if result.StaleEntries > 0 {
+		warnings = append(warnings, fmt.Sprintf(
+			"render cache: %d of %d entries are older than %s and will be pruned at the next session start",
+			result.StaleEntries, result.Entries, render.DefaultCacheMaxAge))
+	}
+	return result, warnings
 }

@@ -143,3 +143,27 @@ func TestScoreNeverNegative(t *testing.T) {
 		t.Errorf("score = %d, want 0", score)
 	}
 }
+
+// TestScoreFloorsAtZeroGivenNegativeWeights exercises the `rounded < 0`
+// branch directly — Score's own doc comment already states config
+// weights and penalties are never authored negative (config.Validate
+// is the boundary that enforces that, not this package), so no
+// legitimate caller ever drives total below zero. Found via phase 30's
+// own gremlins run (`.ai/phase-30/implementation-log.md`): that branch
+// was reported NOT COVERED, meaning nothing in this package proved the
+// floor actually holds if a caller's weights were ever negative. A
+// negative config.Risk is not itself illegal Go — only unreachable
+// through the CLI's own validated config path — so this test builds
+// one directly, bypassing config.Validate on purpose, to hold the
+// defensive floor itself accountable.
+func TestScoreFloorsAtZeroGivenNegativeWeights(t *testing.T) {
+	negative := config.Risk{
+		ActionWeight:   config.ActionWeight{Update: -5},
+		KindWeight:     config.KindWeight{Workload: 1},
+		TierMultiplier: config.TierMultiplier{Prod: 1},
+	}
+	score, _ := Score([]ops.Action{{Action: ops.ActionUpdate, KindClass: ops.KindWorkload, Tier: "prod"}}, 0, 0, negative)
+	if score != 0 {
+		t.Errorf("score = %d, want 0 (floored, not negative)", score)
+	}
+}

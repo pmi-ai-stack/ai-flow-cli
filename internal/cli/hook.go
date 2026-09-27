@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,6 +16,8 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
 
 // adapters returns the two production agenthost.Adapter instances
@@ -206,7 +209,8 @@ func runHookSessionStart(stdin io.Reader, f Flags, bi BuildInfo, pluginRoot stri
 		}
 	}
 
-	syncAbsentPacks()
+	syncAbsentPacks(f.Home, f.Config)
+	pruneStaleRenderCacheIfDue(f.Home)
 
 	cliVersion := bi.Version
 	if cliVersion == "" {
@@ -218,11 +222,84 @@ func runHookSessionStart(stdin io.Reader, f Flags, bi BuildInfo, pluginRoot stri
 	return 0
 }
 
-// syncAbsentPacks is hook session-start's documented no-op: "syncs
-// absent packs once phase 12 exists." internal/standards does not
-// exist yet — this is the one call site phase 12 fills a body into,
-// not a new call site it has to add.
-func syncAbsentPacks() {}
+// syncAbsentPacks is hook session-start's documented body: "syncs
+// absent packs once phase 12 exists" — a phase-30 fix, found while
+// verifying this hook end to end (`.ai/phase-30/implementation-log.md`):
+// internal/standards.Sync has existed since phase 12, but this call
+// site was still the phase-9 placeholder no-op, so no session-start
+// ever actually synced anything. Deliberately narrow, matching the
+// documented word "absent": only a source with no local cache
+// directory at all is synced here — an already-present source's own
+// staleness (a branch ref older than 24h) is `standards sync`'s and
+// `stage start`'s job (phase 13), not session-start's, which runs on
+// every agent turn and must stay fast and non-blocking. A missing or
+// invalid config, or a source Sync cannot reach, is swallowed rather
+// than turned into this hook's exit 2: a pack source being briefly
+// unreachable must never block a whole agent session, and the first
+// `standards resolve`/`stage start` that actually needs the pack
+// reports `pack_unreachable` for real, with a proper exit code, at the
+// point it matters.
+func syncAbsentPacks(home, cfgPath string) {
+	cfg, err := config.Load(home, cfgPath)
+	if err != nil || cfg == nil {
+		return
+	}
+
+	var absent []standards.Source
+	for _, s := range standards.SourcesFromConfig(cfg) {
+		if _, err := os.Stat(standards.CacheDir(home, s.ID, s.Ref)); os.IsNotExist(err) {
+			absent = append(absent, s)
+		}
+	}
+	if len(absent) == 0 {
+		return
+	}
+
+	_, _ = standards.Sync(standards.SyncOptions{
+		Home:        home,
+		Sources:     absent,
+		GitHubToken: standards.GitHubTokenFromEnv(),
+	})
+}
+
+// renderCachePruneThrottle bounds how often session-start pays for a
+// real cache scan — the identical "at most once a day" convention
+// internal/standards.Sync already uses for a branch ref's own re-sync
+// (branchReSyncAfter), applied here to the same class of problem: a
+// housekeeping pass session-start runs on every agent turn must stay
+// cheap on every turn but the first of a day.
+const renderCachePruneThrottle = 24 * time.Hour
+
+// renderCachePrunedAtPath is the sidecar timestamp file this throttle
+// reads and rewrites — deliberately outside cache/render/ itself, the
+// same reason internal/standards's own sync sidecar lives outside the
+// synced tree: it must never be mistaken for a real cache entry by
+// CacheEntries' own directory listing.
+func renderCachePrunedAtPath(home string) string {
+	return filepath.Join(home, "cache", "render-pruned-at")
+}
+
+// pruneStaleRenderCacheIfDue applies render.DefaultCacheMaxAge — phase
+// 30's own decision for the spec's still-open rendering-cache-retention
+// question — at most once every renderCachePruneThrottle. Like
+// syncAbsentPacks, every error is swallowed: a housekeeping pass that
+// could turn a hook exit into 2 would make disk hygiene more dangerous
+// than the disk usage it is meant to bound.
+func pruneStaleRenderCacheIfDue(home string) {
+	markerPath := renderCachePrunedAtPath(home)
+	now := handoff.Now()
+
+	if info, err := os.Stat(markerPath); err == nil && now.Sub(info.ModTime()) < renderCachePruneThrottle {
+		return
+	}
+
+	_, _ = render.Retain(home, render.DefaultCacheMaxAge, now)
+
+	if err := os.MkdirAll(filepath.Dir(markerPath), 0o700); err != nil {
+		return
+	}
+	_ = os.WriteFile(markerPath, nil, 0o600)
+}
 
 // --- hook selftest ---
 //

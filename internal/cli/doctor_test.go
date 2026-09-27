@@ -12,6 +12,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff/handofftest"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 )
 
 // useScriptedJira swaps newJiraTransport for the duration of the test —
@@ -438,5 +439,37 @@ func TestDoctor_HookSelftest(t *testing.T) {
 		if !r.Passed {
 			t.Errorf("host %q: Passed = false, want true (embedded fixtures should always self-test clean)", r.Host)
 		}
+	}
+}
+
+func TestDoctor_RenderCacheEmpty(t *testing.T) {
+	home := t.TempDir()
+	got := runDoctor(t, home)
+	if got.RenderCache.Entries != 0 || got.RenderCache.StaleEntries != 0 || got.RenderCache.LastPrunedAt != nil {
+		t.Errorf("RenderCache = %+v, want a zero value (nothing rendered yet)", got.RenderCache)
+	}
+}
+
+func TestDoctor_RenderCacheReportsStaleEntries(t *testing.T) {
+	home := t.TempDir()
+	fresh := filepath.Join(home, "cache", "render", "fresh-hash")
+	stale := filepath.Join(home, "cache", "render", "stale-hash")
+	if err := os.MkdirAll(fresh, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(stale, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-render.DefaultCacheMaxAge - 24*time.Hour)
+	if err := os.Chtimes(stale, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	got := runDoctor(t, home)
+	if got.RenderCache.Entries != 2 {
+		t.Errorf("Entries = %d, want 2", got.RenderCache.Entries)
+	}
+	if got.RenderCache.StaleEntries != 1 {
+		t.Errorf("StaleEntries = %d, want 1", got.RenderCache.StaleEntries)
 	}
 }

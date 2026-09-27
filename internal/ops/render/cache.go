@@ -100,3 +100,31 @@ func Prune(home string, keep func(CacheEntry) bool) ([]string, error) {
 	}
 	return removed, nil
 }
+
+// DefaultCacheMaxAge is phase 30's own decision for the spec's still-
+// open "what is open is its retention" question (Determinism §6 / the
+// spec's own Open list): a rendering is content-addressed and always
+// regenerable from a real render, so an evicted entry costs the next
+// caller one re-render, never correctness — there is no failure mode
+// symmetrical to, say, evicting a ticket's own prose artifacts. 14 days
+// is chosen to comfortably outlast one developer's active ticket (the
+// guard's own idle default is 8 *hours*, three orders of magnitude
+// shorter, because a stale *ticket* is a different kind of staleness
+// than a stale *rendering*) while still bounding disk use across a
+// long-lived ~/.ai-flow directory. No config field carries this: the
+// spec's own config.json example (§Configuration and data model) is
+// matched field for field by internal/config.Config, and this value
+// needs no per-repository or per-team override the way, say,
+// guard_idle_hours does — it is a pure disk-hygiene constant, kept
+// here next to Prune rather than promoted into the config schema.
+const DefaultCacheMaxAge = 14 * 24 * time.Hour
+
+// Retain is Prune with phase 30's own default policy already applied:
+// keep every entry rendered within maxAge of now. A caller wanting a
+// different window (or a dry run) still calls Prune directly with its
+// own keep func; this is the one production call site's shape.
+func Retain(home string, maxAge time.Duration, now time.Time) ([]string, error) {
+	return Prune(home, func(e CacheEntry) bool {
+		return now.Sub(e.ModTime) < maxAge
+	})
+}

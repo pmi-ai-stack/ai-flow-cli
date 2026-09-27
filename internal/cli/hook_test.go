@@ -8,8 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
 
 // runRootStdin is runRoot's stdin-carrying twin, for hook guard/hook
@@ -187,6 +191,122 @@ func TestHookSessionStart_DoesNotOverwriteExistingConfig(t *testing.T) {
 	}
 	if !bytes.Equal(before, after) {
 		t.Error("hook session-start modified an existing config.json")
+	}
+}
+
+// writeConfigWithStandardsSources writes a config.json identical to
+// config.Init's own template except for config.standards.sources —
+// the init-then-load-then-patch-one-field-then-marshal shape both
+// syncAbsentPacks tests below need, factored out once rather than
+// repeated per test, matching this test file's own family's established
+// per-file write<X>Config helper convention (see e.g. doctor_test.go's
+// writeValidDoctorConfig).
+func writeConfigWithStandardsSources(t *testing.T, home string, sources []config.StandardsSource) {
+	t.Helper()
+	if _, err := config.Init(home, ""); err != nil {
+		t.Fatalf("config.Init: %v", err)
+	}
+	cfg, err := config.Load(home, "")
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	cfg.Standards.Sources = sources
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "config.json"), data, 0o644); err != nil {
+		t.Fatalf("write config.json: %v", err)
+	}
+}
+
+// TestSyncAbsentPacksSyncsMissingLocalSource is phase 30's own test for
+// the fix described in hook.go's own doc comment: syncAbsentPacks used
+// to be a no-op, so no session-start ever actually synced a configured
+// pack source. A local filesystem source needs no network, matching
+// internal/standards's own TestSyncTagCommitAndLocalPathProduceIdenticalTrees
+// precedent for exercising Sync without a real remote.
+func TestSyncAbsentPacksSyncsMissingLocalSource(t *testing.T) {
+	home := t.TempDir()
+
+	localSrc := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(localSrc, "org", "guidance"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"schema_version": 1, "id": "acme", "version": "1.0.0", "sections": [], "checks": []}`
+	if err := os.WriteFile(filepath.Join(localSrc, "standards.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	writeConfigWithStandardsSources(t, home, []config.StandardsSource{{ID: "acme", Repo: localSrc, Ref: "local"}})
+
+	syncAbsentPacks(home, "")
+
+	cacheDir := standards.CacheDir(home, "acme", "local")
+	if _, err := os.Stat(filepath.Join(cacheDir, "standards.json")); err != nil {
+		t.Errorf("expected %s/standards.json to be synced: %v", cacheDir, err)
+	}
+}
+
+// TestSyncAbsentPacksLeavesAnAlreadySyncedSourceAlone proves the
+// "absent" half of the name: a source whose cache directory already
+// exists is left untouched, never re-fetched, matching session-start's
+// own "must stay fast on every turn but the first" requirement — a
+// marker file inside the already-synced directory survives the call
+// unmodified, which a real re-Sync (a fresh directory copy) would not
+// guarantee.
+func TestSyncAbsentPacksLeavesAnAlreadySyncedSourceAlone(t *testing.T) {
+	home := t.TempDir()
+	writeConfigWithStandardsSources(t, home, []config.StandardsSource{{ID: "acme", Repo: "https://example.invalid/never-reached.git", Ref: "v1.0.0"}})
+
+	cacheDir := standards.CacheDir(home, "acme", "v1.0.0")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(cacheDir, "already-here")
+	if err := os.WriteFile(marker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	syncAbsentPacks(home, "") // must not attempt to reach example.invalid
+
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("already-synced source was touched: %v", err)
+	}
+}
+
+// TestPruneStaleRenderCacheIfDue_RemovesOldEntriesOnceThenThrottles
+// covers pruneStaleRenderCacheIfDue's own two jobs — applying
+// render.DefaultCacheMaxAge, and not re-scanning within
+// renderCachePruneThrottle of the last run.
+func TestPruneStaleRenderCacheIfDue_RemovesOldEntriesOnceThenThrottles(t *testing.T) {
+	home := t.TempDir()
+	oldEntry := filepath.Join(home, "cache", "render", "old-hash")
+	if err := os.MkdirAll(oldEntry, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := handoff.Now().Add(-render.DefaultCacheMaxAge - 24*time.Hour)
+	if err := os.Chtimes(oldEntry, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	pruneStaleRenderCacheIfDue(home)
+	if _, err := os.Stat(oldEntry); !os.IsNotExist(err) {
+		t.Fatalf("old cache entry survived the first prune: err=%v", err)
+	}
+
+	// Recreate the same stale entry and prune again immediately: the
+	// throttle marker pruneStaleRenderCacheIfDue just wrote must skip
+	// this second call entirely.
+	if err := os.MkdirAll(oldEntry, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(oldEntry, old, old); err != nil {
+		t.Fatal(err)
+	}
+	pruneStaleRenderCacheIfDue(home)
+	if _, err := os.Stat(oldEntry); err != nil {
+		t.Errorf("throttled prune should not have run again: %v", err)
 	}
 }
 
