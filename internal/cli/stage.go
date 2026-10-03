@@ -72,13 +72,18 @@ func parseKeyStage(args []string) (string, handoff.Stage, error) {
 
 // finalizeTransition is the save+record+log sequence every mutating
 // stage command performs after a successful transition: write
-// status.json, rewrite active.json for this ticket, append one
+// status.json, rewrite active.json for this ticket (with the tool
+// configuration files the guard's row 5 protects), append one
 // stage_transition event.
 func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Status, command string, from, to handoff.State, reason string) error {
 	if _, err := handoff.SaveStatus(home, st); err != nil {
 		return err
 	}
-	if err := handoff.RecordActive(home, key, stage); err != nil {
+	toolConfigs, err := toolConfigFilesFor(home, key)
+	if err != nil {
+		return err
+	}
+	if err := handoff.RecordActive(home, key, stage, toolConfigs); err != nil {
 		return err
 	}
 	return handoff.AppendEvent(handoff.TicketEventsPath(home, key), handoff.StageTransitionEvent(stage, from, to, command, reason))

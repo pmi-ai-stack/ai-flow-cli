@@ -40,6 +40,9 @@ func (g *GitOps) Commit(ctx context.Context, dir, message string) (committed boo
 // Push pushes branch to origin, setting the upstream — harmless to
 // repeat on a branch that already has one.
 func (g *GitOps) Push(ctx context.Context, dir, branch string) error {
-	_, err := g.run(ctx, dir, "push", "-u", "origin", branch)
+	if err := ValidRef(branch); err != nil {
+		return err
+	}
+	_, err := g.run(ctx, dir, "push", "-u", endOfOptions, "origin", branch)
 	return err
 }

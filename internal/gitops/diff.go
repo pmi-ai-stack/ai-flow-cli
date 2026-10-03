@@ -27,9 +27,12 @@ type DiffResult struct {
 // the implementation added but never staged would silently vanish
 // from repo scope's "in-scope files".
 func (g *GitOps) Diff(ctx context.Context, dir, base string) (DiffResult, error) {
+	if err := ValidRef(base); err != nil {
+		return DiffResult{}, err
+	}
 	ref := "origin/" + base + "...HEAD"
 
-	trackedOut, err := g.run(ctx, dir, "diff", ref, "--name-only")
+	trackedOut, err := g.run(ctx, dir, "diff", "--name-only", endOfOptions, ref)
 	if err != nil {
 		return DiffResult{}, err
 	}
@@ -37,7 +40,7 @@ func (g *GitOps) Diff(ctx context.Context, dir, base string) (DiffResult, error)
 	if err != nil {
 		return DiffResult{}, err
 	}
-	textOut, err := g.run(ctx, dir, "diff", ref)
+	textOut, err := g.run(ctx, dir, "diff", endOfOptions, ref)
 	if err != nil {
 		return DiffResult{}, err
 	}

@@ -34,7 +34,7 @@ func TestRecordActiveRoundTrip(t *testing.T) {
 	fixed := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	fixedClock(t, fixed)
 
-	if err := RecordActive(home, "PROJ-1", StagePlan); err != nil {
+	if err := RecordActive(home, "PROJ-1", StagePlan, nil); err != nil {
 		t.Fatalf("RecordActive: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestRecordActiveRoundTrip(t *testing.T) {
 		t.Error("AllowlistHash must not be empty")
 	}
 	if a.RepoRoots == nil || a.ToolConfigFiles == nil {
-		t.Error("RepoRoots/ToolConfigFiles should be empty slices, not nil, before repo.json exists / until phase 14 populates ToolConfigFiles")
+		t.Error("RepoRoots/ToolConfigFiles should be empty slices, not nil, before repo.json exists / with no tool configuration files")
 	}
 }
 
@@ -84,7 +84,7 @@ func TestRecordActivePopulatesRepoRootsFromRepoJSON(t *testing.T) {
 		t.Fatalf("WriteArtifact repo.json: %v", err)
 	}
 
-	if err := RecordActive(home, "PROJ-1", StageLocate); err != nil {
+	if err := RecordActive(home, "PROJ-1", StageLocate, nil); err != nil {
 		t.Fatalf("RecordActive: %v", err)
 	}
 	a, err := LoadActive(home)
@@ -106,10 +106,10 @@ func TestRecordActivePopulatesRepoRootsFromRepoJSON(t *testing.T) {
 // recording a second ticket overwrites the first, system-wide.
 func TestRecordActiveIsSingularNotPerTicket(t *testing.T) {
 	home := t.TempDir()
-	if err := RecordActive(home, "PROJ-1", StageFetch); err != nil {
+	if err := RecordActive(home, "PROJ-1", StageFetch, nil); err != nil {
 		t.Fatalf("RecordActive: %v", err)
 	}
-	if err := RecordActive(home, "PROJ-2", StageLocate); err != nil {
+	if err := RecordActive(home, "PROJ-2", StageLocate, nil); err != nil {
 		t.Fatalf("RecordActive: %v", err)
 	}
 	a, err := LoadActive(home)

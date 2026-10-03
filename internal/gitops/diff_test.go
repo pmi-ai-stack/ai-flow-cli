@@ -10,9 +10,9 @@ import (
 
 func TestDiffUsesTripleDotAgainstOrigin(t *testing.T) {
 	fe := exectest.New(t).
-		On("git", []string{"diff", "origin/main...HEAD", "--name-only"}, exec.Output{Stdout: "a.go\nb.go\n"}).
+		On("git", []string{"diff", "--name-only", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "a.go\nb.go\n"}).
 		On("git", []string{"ls-files", "--others", "--exclude-standard"}, exec.Output{Stdout: ""}).
-		On("git", []string{"diff", "origin/main...HEAD"}, exec.Output{Stdout: "diff --git a/a.go b/a.go\n"})
+		On("git", []string{"diff", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "diff --git a/a.go b/a.go\n"})
 	g := New(fe, 0)
 
 	res, err := g.Diff(context.Background(), "/repo", "main")
@@ -29,9 +29,9 @@ func TestDiffUsesTripleDotAgainstOrigin(t *testing.T) {
 
 func TestDiffNoChanges(t *testing.T) {
 	fe := exectest.New(t).
-		On("git", []string{"diff", "origin/main...HEAD", "--name-only"}, exec.Output{Stdout: ""}).
+		On("git", []string{"diff", "--name-only", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: ""}).
 		On("git", []string{"ls-files", "--others", "--exclude-standard"}, exec.Output{Stdout: ""}).
-		On("git", []string{"diff", "origin/main...HEAD"}, exec.Output{Stdout: ""})
+		On("git", []string{"diff", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: ""})
 	g := New(fe, 0)
 
 	res, err := g.Diff(context.Background(), "/repo", "main")
@@ -45,9 +45,9 @@ func TestDiffNoChanges(t *testing.T) {
 
 func TestDiffIncludesUntrackedFiles(t *testing.T) {
 	fe := exectest.New(t).
-		On("git", []string{"diff", "origin/main...HEAD", "--name-only"}, exec.Output{Stdout: "a.go\n"}).
+		On("git", []string{"diff", "--name-only", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "a.go\n"}).
 		On("git", []string{"ls-files", "--others", "--exclude-standard"}, exec.Output{Stdout: "new-file.txt\n"}).
-		On("git", []string{"diff", "origin/main...HEAD"}, exec.Output{Stdout: "diff --git a/a.go b/a.go\n"})
+		On("git", []string{"diff", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "diff --git a/a.go b/a.go\n"})
 	g := New(fe, 0)
 
 	res, err := g.Diff(context.Background(), "/repo", "main")

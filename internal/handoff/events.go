@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
@@ -20,6 +21,7 @@ const (
 	EventTypeToolRun         = "tool_run"
 	EventTypeGuardDecision   = "guard_decision"
 	EventTypeStandardsSync   = "standards_sync"
+	EventTypeUnlistedRun     = "unlisted_run"
 )
 
 // Event is one line of an events.jsonl file: the append-only
@@ -124,6 +126,15 @@ func SessionStartEvent(host, hostVersion, pluginRoot, cliVersion string) Event {
 // the phase 11 plan's design decision 1).
 func ToolRunEvent(command string) Event {
 	return Event{Type: EventTypeToolRun, Command: command}
+}
+
+// UnlistedRunEvent builds an "unlisted_run" Event: one process ai-flow
+// started outside the Exec allowlist (the dev server and capture script
+// `visual run` reads from the repository, the headless host CLI
+// `skills evals` drives). Command is the full argv; AppendEvent redacts
+// it like every other line.
+func UnlistedRunEvent(argv []string) Event {
+	return Event{Type: EventTypeUnlistedRun, Command: strings.Join(argv, " ")}
 }
 
 // GuardDecisionEvent builds a "guard_decision" Event — `hook guard`'s

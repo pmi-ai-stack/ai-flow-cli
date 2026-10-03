@@ -79,7 +79,9 @@ func unlistedCmd(ctx context.Context, dir, tool string, args, env []string) (cmd
 // (TestNoOsExecOutsideExecPackage), just without the Table gate. Every
 // caller of this function is responsible for recording the call in
 // events.jsonl — Process itself does not, since it does not know which
-// ticket it belongs to.
+// ticket it belongs to. internal/cli does it structurally: every
+// UnlistedRunner it uses comes from unlistedRunnerFor, which records an
+// unlisted_run event before each start.
 func (r *Runner) StartUnlisted(ctx context.Context, dir, tool string, args, env []string) (*Process, error) {
 	cmd, stdout, stderr := unlistedCmd(ctx, dir, tool, args, env)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }

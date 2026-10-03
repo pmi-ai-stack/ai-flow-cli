@@ -10,8 +10,8 @@ import (
 
 func TestCheckoutBaseAndBranch(t *testing.T) {
 	fe := exectest.New(t).
-		On("git", []string{"checkout", "main"}, exec.Output{}).
-		On("git", []string{"checkout", "feature/PROJ-1"}, exec.Output{})
+		On("git", []string{"checkout", "main", "--"}, exec.Output{}).
+		On("git", []string{"checkout", "feature/PROJ-1", "--"}, exec.Output{})
 	g := New(fe, 0)
 
 	if err := g.CheckoutBase(context.Background(), "/repo", "main"); err != nil {

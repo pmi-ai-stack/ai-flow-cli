@@ -95,7 +95,7 @@ func TestPRCreate_CreatesAndWritesShipResults(t *testing.T) {
 	t.Setenv("AI_FLOW_GITHUB_TOKEN", "tok")
 
 	se := newScriptedExecer(t).
-		On("git", []string{"push", "-u", "origin", "feature/PROJ-1"}, exec.Output{}).
+		On("git", []string{"push", "-u", "--end-of-options", "origin", "feature/PROJ-1"}, exec.Output{}).
 		On("git", []string{"remote", "get-url", "origin"}, exec.Output{Stdout: "git@github.com:acme/billing-api.git\n"})
 	useScriptedExecer(t, se)
 
@@ -164,7 +164,7 @@ func TestPRCreate_ReusesExistingOpenPRWithoutPosting(t *testing.T) {
 	t.Setenv("AI_FLOW_GITHUB_TOKEN", "tok")
 
 	se := newScriptedExecer(t).
-		On("git", []string{"push", "-u", "origin", "feature/PROJ-1"}, exec.Output{}).
+		On("git", []string{"push", "-u", "--end-of-options", "origin", "feature/PROJ-1"}, exec.Output{}).
 		On("git", []string{"remote", "get-url", "origin"}, exec.Output{Stdout: "git@github.com:acme/billing-api.git\n"})
 	useScriptedExecer(t, se)
 

@@ -162,9 +162,9 @@ func TestRepoScope_RewritesInScopeFiles(t *testing.T) {
 	})
 
 	se := newScriptedExecer(t).
-		On("git", []string{"diff", "origin/main...HEAD", "--name-only"}, exec.Output{Stdout: "a.go\nb.go\n"}).
+		On("git", []string{"diff", "--name-only", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "a.go\nb.go\n"}).
 		On("git", []string{"ls-files", "--others", "--exclude-standard"}, exec.Output{Stdout: "c.go\n"}).
-		On("git", []string{"diff", "origin/main...HEAD"}, exec.Output{Stdout: "diff text"})
+		On("git", []string{"diff", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: "diff text"})
 	useScriptedExecer(t, se)
 
 	stdout, _, exitCode := runRoot(t, "repo", "scope", "PROJ-1", "--home", home)

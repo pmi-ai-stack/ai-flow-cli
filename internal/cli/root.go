@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -189,9 +190,20 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 			}
 		}
 
+		// One funnel for every byte a command prints: rendered into a
+		// buffer, redacted, then written. Provider error bodies
+		// (statusError) and echoed configuration otherwise reached
+		// stdout verbatim — a token in config.json came back out of
+		// `config validate`.
+		var buf bytes.Buffer
+		render := envelope.Print
 		if f.Human {
-			return envelope.PrintHuman(stdout, env)
+			render = envelope.PrintHuman
 		}
-		return envelope.Print(stdout, env)
+		printErr := render(&buf, env)
+		if _, err := stdout.Write(envelopeRedactor().Output(buf.Bytes())); err != nil {
+			return err
+		}
+		return printErr
 	}
 }

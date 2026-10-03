@@ -124,6 +124,10 @@ linters:
         linters: [gochecknoglobals] # testRunnerBinaries/mutationToolBinaries/addonToolBinaries are lookup tables, not mutable state; whichOverride is the injectable exec.Which by design, mirroring git.go's newExecer
       - path: ^internal/ops/kindclass\.go$
         linters: [gochecknoglobals] # kindClasses is a lookup table, not mutable state
+      - path: ^internal/cli/envelope_redact\.go$
+        linters: [gochecknoglobals] # envelopeRedactor is an injectable constructor, like newExecer
+      - path: ^internal/cli/toolconfig\.go$
+        linters: [gochecknoglobals] # toolConfigFileNames is a lookup table, not mutable state
       - path: ^internal/cli/checks\.go$
         linters: [gochecknoglobals] # ticketOnlyKinds is a lookup table, not mutable state
       - path: ^internal/render/data\.go$

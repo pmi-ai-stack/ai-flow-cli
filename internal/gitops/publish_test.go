@@ -53,7 +53,7 @@ func TestIsDirty(t *testing.T) {
 }
 
 func TestPushSetsUpstream(t *testing.T) {
-	fe := exectest.New(t).On("git", []string{"push", "-u", "origin", "feature/PROJ-1"}, exec.Output{})
+	fe := exectest.New(t).On("git", []string{"push", "-u", "--end-of-options", "origin", "feature/PROJ-1"}, exec.Output{})
 	g := New(fe, 0)
 
 	if err := g.Push(context.Background(), "/repo", "feature/PROJ-1"); err != nil {

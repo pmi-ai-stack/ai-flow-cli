@@ -33,7 +33,7 @@ func Rows() []RowInfo {
 		{ID: "row3_cache", Kind: "path", Scope: "the path itself", When: "always",
 			OwningCommand: "ops render / ops drift / ops dry-run"},
 		{ID: "row4_waivers", Kind: "path", Scope: "inside an active ticket's in-scope repository", When: "always",
-			OwningCommand: "standards waive"},
+			OwningCommand: "standards waive; edit .ai-flow/ between tickets"},
 		{ID: "row5_tool_config", Kind: "path", Scope: "inside that ticket's in-scope repository", When: "that ticket is active",
 			OwningCommand: "fix at the source"},
 		{ID: "row6_git_publish", Kind: "command", Scope: "cwd inside an active ticket's in-scope repository", When: "that ticket is active",
@@ -90,22 +90,22 @@ func evaluateWrite(ev agenthost.HookEvent, active *handoff.Active, home string) 
 			}
 		}
 
-		// Row 4: <repo>/.ai-flow/waivers.json, inside an active ticket's
-		// in-scope repository.
+		// Row 4: <repo>/.ai-flow/**, inside an active ticket's in-scope
+		// repository. The whole directory, not only waivers.json:
+		// visual.json names commands ai-flow runs outside the allowlist
+		// (the dev server and capture script), and standards/ is a
+		// repo-layer pack that can override org checks — either edited
+		// mid-ticket launders exactly what rows 6 and 7 deny.
 		for _, root := range active.RepoRoots {
-			if isWithin(ev.FilePath, root) {
-				rel, err := filepath.Rel(root, ev.FilePath)
-				if err == nil && rel == filepath.Join(".ai-flow", "waivers.json") {
-					return denyDecision("row4_waivers", "standards waive", "waivers are recorded by ai-flow, with a reason and an expiry")
-				}
+			if isWithin(ev.FilePath, filepath.Join(root, ".ai-flow")) {
+				return denyDecision("row4_waivers", "standards waive; edit .ai-flow/ between tickets",
+					"a repository's .ai-flow/ (waivers, its own pack, visual.json) is changed by ai-flow or between tickets, never mid-ticket")
 			}
 		}
 
 		// Row 5: tool configuration files named in active.json, inside
-		// that ticket's in-scope repository. ToolConfigFiles is empty
-		// until phase 14 populates it, so this never fires today — a
-		// forward-compatible stub, same shape as phase 8's
-		// doctorLastSessionHost.
+		// that ticket's in-scope repository — both sides already
+		// normalized by Evaluate, so exact equality is safe.
 		if slices.Contains(active.ToolConfigFiles, ev.FilePath) {
 			return denyDecision("row5_tool_config", "fix at the source", "tool configuration is resolved by ai-flow's standards packs")
 		}
@@ -142,7 +142,7 @@ func evaluateShell(ev agenthost.HookEvent, active *handoff.Active) agenthost.Dec
 	if active == nil {
 		return allowDecision("allow")
 	}
-	argv := splitCommand(ev.Command)
+	argv := commandArgv(ev.Command)
 	if len(argv) == 0 {
 		return allowDecision("hook_shape_unknown")
 	}
@@ -227,6 +227,39 @@ func cwdInScope(cwd string, roots []string) bool {
 // split never changes tool/verb matching.
 func splitCommand(command string) []string {
 	return strings.Fields(command)
+}
+
+// commandArgv is splitCommand with the two everyday spellings of the
+// same tool folded together: leading NAME=VALUE environment
+// assignments are dropped, and argv[0] becomes its base name — so
+// `GIT_TRACE=1 git push` and `/usr/bin/git push` are `git push`. This
+// closes accidents, not evasion: `env git push`, `sh -c "…"`, aliases
+// and PATH shadowing all still pass, which is the guard's documented
+// scope ("prevents accidents; it is not a sandbox").
+func commandArgv(command string) []string {
+	argv := splitCommand(command)
+	for len(argv) > 0 && isEnvAssignment(argv[0]) {
+		argv = argv[1:]
+	}
+	if len(argv) > 0 {
+		argv[0] = filepath.Base(argv[0])
+	}
+	return argv
+}
+
+// isEnvAssignment reports whether word is a shell NAME=VALUE prefix
+// assignment: a valid identifier before the first '='.
+func isEnvAssignment(word string) bool {
+	name, _, ok := strings.Cut(word, "=")
+	if !ok || name == "" {
+		return false
+	}
+	for i, r := range name {
+		if r != '_' && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (i == 0 || r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func verbMatches(rest, verb []string) bool {

@@ -31,7 +31,40 @@ const captureTimeout = 30 * time.Second
 // subprocess. Typed as the interface (not *exec.Runner) specifically
 // so a fake can satisfy it; production always gets exec.NewRunner(),
 // which implements both Execer and UnlistedRunner.
+//
+// Never call it directly: unlistedRunnerFor is the only caller, so no
+// process can leave the allowlist without leaving a line in
+// events.jsonl (TestNewUnlistedRunnerOnlyCalledThroughAudit).
 var newUnlistedRunner = func() exec.UnlistedRunner { return exec.NewRunner() }
+
+// unlistedRunnerFor is the UnlistedRunner every command uses: each
+// process it starts is first recorded as an unlisted_run event in
+// eventsPath. The spec's Execution allowlist section allows a process
+// outside the table only on that condition.
+func unlistedRunnerFor(eventsPath string) exec.UnlistedRunner {
+	return &auditedUnlisted{inner: newUnlistedRunner(), eventsPath: eventsPath}
+}
+
+type auditedUnlisted struct {
+	inner      exec.UnlistedRunner
+	eventsPath string
+}
+
+func (a *auditedUnlisted) record(tool string, args []string) {
+	// Best-effort like every other events.jsonl append: the record is
+	// an audit trail, and a full disk must not abort a capture.
+	_ = handoff.AppendEvent(a.eventsPath, handoff.UnlistedRunEvent(append([]string{tool}, args...)))
+}
+
+func (a *auditedUnlisted) StartUnlisted(ctx context.Context, dir, tool string, args, env []string) (*exec.Process, error) {
+	a.record(tool, args)
+	return a.inner.StartUnlisted(ctx, dir, tool, args, env)
+}
+
+func (a *auditedUnlisted) RunUnlisted(ctx context.Context, dir, tool string, args, env []string, timeout time.Duration) (exec.Output, error) {
+	a.record(tool, args)
+	return a.inner.RunUnlisted(ctx, dir, tool, args, env, timeout)
+}
 
 func newVisualCmd(cio cmdIO) *cobra.Command {
 	cmd := &cobra.Command{
@@ -106,7 +139,7 @@ func newVisualRunCmd(cio cmdIO) *cobra.Command {
 				return Outcome{Result: visualRunResult{Key: key, Repo: repo.Name, Screens: map[string]string{}}}, nil
 			}
 
-			runner := newUnlistedRunner()
+			runner := unlistedRunnerFor(handoff.TicketEventsPath(f.Home, key))
 			dev := &visual.DevServer{Runner: runner}
 			if err := dev.Start(cmd.Context(), repo.LocalPath, visualCfg.DevServer); err != nil {
 				return Outcome{}, err

@@ -30,9 +30,9 @@ func TestPrepareRefusesDirtyWorktree(t *testing.T) {
 func TestPrepareRefusesDivergedBase(t *testing.T) {
 	fe := exectest.New(t).
 		On("git", []string{"status", "--porcelain"}, exec.Output{}).
-		On("git", []string{"fetch", "origin", "main"}, exec.Output{}).
-		On("git", []string{"rev-parse", "--verify", "main"}, exec.Output{ExitCode: 0}).
-		On("git", []string{"rev-list", "--count", "origin/main..main"}, exec.Output{Stdout: "2\n"})
+		On("git", []string{"fetch", "--end-of-options", "origin", "main"}, exec.Output{}).
+		On("git", []string{"rev-parse", "--verify", "--end-of-options", "main"}, exec.Output{ExitCode: 0}).
+		On("git", []string{"rev-list", "--count", "--end-of-options", "origin/main..main"}, exec.Output{Stdout: "2\n"})
 	g := New(fe, 0)
 
 	_, err := g.Prepare(context.Background(), PrepareInput{
@@ -51,12 +51,12 @@ func TestPrepareSkipsDivergenceCheckWhenLocalBaseRefDoesNotExist(t *testing.T) {
 	home := t.TempDir()
 	fe := exectest.New(t).
 		On("git", []string{"status", "--porcelain"}, exec.Output{}).
-		On("git", []string{"fetch", "origin", "main"}, exec.Output{}).
-		OnFail("git", []string{"rev-parse", "--verify", "main"}, errFail).
-		OnFail("git", []string{"rev-parse", "--verify", "feature/PROJ-1"}, errFail).
-		On("git", []string{"checkout", "-b", "feature/PROJ-1", "origin/main"}, exec.Output{}).
-		On("git", []string{"merge-base", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
-		On("git", []string{"worktree", "add", "--detach", BaseWorktreePath(home, "PROJ-1", "acme.api"), "deadbeef"}, exec.Output{})
+		On("git", []string{"fetch", "--end-of-options", "origin", "main"}, exec.Output{}).
+		OnFail("git", []string{"rev-parse", "--verify", "--end-of-options", "main"}, errFail).
+		OnFail("git", []string{"rev-parse", "--verify", "--end-of-options", "feature/PROJ-1"}, errFail).
+		On("git", []string{"checkout", "-b", "feature/PROJ-1", "origin/main", "--"}, exec.Output{}).
+		On("git", []string{"merge-base", "--end-of-options", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
+		On("git", []string{"worktree", "add", "--detach", "--end-of-options", BaseWorktreePath(home, "PROJ-1", "acme.api"), "deadbeef"}, exec.Output{})
 	g := New(fe, 0)
 
 	res, err := g.Prepare(context.Background(), PrepareInput{
@@ -85,11 +85,11 @@ func TestPrepareCreatesWorktreeWhenConfigured(t *testing.T) {
 
 	fe := exectest.New(t).
 		On("git", []string{"status", "--porcelain"}, exec.Output{}).
-		On("git", []string{"fetch", "origin", "main"}, exec.Output{}).
-		OnFail("git", []string{"rev-parse", "--verify", "main"}, errFail).
-		On("git", []string{"worktree", "add", "-b", "feature/PROJ-1", wantWT, "origin/main"}, exec.Output{}).
-		On("git", []string{"merge-base", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "cafebabe\n"}).
-		On("git", []string{"worktree", "add", "--detach", BaseWorktreePath(home, "PROJ-1", "acme.api"), "cafebabe"}, exec.Output{})
+		On("git", []string{"fetch", "--end-of-options", "origin", "main"}, exec.Output{}).
+		OnFail("git", []string{"rev-parse", "--verify", "--end-of-options", "main"}, errFail).
+		On("git", []string{"worktree", "add", "-b", "feature/PROJ-1", "--end-of-options", wantWT, "origin/main"}, exec.Output{}).
+		On("git", []string{"merge-base", "--end-of-options", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "cafebabe\n"}).
+		On("git", []string{"worktree", "add", "--detach", "--end-of-options", BaseWorktreePath(home, "PROJ-1", "acme.api"), "cafebabe"}, exec.Output{})
 	g := New(fe, 0)
 
 	res, err := g.Prepare(context.Background(), PrepareInput{
@@ -111,11 +111,11 @@ func TestPrepareIsIdempotentOnBranchAlreadyPresent(t *testing.T) {
 	home := t.TempDir()
 	fe := exectest.New(t).
 		On("git", []string{"status", "--porcelain"}, exec.Output{}).
-		On("git", []string{"fetch", "origin", "main"}, exec.Output{}).
-		OnFail("git", []string{"rev-parse", "--verify", "main"}, errFail).
-		On("git", []string{"rev-parse", "--verify", "feature/PROJ-1"}, exec.Output{}).
-		On("git", []string{"merge-base", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
-		On("git", []string{"worktree", "add", "--detach", BaseWorktreePath(home, "PROJ-1", "acme.api"), "deadbeef"}, exec.Output{})
+		On("git", []string{"fetch", "--end-of-options", "origin", "main"}, exec.Output{}).
+		OnFail("git", []string{"rev-parse", "--verify", "--end-of-options", "main"}, errFail).
+		On("git", []string{"rev-parse", "--verify", "--end-of-options", "feature/PROJ-1"}, exec.Output{}).
+		On("git", []string{"merge-base", "--end-of-options", "origin/main", "feature/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
+		On("git", []string{"worktree", "add", "--detach", "--end-of-options", BaseWorktreePath(home, "PROJ-1", "acme.api"), "deadbeef"}, exec.Output{})
 	g := New(fe, 0)
 
 	res, err := g.Prepare(context.Background(), PrepareInput{

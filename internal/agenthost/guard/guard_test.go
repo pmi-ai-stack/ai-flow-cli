@@ -141,7 +141,7 @@ func TestRow3_Cache(t *testing.T) {
 	})
 }
 
-// --- Row 4: <repo>/.ai-flow/waivers.json, inside an active ticket's repo ---
+// --- Row 4: <repo>/.ai-flow/**, inside an active ticket's repo ---
 
 func TestRow4_Waivers(t *testing.T) {
 	path := testRepo + "/.ai-flow/waivers.json"
@@ -149,8 +149,17 @@ func TestRow4_Waivers(t *testing.T) {
 	t.Run("deny", func(t *testing.T) {
 		requireDeny(t, evalWrite(path, freshActive(nil)))
 	})
-	t.Run("allow_out_of_scope_different_file", func(t *testing.T) {
-		requireAllow(t, evalWrite(testRepo+"/.ai-flow/other.json", freshActive(nil)))
+	// Phase 33's SEC-3: the whole directory, not just waivers.json —
+	// visual.json carries free argv run outside the allowlist, and the
+	// repo-layer pack can override org checks.
+	for _, other := range []string{"/.ai-flow/visual.json", "/.ai-flow/standards/standards.json", "/.ai-flow/new.json"} {
+		t.Run("deny"+other, func(t *testing.T) {
+			requireDeny(t, evalWrite(testRepo+other, freshActive(nil)))
+		})
+	}
+	t.Run("allow_outside_dot_dir", func(t *testing.T) {
+		requireAllow(t, evalWrite(testRepo+"/.ai-flowx/other.json", freshActive(nil)))
+		requireAllow(t, evalWrite(testRepo+"/src/.ai-flow.go", freshActive(nil)))
 	})
 	t.Run("allow_when_idle", func(t *testing.T) {
 		requireAllow(t, evalWrite(path, staleActive()))

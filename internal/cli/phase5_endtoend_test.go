@@ -55,15 +55,15 @@ func TestPhase5EndToEnd_LocateToPRCreate(t *testing.T) {
 	// 3. git prepare (no approval needed for this stage).
 	se := newScriptedExecer(t).
 		On("git", []string{"status", "--porcelain"}, exec.Output{}).
-		On("git", []string{"fetch", "origin", "main"}, exec.Output{}).
-		On("git", []string{"rev-parse", "--verify", "main"}, exec.Output{}).
-		On("git", []string{"rev-list", "--count", "origin/main..main"}, exec.Output{Stdout: "0\n"}).
-		On("git", []string{"rev-parse", "--verify", "bugfix/PROJ-1"}, exec.Output{}).
-		On("git", []string{"merge-base", "origin/main", "bugfix/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
-		On("git", []string{"worktree", "add", "--detach", filepath.Join(home, "cache", "basewt", "PROJ-1", "acme.billing.api"), "deadbeef"}, exec.Output{}).
+		On("git", []string{"fetch", "--end-of-options", "origin", "main"}, exec.Output{}).
+		On("git", []string{"rev-parse", "--verify", "--end-of-options", "main"}, exec.Output{}).
+		On("git", []string{"rev-list", "--count", "--end-of-options", "origin/main..main"}, exec.Output{Stdout: "0\n"}).
+		On("git", []string{"rev-parse", "--verify", "--end-of-options", "bugfix/PROJ-1"}, exec.Output{}).
+		On("git", []string{"merge-base", "--end-of-options", "origin/main", "bugfix/PROJ-1"}, exec.Output{Stdout: "deadbeef\n"}).
+		On("git", []string{"worktree", "add", "--detach", "--end-of-options", filepath.Join(home, "cache", "basewt", "PROJ-1", "acme.billing.api"), "deadbeef"}, exec.Output{}).
 		On("git", []string{"add", "-A"}, exec.Output{}).
 		On("git", []string{"commit", "-m", "fix: retry logic\n"}, exec.Output{}).
-		On("git", []string{"push", "-u", "origin", "bugfix/PROJ-1"}, exec.Output{}).
+		On("git", []string{"push", "-u", "--end-of-options", "origin", "bugfix/PROJ-1"}, exec.Output{}).
 		On("git", []string{"remote", "get-url", "origin"}, exec.Output{Stdout: "git@github.com:acme/billing-api.git\n"})
 	useScriptedExecer(t, se)
 

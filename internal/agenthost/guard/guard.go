@@ -35,17 +35,21 @@ type Input struct {
 // config.defaults.guard_idle_hours ... is ignored by the guard",
 // which this package reads as "evaluate every row as if Active were
 // nil".
+//
+// Every path — the event's, home, and those active.json lists — is
+// normalized first (normalize.go), so no row depends on how a path
+// happened to be spelled.
 func Evaluate(in Input) agenthost.Decision {
-	active := in.Active
-	if active != nil && isStale(*active, in.Idle, in.Now) {
-		active = nil
+	if in.Active != nil && isStale(*in.Active, in.Idle, in.Now) {
+		in.Active = nil
 	}
+	ev, active, home := normalized(in)
 
-	switch in.Event.Event {
+	switch ev.Event {
 	case agenthost.EventWrite:
-		return evaluateWrite(in.Event, active, in.Home)
+		return evaluateWrite(ev, active, home)
 	case agenthost.EventShell:
-		return evaluateShell(in.Event, active)
+		return evaluateShell(ev, active)
 	default:
 		// EventUnknown: a shell/write payload whose tool this adapter did
 		// not recognize. EventSessionStart never reaches Evaluate (hook

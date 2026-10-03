@@ -25,6 +25,20 @@ func TestValidateRules(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name: "rule12_base_branch_is_an_option",
+			mutate: func(c *Config) {
+				c.Host.DefaultBaseBranch = "--upload-pack=touch /tmp/x"
+			},
+			wantErr: `host.default_base_branch: "--upload-pack=touch /tmp/x" is not a valid git branch or ref name: it starts with "-"`,
+		},
+		{
+			name: "rule12_base_branch_empty",
+			mutate: func(c *Config) {
+				c.Host.DefaultBaseBranch = ""
+			},
+			wantErr: `host.default_base_branch: "" is not a valid git branch or ref name: it is empty`,
+		},
+		{
 			name: "rule1_team_not_defined",
 			mutate: func(c *Config) {
 				c.Routing.ProjectKeyMap["PROJ"] = ProjectKeyMapEntry{Team: "Ghost Team", Repos: []string{"acme.billing.api"}}

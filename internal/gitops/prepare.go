@@ -44,6 +44,12 @@ type PrepareResult struct {
 // branch/worktree and an already-existing base worktree are all
 // no-ops, not errors.
 func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, error) {
+	for _, ref := range []string{in.Base, in.Branch} {
+		if err := ValidRef(ref); err != nil {
+			return PrepareResult{}, err
+		}
+	}
+
 	statusOut, err := g.run(ctx, in.LocalPath, "status", "--porcelain")
 	if err != nil {
 		return PrepareResult{}, err
@@ -52,11 +58,11 @@ func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, e
 		return PrepareResult{}, dirtyWorktreeError(in.LocalPath)
 	}
 
-	if _, err := g.run(ctx, in.LocalPath, "fetch", "origin", in.Base); err != nil {
+	if _, err := g.run(ctx, in.LocalPath, "fetch", endOfOptions, "origin", in.Base); err != nil {
 		return PrepareResult{}, err
 	}
 
-	if _, ok := g.tryRun(ctx, in.LocalPath, "rev-parse", "--verify", in.Base); ok {
+	if _, ok := g.tryRun(ctx, in.LocalPath, "rev-parse", "--verify", endOfOptions, in.Base); ok {
 		ahead, err := g.revListCount(ctx, in.LocalPath, "origin/"+in.Base, in.Base)
 		if err != nil {
 			return PrepareResult{}, err
@@ -71,15 +77,15 @@ func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, e
 	if in.Worktree {
 		wtPath := siblingWorktreePath(in.LocalPath, in.RepoName, in.Key)
 		if !dirExists(wtPath) {
-			if _, err := g.run(ctx, in.LocalPath, "worktree", "add", "-b", in.Branch, wtPath, "origin/"+in.Base); err != nil {
+			if _, err := g.run(ctx, in.LocalPath, "worktree", "add", "-b", in.Branch, endOfOptions, wtPath, "origin/"+in.Base); err != nil {
 				return PrepareResult{}, err
 			}
 			branchCreated = true
 		}
 		workingPath = wtPath
 	} else {
-		if _, ok := g.tryRun(ctx, in.LocalPath, "rev-parse", "--verify", in.Branch); !ok {
-			if _, err := g.run(ctx, in.LocalPath, "checkout", "-b", in.Branch, "origin/"+in.Base); err != nil {
+		if _, ok := g.tryRun(ctx, in.LocalPath, "rev-parse", "--verify", endOfOptions, in.Branch); !ok {
+			if _, err := g.run(ctx, in.LocalPath, "checkout", "-b", in.Branch, "origin/"+in.Base, "--"); err != nil {
 				return PrepareResult{}, err
 			}
 			branchCreated = true
@@ -88,7 +94,7 @@ func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, e
 
 	baseWT := BaseWorktreePath(in.Home, in.Key, in.RepoName)
 	if !dirExists(baseWT) {
-		mergeBaseOut, err := g.run(ctx, in.LocalPath, "merge-base", "origin/"+in.Base, in.Branch)
+		mergeBaseOut, err := g.run(ctx, in.LocalPath, "merge-base", endOfOptions, "origin/"+in.Base, in.Branch)
 		if err != nil {
 			return PrepareResult{}, err
 		}
@@ -96,7 +102,7 @@ func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, e
 		if err := os.MkdirAll(filepath.Dir(baseWT), 0o700); err != nil {
 			return PrepareResult{}, fmt.Errorf("gitops: create %s: %w", filepath.Dir(baseWT), err)
 		}
-		if _, err := g.run(ctx, in.LocalPath, "worktree", "add", "--detach", baseWT, sha); err != nil {
+		if _, err := g.run(ctx, in.LocalPath, "worktree", "add", "--detach", endOfOptions, baseWT, sha); err != nil {
 			return PrepareResult{}, err
 		}
 	}
@@ -108,7 +114,7 @@ func (g *GitOps) Prepare(ctx context.Context, in PrepareInput) (PrepareResult, e
 // result — the integer count of commits reachable from to but not
 // from, used by the divergence check (design decision 7).
 func (g *GitOps) revListCount(ctx context.Context, dir, from, to string) (int, error) {
-	out, err := g.run(ctx, dir, "rev-list", "--count", from+".."+to)
+	out, err := g.run(ctx, dir, "rev-list", "--count", endOfOptions, from+".."+to)
 	if err != nil {
 		return 0, err
 	}

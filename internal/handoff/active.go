@@ -54,8 +54,7 @@ type repoJSONRepositories struct {
 
 // repoRootsFor reads home's repo.json for key (if it exists yet — it
 // does not before `locate` completes) and returns every repository's
-// local_path, sorted and deduped. ToolConfigFiles stays empty until
-// phase 14 populates it.
+// local_path, sorted and deduped.
 func repoRootsFor(home, key string) ([]string, error) {
 	data, err := ReadArtifact(RepoPath(home, key))
 	if err != nil {
@@ -82,19 +81,25 @@ func repoRootsFor(home, key string) ([]string, error) {
 // RecordActive rebuilds and saves active.json for key/stage — the call
 // every mutating stage command makes after a successful transition.
 // RepoRoots is read back from repo.json when one exists yet (empty
-// before `locate` completes); ToolConfigFiles stays empty until
-// phase 14 populates it; AllowlistHash reflects exec.Table as it
+// before `locate` completes); toolConfigFiles is computed by the caller
+// (internal/cli, which can read standards.json and detect mutation
+// tools — this package cannot import either without a cycle) and
+// stored sorted and deduped; AllowlistHash reflects exec.Table as it
 // stands today.
-func RecordActive(home, key string, stage Stage) error {
+func RecordActive(home, key string, stage Stage, toolConfigFiles []string) error {
 	roots, err := repoRootsFor(home, key)
 	if err != nil {
 		return err
+	}
+	toolConfigs := strutil.DedupSorted(toolConfigFiles)
+	if toolConfigs == nil {
+		toolConfigs = []string{}
 	}
 	a := &Active{
 		Key:             key,
 		Stage:           string(stage),
 		RepoRoots:       roots,
-		ToolConfigFiles: []string{},
+		ToolConfigFiles: toolConfigs,
 		AllowlistHash:   exec.Hash(),
 		LastEventAt:     Now().UTC().Format(time.RFC3339),
 	}

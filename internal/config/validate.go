@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/gitref"
 )
 
 // Validate checks cfg against every documented rule under the spec's
@@ -29,6 +31,7 @@ func Validate(cfg *Config, kubeconfigPath string) (warnings []string, err error)
 		ruleTierMultiplierPrecision(cfg),
 		ruleE2ESandboxTier(cfg),
 		ruleStandardsSourcesShape(cfg),
+		ruleDefaultBaseBranchIsARef(cfg),
 	}
 	return kubeconfigWarnings(cfg, kubeconfigPath), errors.Join(errs...)
 }
@@ -175,6 +178,19 @@ func ruleE2ESandboxTier(cfg *Config) error {
 	}
 	if env.Tier != "sandbox" {
 		return fmt.Errorf("ops.e2e.sandbox_environment: %q must be sandbox-tier when ops.e2e.enabled, has tier %q", cfg.Ops.E2E.SandboxEnvironment, env.Tier)
+	}
+	return nil
+}
+
+// Rule 12 (phase 34): host.default_base_branch is a valid branch name.
+// It reaches `git fetch`/`checkout`/`diff` argv verbatim, and
+// config.json is agent-writable between tickets — a value starting with
+// "-" used to become a git option (`--upload-pack=<cmd>` ran <cmd>).
+// internal/gitops also refuses it at the sink; this catches it at
+// `config validate`, before any git command is attempted.
+func ruleDefaultBaseBranchIsARef(cfg *Config) error {
+	if err := gitref.Valid(cfg.Host.DefaultBaseBranch); err != nil {
+		return fmt.Errorf("host.default_base_branch: %s", err.Error())
 	}
 	return nil
 }

@@ -253,9 +253,9 @@ func setUpMutationFixture(t *testing.T, diffFiles, diffText string) (home, ticke
 	})
 
 	se = exectest.New(t).
-		On("git", []string{"diff", "origin/main...HEAD", "--name-only"}, exec.Output{Stdout: diffFiles}).
+		On("git", []string{"diff", "--name-only", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: diffFiles}).
 		On("git", []string{"ls-files", "--others", "--exclude-standard"}, exec.Output{Stdout: ""}).
-		On("git", []string{"diff", "origin/main...HEAD"}, exec.Output{Stdout: diffText})
+		On("git", []string{"diff", "--end-of-options", "origin/main...HEAD"}, exec.Output{Stdout: diffText})
 	return home, ticketDir, repoDir, se
 }
 
