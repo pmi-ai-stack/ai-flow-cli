@@ -33,6 +33,19 @@ func mustLoadTemplate() []byte {
 	return data
 }
 
+// FromTemplate is the configuration `config init` would write, already
+// loaded — for the one command that runs without a config.json at all
+// (`standards check <dir>` on a CI runner). Every call decodes a fresh
+// copy, so a caller may modify what it gets.
+func FromTemplate() *Config {
+	cfg, err := decode(templateBytes)
+	if err != nil {
+		panic(fmt.Sprintf("config: embedded template.json does not decode: %v", err)) // proven at package load
+	}
+	applyDefaults(cfg)
+	return cfg
+}
+
 // Init writes the embedded template to ResolvePath(homeDir, configFlag)
 // and returns that path. It refuses when the target already exists —
 // the same "refuse, do not overwrite" shape as ops policy scaffold —

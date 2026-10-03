@@ -156,3 +156,38 @@ func TestRunUsesDir(t *testing.T) {
 		t.Errorf("pwd printed %q, want %q", got, dir)
 	}
 }
+
+func TestRunMissingToolIsNotFoundAndStillToolFailed(t *testing.T) {
+	const tool = "ai-flow-test-no-such-binary"
+	r := testRunner(Row{Tool: tool, Verb: nil, Class: ClassRepoWrite})
+	_, err := r.Run(context.Background(), tool, nil, RunOpts{})
+	if err == nil {
+		t.Fatal("expected an error for a tool that is not on PATH")
+	}
+	got, ok := IsNotFound(err)
+	if !ok || got != tool {
+		t.Errorf("IsNotFound = (%q, %v), want (%q, true)", got, ok, tool)
+	}
+	// Every existing caller keeps seeing tool_failed.
+	if !IsToolFailed(err) {
+		t.Error("IsToolFailed(not found) = false, want true")
+	}
+	var envErr *envelope.Error
+	if !errors.As(err, &envErr) || envErr.Code != "tool_failed" {
+		t.Errorf("errors.As envelope.Error = %+v, want code tool_failed", envErr)
+	}
+}
+
+func TestRunNonZeroExitIsNotNotFound(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses /bin/sh")
+	}
+	r := testRunner(Row{Tool: "sh", Verb: nil, Class: ClassRepoWrite})
+	_, err := r.Run(context.Background(), "sh", []string{"-c", "exit 127"}, RunOpts{})
+	if _, ok := IsNotFound(err); ok {
+		t.Error("a tool that ran and exited non-zero is reported as not found")
+	}
+	if _, ok := IsNotFound(NotFound("conftest")); !ok {
+		t.Error("IsNotFound(NotFound(...)) = false")
+	}
+}

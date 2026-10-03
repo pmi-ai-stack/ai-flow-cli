@@ -42,6 +42,10 @@ type ResolveInput struct {
 	BudgetTokens int
 	// Now evaluates waiver expiry; nil means time.Now.
 	Now func() time.Time
+	// OrgPack and InstructionsOptional are passed through to LoadLayers
+	// (see LayerInput) — set only by `standards check <dir>`.
+	OrgPack              *PackLocation
+	InstructionsOptional bool
 }
 
 // EffectiveSection is one section of the resolution: every section
@@ -160,6 +164,12 @@ type Effective struct {
 	Budget    []StageBudget
 	// BudgetTokens is the budget the resolution was computed against.
 	BudgetTokens int
+	// MissingInstructions names every repository without AGENTS.md or
+	// CLAUDE.md — only ever non-empty when ResolveInput.
+	// InstructionsOptional allowed the resolution to proceed anyway.
+	// Not part of Hash: it is a fact about the checkout, already
+	// reflected by the instructions pack's presence and fingerprint.
+	MissingInstructions []string
 }
 
 // Resolve layers every pack, applies precedence and overrides, marks
@@ -170,7 +180,10 @@ type Effective struct {
 // caller closes them with ClosePacks once it is done reading section
 // content through them.
 func Resolve(in ResolveInput) (*Effective, []*Pack, error) {
-	packs, err := LoadLayers(LayerInput{Home: in.Home, Cfg: in.Cfg, Team: in.Team, Repos: in.Repos})
+	packs, missing, err := LoadLayers(LayerInput{
+		Home: in.Home, Cfg: in.Cfg, Team: in.Team, Repos: in.Repos,
+		OrgPack: in.OrgPack, InstructionsOptional: in.InstructionsOptional,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,6 +212,8 @@ func Resolve(in ResolveInput) (*Effective, []*Pack, error) {
 		Waivers:      waivers,
 		Budget:       budget,
 		BudgetTokens: in.BudgetTokens,
+
+		MissingInstructions: missing,
 	}
 	e.Hash = resolutionHash(e)
 	return e, packs, nil

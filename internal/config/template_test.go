@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -94,5 +95,24 @@ func TestInitUsesConfigFlagOverride(t *testing.T) {
 	}
 	if _, err := os.Stat(explicitPath); err != nil {
 		t.Errorf("expected file at %s: %v", explicitPath, err)
+	}
+}
+
+func TestFromTemplateMatchesInitThenLoad(t *testing.T) {
+	home := t.TempDir()
+	if _, err := Init(home, ""); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	loaded, err := Load(home, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := FromTemplate(); !reflect.DeepEqual(got, loaded) {
+		t.Errorf("FromTemplate() = %+v, want what Init+Load gives: %+v", got, loaded)
+	}
+	a, b := FromTemplate(), FromTemplate()
+	a.Ops.RiskGate = -1
+	if b.Ops.RiskGate == -1 {
+		t.Error("FromTemplate returns shared state; a caller's edit leaked into the next call")
 	}
 }

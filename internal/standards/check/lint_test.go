@@ -11,9 +11,13 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards/check"
 )
 
+// golangciArgs is golangci-lint v2's own argv for a check with no
+// config — verified against a real v2.13.2 binary (phase 33).
+var golangciArgs = []string{"run", "--output.json.path", "stdout", "--show-stats=false", "--path-mode", "abs", "./..."}
+
 func TestRunLintGolangciLint(t *testing.T) {
-	report := `{"Issues":[{"Text":"unused variable","Pos":{"Filename":"main.go","Line":10},"FromLinter":"unused"}]}`
-	x := exectest.New(t).On("golangci-lint", []string{"run", "--out-format", "json", "./..."}, exec.Output{Stdout: report})
+	report := `{"Issues":[{"Text":"unused variable","Pos":{"Filename":"/repo/cmd/main.go","Line":10},"FromLinter":"unused"}]}`
+	x := exectest.New(t).On("golangci-lint", golangciArgs, exec.Output{Stdout: report})
 
 	runner, ok := check.ForKind("lint")
 	if !ok {
@@ -30,7 +34,7 @@ func TestRunLintGolangciLint(t *testing.T) {
 		t.Fatalf("findings = %#v, want 1", findings)
 	}
 	f := findings[0]
-	if f.File != "main.go" || f.Line != 10 || f.Status != "open" {
+	if f.File != "cmd/main.go" || f.Line != 10 || f.Status != "open" {
 		t.Errorf("finding = %+v", f)
 	}
 	if f.Message != "[unused] unused variable" {
@@ -39,7 +43,7 @@ func TestRunLintGolangciLint(t *testing.T) {
 }
 
 func TestRunLintGolangciLintClean(t *testing.T) {
-	x := exectest.New(t).On("golangci-lint", []string{"run", "--out-format", "json", "./..."}, exec.Output{Stdout: `{"Issues":[]}`})
+	x := exectest.New(t).On("golangci-lint", golangciArgs, exec.Output{Stdout: `{"Issues":[]}`})
 	runner, _ := check.ForKind("lint")
 	findings, err := runner.Run(context.Background(), check.RunInput{
 		Check: standards.EffectiveCheck{ID: "go.lint", Tool: "golangci-lint", Severity: "must"},

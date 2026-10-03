@@ -9,14 +9,19 @@ env:
   # The toolchain named by go.mod's `go` line is pinned, not auto-upgraded.
   GOTOOLCHAIN: local
 
+# Least privilege: every job here only reads the repository. A job that
+# ever needs more gets its own job-level grant, never a wider default.
+permissions:
+  contents: read
+
 jobs:
   cli-required:
     name: CLI required
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
 
@@ -35,7 +40,32 @@ jobs:
       - name: golangci-lint
         run: go tool golangci-lint run
 
+      # Check-runner tools, installed before `go test` so the README's own
+      # CI command runs end to end against a real conftest
+      # (TestStandardsCheckReadmeCommandEndToEnd), and reused by the
+      # dogfood steps below. `golangci-lint`/`gitleaks` are tools this
+      # job otherwise has no reason to install as their own binaries —
+      # the lint step covers linting via `go tool golangci-lint`, a
+      # different invocation from the bare `golangci-lint` `standards
+      # check` shells out to — so a shim provides it. `conftest` is
+      # pinned to the version phase 25 verified by hand (`conftest
+      # verify` and `conftest test --output json` against the reference
+      # pack's rego — see .ai/phase-25/implementation-log.md).
+      - name: install check-runner tools (gitleaks, golangci-lint shim, conftest)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.21.2
+          go install github.com/open-policy-agent/conftest@v0.70.1
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/bin/sh\nexec go tool golangci-lint "$@"\n' > "$HOME/.local/bin/golangci-lint"
+          chmod +x "$HOME/.local/bin/golangci-lint"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # AI_FLOW_E2E_REQUIRE_TOOLS turns the README end-to-end test's
+      # "conftest not on PATH" skip into a failure here.
       - name: go test -race
+        env:
+          AI_FLOW_E2E_REQUIRE_TOOLS: "1"
         run: go test -race -count=1 ./...
 
       - name: cross-build six platforms (goreleaser snapshot)
@@ -48,33 +78,6 @@ jobs:
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
-
-      # Dogfooding (phase 14): the freshly built binary runs its own
-      # `standards check .` against this repository and its embedded
-      # reference pack (plus this repo's own .ai-flow/standards/
-      # override — see that directory's own standards.json for why).
-      # `golangci-lint`/`gitleaks` are check-runner tools this job
-      # otherwise has no reason to install as their own binaries — the
-      # step above already covers linting via `go tool golangci-lint`,
-      # which is a different invocation from the bare `golangci-lint`
-      # `standards check` shells out to — so both are provisioned here,
-      # not assumed present. `conftest` (phase 25) is pinned to the
-      # exact version this phase's own implementation verified by hand
-      # (`conftest verify` and `conftest test --output json` against a
-      # throwaway .tf/.yaml fixture, confirming both the reference
-      # pack's own rego rules fire and internal/standards/check's
-      # conftestFileResult Go type matches conftest's real --output
-      # json shape byte for byte — see
-      # .ai/phase-25/implementation-log.md).
-      - name: install check-runner tools (gitleaks, golangci-lint shim, conftest)
-        run: |
-          go install github.com/zricethezav/gitleaks/v8@v8.21.2
-          go install github.com/open-policy-agent/conftest@v0.70.1
-          mkdir -p "$HOME/.local/bin"
-          printf '#!/bin/sh\nexec go tool golangci-lint "$@"\n' > "$HOME/.local/bin/golangci-lint"
-          chmod +x "$HOME/.local/bin/golangci-lint"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Phase 25/26: the reference pack's own rego tests
       # (packs/reference/infra/{terraform,kubernetes,helm}/checks/policy/*_test.rego)
@@ -91,8 +94,31 @@ jobs:
       - name: standards validate packs/reference
         run: /tmp/ai-flow-dogfood standards validate packs/reference
 
+      # Dogfooding (phase 14): the freshly built binary runs README.md's
+      # own "Use in CI" command against this repository, its embedded
+      # reference pack and this repo's own .ai-flow/standards/ override
+      # (see that directory's standards.json for why). No config init:
+      # since phase 33 the directory form runs without a config.json,
+      # exactly as an adopter's pipeline would.
       - name: standards check . (dogfood the reference pack)
+        run: /tmp/ai-flow-dogfood standards check .
+
+      # The step above passing proves little on its own — before phase
+      # 33 it passed while running no infrastructure check at all, and
+      # while go.lint crashed unnoticed. This one must *fail*: a
+      # terraform repository with two reference-policy violations has to
+      # come back exit 6 with exactly those two policy findings.
+      - name: standards check on a violating terraform repository (findings expected)
         run: |
-          AI_FLOW_HOME="$(mktemp -d)"
-          /tmp/ai-flow-dogfood config init --home "$AI_FLOW_HOME"
-          /tmp/ai-flow-dogfood standards check . --home "$AI_FLOW_HOME"
+          repo="$(mktemp -d)/infra-repo"
+          cp -r testdata/repos/terraform-e2e "$repo"
+          mv "$repo/main.tf.fixture" "$repo/main.tf"
+          out="$(mktemp)" # outside the repository: conftest would try to parse it
+          cd "$repo"
+          set +e
+          /tmp/ai-flow-dogfood standards check . > "$out"
+          code=$?
+          set -e
+          jq . "$out"
+          test "$code" -eq 6
+          jq -e '[.error.details[] | select(startswith("infra.terraform.policy: main.tf: "))] | length == 2' "$out"

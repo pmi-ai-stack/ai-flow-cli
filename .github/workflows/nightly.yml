@@ -17,14 +17,19 @@ on:
 env:
   GOTOOLCHAIN: local
 
+# Least privilege: every job here only reads the repository. A job that
+# ever needs more gets its own job-level grant, never a wider default.
+permissions:
+  contents: read
+
 jobs:
   real-tool-suites:
     name: Real-tool suites (-tags integration/mutation/ops)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
 
@@ -35,15 +40,15 @@ jobs:
       # gremlins, kuttl, checkov and mutmut are Go/pip installs pinned
       # to what this phase actually ran.
       - name: hashicorp/setup-terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_wrapper: false
 
       - name: azure/setup-kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
 
       - name: azure/setup-helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
 
       - name: Install kustomize, kind, gremlins, kuttl
         run: |
@@ -78,13 +83,27 @@ jobs:
       - name: go test -tags ops
         run: go test -tags ops -count=1 -timeout 20m ./...
 
+      # -tags e2e (phase 33): `standards check <dir>`, the documented CI
+      # use case, against the real scanners — kept off the required job
+      # so a scanner's own rule-database update can never block an
+      # unrelated PR. The required job already runs the conftest-only
+      # README case on every PR.
+      - name: Install check-runner tools for -tags e2e (conftest, gitleaks, checkov)
+        run: |
+          go install github.com/open-policy-agent/conftest@v0.70.1
+          go install github.com/zricethezav/gitleaks/v8@v8.21.2
+          pip install --user checkov==3.3.19
+
+      - name: go test -tags e2e
+        run: go test -tags e2e -count=1 ./internal/cli/
+
   gremlins-threshold:
     name: gremlins mutation-coverage threshold (80% efficacy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
 
@@ -129,9 +148,9 @@ jobs:
     name: Windows — app pipeline (fixture-only)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
 

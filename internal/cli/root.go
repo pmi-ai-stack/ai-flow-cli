@@ -157,6 +157,12 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 			// resume_with on the same envelope (envelope.PrintHuman
 			// already expects this — see its own !e.OK branch).
 			env.NeedsInput = outcome.NeedsInput
+			// Warnings ride along on a failure too: `standards check
+			// <dir>` failing on its findings should still say it ran on
+			// built-in defaults.
+			if outcome.Warnings != nil {
+				env.Warnings = outcome.Warnings
+			}
 			ec, ok := envelope.ExitCodeFor(envErr.Code)
 			if !ok {
 				ec = envelope.ExitInternal

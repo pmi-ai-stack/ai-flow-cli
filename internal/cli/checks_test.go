@@ -30,7 +30,7 @@ func scriptEmbeddedGoChecks(t *testing.T, golangciReport string) *exectest.Scrip
 
 	return exectest.New(t).
 		On("gofmt", []string{"-l", "."}, exec.Output{}).
-		On("golangci-lint", []string{"run", "--out-format", "json", "--config", golangciConfig, "./..."}, exec.Output{Stdout: golangciReport}).
+		On("golangci-lint", []string{"run", "--output.json.path", "stdout", "--show-stats=false", "--path-mode", "abs", "--config", golangciConfig, "./..."}, exec.Output{Stdout: golangciReport}).
 		On("gitleaks", []string{
 			"detect", "--source", ".", "--no-git", "--report-format", "json",
 			"--report-path", secretsReport, "--exit-code", "0", "--config", secretsConfig,

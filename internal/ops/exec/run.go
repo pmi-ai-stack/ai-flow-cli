@@ -55,6 +55,48 @@ func IsToolFailed(err error) bool {
 	return errors.As(err, &envErr) && envErr.Code == "tool_failed"
 }
 
+// NotFoundError is the tool_failed error Run returns when tool is not
+// on PATH at all. It is still tool_failed to every existing caller —
+// errors.As to *envelope.Error yields Err, so IsToolFailed, the
+// envelope and the exit code are exactly what they were — and
+// IsNotFound lets the one caller that must tell "the tool ran and found
+// nothing" from "the tool never ran" (standards check, where the two
+// otherwise both look like an empty report) do so.
+type NotFoundError struct {
+	Tool string
+	Err  *envelope.Error
+}
+
+func (e *NotFoundError) Error() string { return e.Err.Error() }
+
+// As lets errors.As(err, **envelope.Error) see through to Err.
+func (e *NotFoundError) As(target any) bool {
+	if p, ok := target.(**envelope.Error); ok {
+		*p = e.Err
+		return true
+	}
+	return false
+}
+
+// NotFound builds the error Run returns for a tool missing from PATH —
+// exported so a fake Execer can report the same condition.
+func NotFound(tool string) error {
+	return &NotFoundError{Tool: tool, Err: &envelope.Error{
+		Code:    "tool_failed",
+		Message: fmt.Sprintf("%s: executable file not found in $PATH", tool),
+	}}
+}
+
+// IsNotFound reports whether err says the tool was not on PATH, and
+// which tool.
+func IsNotFound(err error) (string, bool) {
+	var nf *NotFoundError
+	if errors.As(err, &nf) {
+		return nf.Tool, true
+	}
+	return "", false
+}
+
 // Execer is how every package outside this one runs a subprocess.
 // internal/ops/exec is the only package allowed to import os/exec
 // (TestNoOsExecOutsideExecPackage) — Execer is the seam that lets a
@@ -118,10 +160,14 @@ func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOp
 		out.ExitCode = cmd.ProcessState.ExitCode()
 	}
 	if runErr != nil {
-		return out, &envelope.Error{
+		failed := &envelope.Error{
 			Code:    "tool_failed",
 			Message: fmt.Sprintf("%s: %v: %s", strings.Join(argv, " "), runErr, strings.TrimSpace(out.Stderr)),
 		}
+		if errors.Is(runErr, osexec.ErrNotFound) {
+			return out, &NotFoundError{Tool: tool, Err: failed}
+		}
+		return out, failed
 	}
 	return out, nil
 }

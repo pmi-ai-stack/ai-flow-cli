@@ -104,7 +104,7 @@ var catalog = []CommandSpec{
 	// Phase 14. Registered ticket-scoped only — the directory (CI) form
 	// is never invoked from a skill (the phase-14 plan's design
 	// decision 11).
-	{Name: "standards check", TicketScoped: true, Flags: []string{"fix", "stage"}},
+	{Name: "standards check", TicketScoped: true, Flags: []string{"fix", "pack", "require-instructions", "stage"}},
 
 	// Phase 18.
 	{Name: "ops detect", TicketScoped: true},

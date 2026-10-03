@@ -54,6 +54,27 @@ type LayerInput struct {
 	// Repos is every in-scope repository, in repo.json order — the
 	// order their instructions files are concatenated in.
 	Repos []RepoRef
+	// OrgPack, when non-nil, is the org layer for this resolution in
+	// place of config.standards.sources (or the embedded pack) —
+	// `standards check <dir> --pack`.
+	OrgPack *PackLocation
+	// InstructionsOptional reports a repository without AGENTS.md or
+	// CLAUDE.md back to the caller instead of failing with
+	// missing_repo_instructions. Only `standards check <dir>` sets it:
+	// the instructions file exists to be injected into implement and
+	// review, and the directory form runs neither.
+	InstructionsOptional bool
+}
+
+// PackLocation is a pack already on disk and where it came from — the
+// provenance OpenPack records, for a pack that did not come from
+// config.
+type PackLocation struct {
+	ID     string
+	Ref    string
+	Repo   string
+	Commit string
+	Dir    string
 }
 
 // LoadLayers loads every pack that contributes to a resolution, in
@@ -69,16 +90,27 @@ type LayerInput struct {
 //
 // A source configured but not yet synced is pack_unreachable (exit 5)
 // naming `standards sync`; a repository with neither AGENTS.md nor
-// CLAUDE.md is missing_repo_instructions (exit 4).
-func LoadLayers(in LayerInput) ([]*Pack, error) {
+// CLAUDE.md is missing_repo_instructions (exit 4) — unless
+// in.InstructionsOptional, in which case each such repository is named
+// in the second return value and the synthetic pack carries only the
+// files that exist (or is left out when none does).
+func LoadLayers(in LayerInput) ([]*Pack, []string, error) {
 	var out []*Pack
-	fail := func(err error) ([]*Pack, error) {
+	fail := func(err error) ([]*Pack, []string, error) {
 		ClosePacks(out)
-		return nil, err
+		return nil, nil, err
 	}
 
 	orgSources := in.Cfg.Standards.Sources
-	if len(orgSources) == 0 {
+	if in.OrgPack != nil {
+		orgSources = nil
+		o := in.OrgPack
+		p, err := OpenPack(LayerOrg, o.ID, o.Ref, o.Repo, o.Commit, o.Dir)
+		if err != nil {
+			return fail(err)
+		}
+		out = append(out, p)
+	} else if len(orgSources) == 0 {
 		p, err := EmbeddedPack()
 		if err != nil {
 			return fail(err)
@@ -119,13 +151,22 @@ func LoadLayers(in LayerInput) ([]*Pack, error) {
 		out = append(out, p)
 	}
 
-	instructions, err := instructionsPack(in.Repos)
+	instructions, missing, err := instructionsPack(in.Repos)
 	if err != nil {
 		return fail(err)
 	}
-	out = append(out, instructions)
+	if len(missing) > 0 && !in.InstructionsOptional {
+		return fail(&envelope.Error{
+			Code:    "missing_repo_instructions",
+			Message: "every in-scope repository must carry an AGENTS.md or a CLAUDE.md",
+			Details: missing,
+		})
+	}
+	if instructions != nil {
+		out = append(out, instructions)
+	}
 
-	return out, nil
+	return out, missing, nil
 }
 
 // openSyncedPack opens one configured source from its sync cache
@@ -159,7 +200,11 @@ func openSyncedPack(home, layer string, s config.StandardsSource) (*Pack, error)
 // source — invisible in rendered Markdown, and unable to collide with
 // guidance content the way a `##` heading could. With exactly one
 // repository the section is the file's bytes and nothing else.
-func instructionsPack(repos []RepoRef) (*Pack, error) {
+//
+// Every repository without its file is named, sorted, in the second
+// return value; the caller decides whether that is an error. The pack
+// is nil when no repository has one.
+func instructionsPack(repos []RepoRef) (*Pack, []string, error) {
 	var body []byte
 	var missing []string
 	var files []string
@@ -173,7 +218,7 @@ func instructionsPack(repos []RepoRef) (*Pack, error) {
 		data, err := os.ReadFile(path) //nolint:gosec // G304: path is built from repo.json's own local_path, explicit CLI input
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return nil, fmt.Errorf("standards: read %s: %w", path, err)
+				return nil, nil, fmt.Errorf("standards: read %s: %w", path, err)
 			}
 			missing = append(missing, fmt.Sprintf("%s has neither AGENTS.md nor CLAUDE.md", r.Name))
 			continue
@@ -188,13 +233,9 @@ func instructionsPack(repos []RepoRef) (*Pack, error) {
 		}
 	}
 
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return nil, &envelope.Error{
-			Code:    "missing_repo_instructions",
-			Message: "every in-scope repository must carry an AGENTS.md or a CLAUDE.md",
-			Details: missing,
-		}
+	sort.Strings(missing)
+	if len(files) == 0 {
+		return nil, missing, nil
 	}
 
 	path := strings.Join(strutil.DedupSorted(files), ", ")
@@ -215,5 +256,5 @@ func instructionsPack(repos []RepoRef) (*Pack, error) {
 			AppliesTo: AppliesTo{Stages: []string{"implement", "review"}},
 		}},
 		FS: oneFileFS{name: path, data: body},
-	}, nil
+	}, missing, nil
 }

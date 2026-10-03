@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -47,8 +49,8 @@ func lintFinding(in RunInput, file string, line int, message string) Finding {
 	}
 }
 
-// golangciLintReport is golangci-lint's `--out-format json` shape,
-// trimmed to what this runner reads.
+// golangciLintReport is golangci-lint v2's JSON report shape
+// (`--output.json.path stdout`), trimmed to what this runner reads.
 type golangciLintReport struct {
 	Issues []struct {
 		Text string `json:"Text"`
@@ -67,13 +69,20 @@ func runGolangciLint(ctx context.Context, in RunInput, x exec.Execer, timeout ti
 	}
 	defer cleanup()
 
-	args := []string{"run", "--out-format", "json"}
+	// golangci-lint v2 — the version the reference pack's own
+	// `version: "2"` config requires — removed v1's `--out-format json`
+	// (v2 exits 3 "unknown flag", which the old empty-stdout tolerance
+	// read as a clean pass, so go.lint had never reported anything).
+	// v2 also resolves report paths relative to the config file by
+	// default, and the config is materialized in a temp directory, so
+	// paths are requested absolute and made repository-relative below.
+	args := []string{"run", "--output.json.path", "stdout", "--show-stats=false", "--path-mode", "abs"}
 	if configPath != "" {
 		args = append(args, "--config", configPath)
 	}
 	args = append(args, "./...")
 	out, err := x.Run(ctx, "golangci-lint", args, exec.RunOpts{Dir: in.Repo.LocalPath, Timeout: timeout})
-	if err != nil && !exec.IsToolFailed(err) {
+	if err := failedWithoutReport(out, err); err != nil {
 		return nil, err
 	}
 	if out.Stdout == "" {
@@ -89,9 +98,26 @@ func runGolangciLint(ctx context.Context, in RunInput, x exec.Execer, timeout ti
 		if iss.FromLinter != "" {
 			msg = fmt.Sprintf("[%s] %s", iss.FromLinter, iss.Text)
 		}
-		findings = append(findings, lintFinding(in, iss.Pos.Filename, iss.Pos.Line, msg))
+		findings = append(findings, lintFinding(in, repoRelative(in.Repo.LocalPath, iss.Pos.Filename), iss.Pos.Line, msg))
 	}
 	return findings, nil
+}
+
+// repoRelative is file relative to repoDir when it lies inside it, else
+// file unchanged — findings name repository-relative paths.
+func repoRelative(repoDir, file string) string {
+	if !filepath.IsAbs(file) {
+		return file
+	}
+	root, err := filepath.Abs(repoDir)
+	if err != nil {
+		return file
+	}
+	rel, err := filepath.Rel(root, file)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return file
+	}
+	return filepath.ToSlash(rel)
 }
 
 // esLintReport is eslint's `--format json` shape, trimmed.
@@ -117,7 +143,7 @@ func runESLint(ctx context.Context, in RunInput, x exec.Execer, timeout time.Dur
 	}
 	args = append(args, ".")
 	out, err := x.Run(ctx, "eslint", args, exec.RunOpts{Dir: in.Repo.LocalPath, Timeout: timeout})
-	if err != nil && !exec.IsToolFailed(err) {
+	if err := failedWithoutReport(out, err); err != nil {
 		return nil, err
 	}
 	if out.Stdout == "" {
@@ -164,7 +190,7 @@ func runRuffCheck(ctx context.Context, in RunInput, x exec.Execer, timeout time.
 	}
 	args = append(args, ".")
 	out, err := x.Run(ctx, "ruff", args, exec.RunOpts{Dir: in.Repo.LocalPath, Timeout: timeout})
-	if err != nil && !exec.IsToolFailed(err) {
+	if err := failedWithoutReport(out, err); err != nil {
 		return nil, err
 	}
 	if out.Stdout == "" {
@@ -211,7 +237,7 @@ func runCheckstyle(ctx context.Context, in RunInput, x exec.Execer, timeout time
 	}
 	args = append(args, ".")
 	out, err := x.Run(ctx, "checkstyle", args, exec.RunOpts{Dir: in.Repo.LocalPath, Timeout: timeout})
-	if err != nil && !exec.IsToolFailed(err) {
+	if err := failedWithoutReport(out, err); err != nil {
 		return nil, err
 	}
 	if out.Stdout == "" {

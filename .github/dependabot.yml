@@ -1,0 +1,12 @@
+# Keeps the SHA-pinned actions (phase 33) and the Go module's direct
+# requirements moving by reviewed PR instead of rotting in place.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly

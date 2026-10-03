@@ -215,22 +215,40 @@ func materializeConfigDir(c standards.EffectiveCheck) (dir string, cleanup func(
 }
 
 // runToolJSON runs tool with args in dir and returns its stdout,
-// tolerating a tool_failed exit (a scanner's own "found violations"
-// signal, not an internal CLI error) — the "invoke, tolerate
-// tool_failed, treat blank stdout as clean" sequence every "policy"/
-// "scan" runner (runPolicy, runCheckov, runTrivyConfig,
-// runKyvernoApply) repeats verbatim, factored out once. ok is false
-// exactly when there is nothing to parse (a clean run), so the caller
-// returns (nil, nil) without its own strings.TrimSpace check.
+// tolerating a tool_failed exit that came with a report (a scanner's
+// own "found violations" signal, not an internal CLI error) — the
+// sequence every "policy"/"scan" runner (runPolicy, runCheckov,
+// runTrivyConfig, runKyvernoApply, runZizmor) shares, factored out
+// once. ok is false exactly when a successful run printed nothing (a
+// clean run), so the caller returns (nil, nil) without its own
+// strings.TrimSpace check.
+//
+// A non-zero exit with no report at all is the tool failing, not the
+// tool passing — conftest panicking without $HOME, or a tool not on
+// PATH — and is returned as the error, never read as clean.
 func runToolJSON(ctx context.Context, x exec.Execer, tool string, args []string, dir string, timeout time.Duration) (stdout string, ok bool, err error) {
 	out, err := x.Run(ctx, tool, args, exec.RunOpts{Dir: dir, Timeout: timeout})
-	if err != nil && !exec.IsToolFailed(err) {
+	if err := failedWithoutReport(out, err); err != nil {
 		return "", false, err
 	}
 	if strings.TrimSpace(out.Stdout) == "" {
 		return "", false, nil
 	}
 	return out.Stdout, true, nil
+}
+
+// failedWithoutReport is the error a JSON-reporting check tool's run
+// should propagate: any error that is not tool_failed, and a
+// tool_failed that printed nothing to parse. A tool_failed carrying a
+// report is the tool's own "found something" signal and yields nil.
+func failedWithoutReport(out exec.Output, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !exec.IsToolFailed(err) || strings.TrimSpace(out.Stdout) == "" {
+		return err
+	}
+	return nil
 }
 
 // readConfigJSON reads and unmarshals a built-in check's own Config

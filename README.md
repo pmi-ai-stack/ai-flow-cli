@@ -13,6 +13,16 @@ The URL is pinned to a commit, not a branch, so what you run is a fixed, reviewa
 
 Or download a release archive from the [releases page](https://github.com/pmi-ai-stack/ai-flow-cli/releases) and verify it against `checksums.txt` yourself. `install.sh -v vX.Y.Z -d DIR` pins a specific release and install directory — this is what the [`ai-flow` plugin's `session-start.sh`](../ai-flow/hooks/session-start.sh) calls automatically, resolved against its own manifest's `cli_version` range, so most people never run this by hand.
 
+## Use in CI
+
+Check a repository against the standards pack from its own pipeline — no ticket, no `config.json` and no `~/.ai-flow` needed:
+
+```sh
+ai-flow standards check .
+```
+
+It runs every check that applies to the languages and infrastructure it detects (terraform, Kubernetes manifests, Helm, kustomize, GitHub Actions, Jenkins) and exits 6 naming every open `must` finding. The check tools themselves (`gitleaks`, `conftest`, `checkov`, your linters) must be on `PATH`; one that is missing is reported as an open finding at that check's severity, never skipped silently. Checks that need a rendering (`input: render` — most Kubernetes and pipeline policy) cannot run without a ticket and are listed under `result.skipped`. `--pack DIR` or `--pack <git-url>@<ref>` checks against your own pack instead of the built-in reference one; `--require-instructions` fails when the repository has no `AGENTS.md`/`CLAUDE.md`.
+
 ## The contract
 
 - Every command prints exactly one JSON envelope on stdout (`{ok, command, result, needs_input, error, warnings}`); progress goes to stderr. `--human` renders it for people; `--json` is the default.
