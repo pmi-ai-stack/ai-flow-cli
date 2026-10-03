@@ -1,6 +1,7 @@
 package kubectl
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,11 +61,11 @@ func detectWalk(root, dir string, changed []string, targets *[]ops.Target) error
 		}
 	}
 
-	resources, err := parseManifestsFromEntries(dir, entries)
+	found, err := dirHasManifest(dir, entries)
 	if err != nil {
 		return err
 	}
-	if len(resources) > 0 {
+	if found {
 		rel, relErr := filepath.Rel(root, dir)
 		if relErr != nil {
 			return relErr
@@ -81,6 +82,42 @@ func detectWalk(root, dir string, changed []string, targets *[]ops.Target) error
 		}
 	}
 	return nil
+}
+
+// apiVersionKey is the byte literal dirHasManifest scans for before
+// paying for a YAML decode. A document without these bytes can never
+// decode to a non-empty apiVersion string, so skipping it changes no
+// result. Deliberately "apiVersion", not "apiVersion:" — a quoted key
+// ("apiVersion": …, JSON-style YAML) must still be a candidate.
+var apiVersionKey = []byte("apiVersion")
+
+// dirHasManifest reports whether any YAML file directly in dir holds at
+// least one manifest document — all Detect needs, where Drift/DryRun/
+// Render need parseManifests's full, sorted resource list. Two
+// shortcuts over parseManifestsFromEntries, both result-preserving:
+// a file whose bytes never contain apiVersionKey (scanned in full, not
+// a prefix, so a manifest after a long licence header or in a later
+// "---" document is still found) is never YAML-decoded, and the scan
+// stops at the first manifest. YAML decoding of every config file in a
+// large repository was nearly all of DetectAll's cost.
+func dirHasManifest(dir string, entries []os.DirEntry) (bool, error) {
+	for _, e := range entries {
+		if e.IsDir() || !isManifestFile(e.Name()) {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from os.ReadDir over a directory this package itself resolved
+		if err != nil {
+			return false, fmt.Errorf("kubectl: read %s: %w", path, err)
+		}
+		if !bytes.Contains(data, apiVersionKey) {
+			continue
+		}
+		if len(decodeManifests(bytes.NewReader(data), e.Name())) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // filesUnder returns every entry of changed whose own directory is
@@ -103,4 +140,11 @@ func filesUnder(path string, changed []string) []string {
 		}
 	}
 	return files
+}
+
+// SkipTreeDir implements ops.TreeSkipper with the same skipDirName rule
+// Render's copyTree applies, so render.TreeHash never hashes content
+// the rendering cannot include.
+func (a *Addon) SkipTreeDir(name string) bool {
+	return skipDirName(name)
 }

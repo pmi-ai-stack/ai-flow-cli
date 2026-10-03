@@ -35,7 +35,8 @@ type Result struct {
 }
 
 // Render materializes opts.Target at opts.Ref through opts.Addon,
-// memoized by content-addressed tree hash (TreeHash of opts.SourceDir):
+// memoized by content-addressed tree hash (TreeHash of opts.SourceDir,
+// with opts.Addon's own skip predicate):
 // a cache hit — for this ticket or any other — never calls
 // opts.Addon.Render a second time for the same content. The real
 // rendering lives at CachePath(opts.Home, hash), mode 0700; this call
@@ -43,7 +44,7 @@ type Result struct {
 // <KEY>/render/<repo>/<addon>/<path>/<hash>/, redacted via
 // redact.RedactMarked over the rendering's own sensitivity markings.
 func Render(ctx context.Context, opts Options) (*Result, error) {
-	hash, err := TreeHash(opts.SourceDir)
+	hash, err := TreeHash(opts.SourceDir, SkipFor(opts.Addon))
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host"
@@ -28,8 +29,13 @@ type Client struct {
 	baseURL    string
 	authHeader string
 	httpClient *http.Client
+	timeout    time.Duration
 	verbose    io.Writer
 }
+
+// DefaultTimeout bounds every request until WithTimeout says otherwise —
+// jira.DefaultTimeout's exact convention.
+const DefaultTimeout = 30 * time.Second
 
 // New builds a Client. baseURL is defaultBaseURL for github.com; a
 // caller pointing at GitHub Enterprise passes its own API base.
@@ -39,9 +45,22 @@ func New(token string, transport http.RoundTripper, verbose io.Writer) *Client {
 	return &Client{
 		baseURL:    defaultBaseURL,
 		authHeader: "Bearer " + token,
-		httpClient: &http.Client{Transport: transport},
+		httpClient: &http.Client{Transport: transport, Timeout: DefaultTimeout},
+		timeout:    DefaultTimeout,
 		verbose:    verbose,
 	}
+}
+
+// WithTimeout sets the per-request deadline (non-positive keeps the
+// current one) and returns c — jira.Client.WithTimeout's exact
+// convention, applied as both http.Client.Timeout and a per-request
+// context deadline.
+func (c *Client) WithTimeout(d time.Duration) *Client {
+	if d > 0 {
+		c.timeout = d
+		c.httpClient.Timeout = d
+	}
+	return c
 }
 
 // do sends one request: method against c.baseURL+path, body marshaled
@@ -57,6 +76,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		reqBody = bytes.NewReader(data)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
 	if err != nil {
 		return fmt.Errorf("github: build request: %w", err)

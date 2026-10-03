@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
@@ -108,6 +109,44 @@ func TestLoadPreservesExplicitGuardIdleHours(t *testing.T) {
 	}
 	if got.Defaults.GuardIdleHours != 24 {
 		t.Errorf("GuardIdleHours = %d, want explicit 24 preserved", got.Defaults.GuardIdleHours)
+	}
+}
+
+func TestLoadAppliesHTTPTimeoutDefault(t *testing.T) {
+	for _, configured := range []int{0, -5} {
+		dir := t.TempDir()
+		cfg := validConfig()
+		cfg.Defaults.HTTPTimeoutSeconds = configured
+		writeConfigFile(t, dir, cfg)
+
+		got, err := Load(dir, "")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.Defaults.HTTPTimeoutSeconds != DefaultHTTPTimeoutSeconds {
+			t.Errorf("configured %d: HTTPTimeoutSeconds = %d, want backfilled default %d", configured, got.Defaults.HTTPTimeoutSeconds, DefaultHTTPTimeoutSeconds)
+		}
+	}
+}
+
+func TestLoadPreservesExplicitHTTPTimeout(t *testing.T) {
+	dir := t.TempDir()
+	cfg := validConfig()
+	cfg.Defaults.HTTPTimeoutSeconds = 5
+	writeConfigFile(t, dir, cfg)
+
+	got, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.Defaults.HTTPTimeout() != 5*time.Second {
+		t.Errorf("HTTPTimeout() = %v, want 5s", got.Defaults.HTTPTimeout())
+	}
+}
+
+func TestHTTPTimeoutFallsBackWithoutLoad(t *testing.T) {
+	if got := (Defaults{}).HTTPTimeout(); got != DefaultHTTPTimeoutSeconds*time.Second {
+		t.Errorf("Defaults{}.HTTPTimeout() = %v, want %ds", got, DefaultHTTPTimeoutSeconds)
 	}
 }
 

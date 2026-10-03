@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestDoctor_ConfiguredSourceReportsSyncStateAndValidity(t *testing.T) {
 		t.Fatalf("before sync: Packs = %+v, want one unsynced row", before.Packs)
 	}
 
-	if _, err := standards.Sync(standards.SyncOptions{
+	if _, err := standards.Sync(context.Background(), standards.SyncOptions{
 		Home:    home,
 		Sources: []standards.Source{{ID: "local-pack", Repo: packDir, Ref: "local", Layer: "org"}},
 	}); err != nil {

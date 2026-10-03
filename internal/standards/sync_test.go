@@ -1,6 +1,7 @@
 package standards
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +84,7 @@ func TestSyncByTag(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	synced, err := Sync(SyncOptions{
+	synced, err := Sync(context.Background(), SyncOptions{
 		Home:    home,
 		Sources: []Source{{ID: "fixture", Repo: remote.URL, Ref: remote.Tag, Layer: "org"}},
 	})
@@ -102,7 +103,7 @@ func TestSyncByCommit(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	synced, err := Sync(SyncOptions{
+	synced, err := Sync(context.Background(), SyncOptions{
 		Home:    home,
 		Sources: []Source{{ID: "fixture", Repo: remote.URL, Ref: remote.TaggedHash, Layer: "org"}},
 	})
@@ -120,7 +121,7 @@ func TestSyncByBranch(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	synced, err := Sync(SyncOptions{
+	synced, err := Sync(context.Background(), SyncOptions{
 		Home:    home,
 		Sources: []Source{{ID: "fixture", Repo: remote.URL, Ref: remote.Branch, Layer: "org"}},
 	})
@@ -140,11 +141,11 @@ func TestSyncTagCommitAndLocalPathProduceIdenticalTrees(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	byTag, err := Sync(SyncOptions{Home: home, Sources: []Source{{ID: "a", Repo: remote.URL, Ref: remote.Tag}}})
+	byTag, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{{ID: "a", Repo: remote.URL, Ref: remote.Tag}}})
 	if err != nil {
 		t.Fatalf("Sync by tag: %v", err)
 	}
-	byCommit, err := Sync(SyncOptions{Home: home, Sources: []Source{{ID: "b", Repo: remote.URL, Ref: remote.TaggedHash}}})
+	byCommit, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{{ID: "b", Repo: remote.URL, Ref: remote.TaggedHash}}})
 	if err != nil {
 		t.Fatalf("Sync by commit: %v", err)
 	}
@@ -152,7 +153,7 @@ func TestSyncTagCommitAndLocalPathProduceIdenticalTrees(t *testing.T) {
 	localSrc := t.TempDir()
 	writeFile(t, filepath.Join(localSrc, "standards.json"), fixtureManifestJSON)
 	writeFile(t, filepath.Join(localSrc, "org", "guidance", "x.md"), "## X\n\n1. First.\n")
-	byLocal, err := Sync(SyncOptions{Home: home, Sources: []Source{{ID: "c", Repo: localSrc, Ref: "local"}}})
+	byLocal, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{{ID: "c", Repo: localSrc, Ref: "local"}}})
 	if err != nil {
 		t.Fatalf("Sync by local path: %v", err)
 	}
@@ -173,7 +174,7 @@ func TestSyncSkipsAlreadyCachedPinnedRef(t *testing.T) {
 	home := t.TempDir()
 	src := Source{ID: "fixture", Repo: remote.URL, Ref: remote.Tag}
 
-	first, err := Sync(SyncOptions{Home: home, Sources: []Source{src}})
+	first, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{src}})
 	if err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
@@ -181,7 +182,7 @@ func TestSyncSkipsAlreadyCachedPinnedRef(t *testing.T) {
 		t.Fatal("first sync reported Skipped, want a real fetch")
 	}
 
-	second, err := Sync(SyncOptions{Home: home, Sources: []Source{src}})
+	second, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{src}})
 	if err != nil {
 		t.Fatalf("second Sync: %v", err)
 	}
@@ -199,12 +200,12 @@ func TestSyncBranchReSyncBoundary(t *testing.T) {
 	now := base
 	clock := func() time.Time { return now }
 
-	if _, err := Sync(SyncOptions{Home: home, Sources: []Source{src}, Now: clock}); err != nil {
+	if _, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{src}, Now: clock}); err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
 
 	now = base.Add(23 * time.Hour)
-	within, err := Sync(SyncOptions{Home: home, Sources: []Source{src}, Now: clock})
+	within, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{src}, Now: clock})
 	if err != nil {
 		t.Fatalf("Sync within 24h: %v", err)
 	}
@@ -213,7 +214,7 @@ func TestSyncBranchReSyncBoundary(t *testing.T) {
 	}
 
 	now = base.Add(25 * time.Hour)
-	after, err := Sync(SyncOptions{Home: home, Sources: []Source{src}, Now: clock})
+	after, err := Sync(context.Background(), SyncOptions{Home: home, Sources: []Source{src}, Now: clock})
 	if err != nil {
 		t.Fatalf("Sync after 24h: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestSyncOnlyFilter(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	synced, err := Sync(SyncOptions{
+	synced, err := Sync(context.Background(), SyncOptions{
 		Home: home,
 		Sources: []Source{
 			{ID: "a", Repo: remote.URL, Ref: remote.Tag},
@@ -246,7 +247,7 @@ func TestSyncUnknownRefIsPackUnreachable(t *testing.T) {
 	remote := newFixtureRemote(t)
 	home := t.TempDir()
 
-	_, err := Sync(SyncOptions{
+	_, err := Sync(context.Background(), SyncOptions{
 		Home:    home,
 		Sources: []Source{{ID: "fixture", Repo: remote.URL, Ref: "no-such-ref"}},
 	})

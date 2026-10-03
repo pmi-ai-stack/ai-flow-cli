@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestCheckDryRunFreshnessFiresOnStaleHashThenClears(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash, err := render.TreeHash(sourceDir)
+	hash, err := render.TreeHash(sourceDir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,5 +113,78 @@ func writeDryRunResultsFixture(t *testing.T, home, key string, targets []opsDryR
 	ticketDir := filepath.Join(home, key)
 	if _, err := handoff.WriteArtifact(ticketDir, "dryrun-results.json", "dryrun-results", opsDryRunArtifact{Mode: "live", Targets: targets}); err != nil {
 		t.Fatalf("write dryrun-results.json: %v", err)
+	}
+}
+
+// TestTreeSkipperImplementedByCopyTreeAddonsOnly pins which addons hash
+// with a skip rule: exactly the three whose Render copies the source
+// tree through a skip predicate. The other three read their source in
+// place, so every file must stay part of their cache key.
+func TestTreeSkipperImplementedByCopyTreeAddonsOnly(t *testing.T) {
+	want := map[string]bool{"terraform": true, "kubectl": true, "helm": true, "kustomize": false, "github-actions": false, "jenkins": false}
+	reg := buildOpsRegistry(Flags{Home: t.TempDir()}, nil)
+	for name, skips := range want {
+		a, ok := reg.Lookup(name)
+		if !ok {
+			t.Fatalf("addon %q not registered", name)
+		}
+		if got := render.SkipFor(a) != nil; got != skips {
+			t.Errorf("SkipFor(%s) != nil = %v, want %v", name, got, skips)
+		}
+	}
+	if skip := treeSkipFor(Flags{}, "terraform"); skip == nil || !skip(".terraform") || skip("modules") {
+		t.Error("terraform's predicate must skip .terraform and keep modules")
+	}
+	if treeSkipFor(Flags{}, "no-such-addon") != nil {
+		t.Error("an unregistered addon must hash everything (nil predicate)")
+	}
+}
+
+// TestCheckDryRunFreshnessIgnoresTerraformInitCache is the freshness
+// gate's half of PERF-4: dry-run recorded the hash render.Render keyed
+// on (terraform's own skip rule), then a local `terraform init` wrote
+// .terraform/ into the checkout. The gate must hash with the same rule
+// and still pass — and still refuse after a real .tf edit.
+func TestCheckDryRunFreshnessIgnoresTerraformInitCache(t *testing.T) {
+	home := t.TempDir()
+	key := "PROJ-1"
+	repoArt, tgt := dryRunFixtureTicket(t)
+	tgt.Addon = "terraform"
+	repoArt.Repositories[0].InstructionsFile = "AGENTS.md"
+	writeRepoFixture(t, filepath.Join(home, key), "Team Beta", repoArt.Repositories)
+	changed := true
+	tgt.Changed = &changed
+	tgt.Scope = ops.ScopeDiff
+	writeOpsTargetsFixture(t, home, key, []ops.Target{tgt})
+
+	sourceDir, err := resolveTargetSourceDir(Flags{Home: home}, key, repoArt, tgt, ops.RefBranch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := render.TreeHash(sourceDir, treeSkipFor(Flags{Home: home}, "terraform"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeDryRunResultsFixture(t, home, key, []opsDryRunArtifactTarget{
+		{Hash: recorded, Target: ops.TargetKey(tgt), Validation: []ops.Finding{}},
+	})
+
+	providers := filepath.Join(sourceDir, ".terraform", "providers")
+	if err := os.MkdirAll(providers, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(providers, "terraform-provider-aws"), []byte("binary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkDryRunFreshness(Flags{Home: home}, key); err != nil {
+		t.Fatalf("err = %v, want nil — .terraform/ is not render input", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte("edited"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var envErr *envelope.Error
+	if err := checkDryRunFreshness(Flags{Home: home}, key); !errors.As(err, &envErr) || envErr.Code != "stage_not_allowed" {
+		t.Fatalf("err = %v, want stage_not_allowed after editing main.tf", err)
 	}
 }

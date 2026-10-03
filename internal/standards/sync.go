@@ -1,6 +1,7 @@
 package standards
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -106,7 +107,18 @@ type SyncOptions struct {
 	// Now stands in for time.Now in tests exercising the 24h branch
 	// re-sync boundary; nil means time.Now.
 	Now func() time.Time
+	// Timeout bounds each remote source's ref listing plus clone; zero
+	// means no per-source deadline beyond ctx's own. A source that runs
+	// out of time is pack_unreachable, like any other unreachable one.
+	Timeout time.Duration
 }
+
+// DefaultSyncTimeout is the per-source deadline for an explicit,
+// user-invoked `standards sync` — a full clone (a commit ref) may
+// legitimately outlast one HTTP request. hook session-start uses the
+// much shorter config.defaults.http_timeout_seconds instead: it runs
+// inside an agent turn and must fail open fast.
+const DefaultSyncTimeout = 5 * time.Minute
 
 // Sync fetches every matching source into
 // CacheDir(opts.Home, source.ID, source.Ref), skipping a pinned
@@ -114,7 +126,7 @@ type SyncOptions struct {
 // It stops at the first source it cannot sync — a partial []SyncedSource
 // is still returned alongside the error so the caller can report what
 // did succeed.
-func Sync(opts SyncOptions) ([]SyncedSource, error) {
+func Sync(ctx context.Context, opts SyncOptions) ([]SyncedSource, error) {
 	now := clockOrDefault(opts.Now)
 
 	var results []SyncedSource
@@ -122,7 +134,7 @@ func Sync(opts SyncOptions) ([]SyncedSource, error) {
 		if opts.Only != "" && src.ID != opts.Only {
 			continue
 		}
-		res, err := syncOne(opts.Home, src, opts.GitHubToken, now)
+		res, err := syncOneWithin(ctx, opts.Timeout, opts.Home, src, opts.GitHubToken, now)
 		if err != nil {
 			return results, err
 		}
@@ -131,7 +143,18 @@ func Sync(opts SyncOptions) ([]SyncedSource, error) {
 	return results, nil
 }
 
-func syncOne(home string, src Source, token string, now func() time.Time) (SyncedSource, error) {
+// syncOneWithin is syncOne under opts.Timeout, one deadline per source
+// so a slow first source cannot starve the rest of their own budget.
+func syncOneWithin(ctx context.Context, timeout time.Duration, home string, src Source, token string, now func() time.Time) (SyncedSource, error) {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return syncOne(ctx, home, src, token, now)
+}
+
+func syncOne(ctx context.Context, home string, src Source, token string, now func() time.Time) (SyncedSource, error) {
 	cacheDir := CacheDir(home, src.ID, src.Ref)
 	metaPath := SyncMetaPath(home, src.ID, src.Ref)
 
@@ -159,7 +182,7 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 	}
 
 	auth := authFor(src.Repo, token)
-	kind, refName, err := classifyRef(src.Repo, src.Ref, auth)
+	kind, refName, err := classifyRef(ctx, src.Repo, src.Ref, auth)
 	if err != nil {
 		return SyncedSource{}, packUnreachable(src.ID, err)
 	}
@@ -168,8 +191,13 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 		return SyncedSource{}, fmt.Errorf("standards: remove stale cache %s: %w", cacheDir, err)
 	}
 
-	commit, err := cloneAt(cacheDir, src.Repo, src.Ref, kind, refName, auth)
+	commit, err := cloneAt(ctx, cacheDir, src.Repo, src.Ref, kind, refName, auth)
 	if err != nil {
+		// cloneAt writes into cacheDir in place; a clone that failed or
+		// ran out of time must not leave a partial tree that a later
+		// caller (session-start's "absent" check above all) mistakes
+		// for a synced pack.
+		_ = os.RemoveAll(cacheDir)
 		return SyncedSource{}, packUnreachable(src.ID, err)
 	}
 	// Strip .git so the cached tree is pack content only — the same
@@ -190,9 +218,9 @@ func syncOne(home string, src Source, token string, now func() time.Time) (Synce
 // else shaped like a commit hash is assumed to be one — a full clone
 // is the only way to actually confirm a commit exists, so classifyRef
 // defers that confirmation to cloneAt itself.
-func classifyRef(repoURL, ref string, auth transport.AuthMethod) (RefKind, plumbing.ReferenceName, error) {
+func classifyRef(ctx context.Context, repoURL, ref string, auth transport.AuthMethod) (RefKind, plumbing.ReferenceName, error) {
 	remote := git.NewRemote(memory.NewStorage(), &gitconfig.RemoteConfig{Name: "origin", URLs: []string{repoURL}})
-	refs, err := remote.List(&git.ListOptions{Auth: auth})
+	refs, err := remote.ListContext(ctx, &git.ListOptions{Auth: auth})
 	if err != nil {
 		return "", "", fmt.Errorf("list remote refs: %w", err)
 	}
@@ -221,10 +249,10 @@ func classifyRef(repoURL, ref string, auth transport.AuthMethod) (RefKind, plumb
 // branch in full and checks the commit out, since a shallow clone
 // cannot target an arbitrary historical commit without server-side
 // support this package does not assume.
-func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceName, auth transport.AuthMethod) (string, error) {
+func cloneAt(ctx context.Context, dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceName, auth transport.AuthMethod) (string, error) {
 	switch kind {
 	case RefKindTag, RefKindBranch:
-		repo, err := git.PlainClone(dir, false, &git.CloneOptions{
+		repo, err := git.PlainCloneContext(ctx, dir, false, &git.CloneOptions{
 			URL:           repoURL,
 			Auth:          auth,
 			ReferenceName: refName,
@@ -237,7 +265,7 @@ func cloneAt(dir, repoURL, ref string, kind RefKind, refName plumbing.ReferenceN
 		}
 		return headCommit(repo)
 	case RefKindCommit:
-		repo, err := git.PlainClone(dir, false, &git.CloneOptions{URL: repoURL, Auth: auth})
+		repo, err := git.PlainCloneContext(ctx, dir, false, &git.CloneOptions{URL: repoURL, Auth: auth})
 		if err != nil {
 			return "", err
 		}

@@ -115,7 +115,7 @@ func buildTracker(cmd *cobra.Command, f Flags) (*jira.Client, *config.Config, er
 		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
 	}
 
-	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose), cfg, nil
+	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose).WithTimeout(cfg.Defaults.HTTPTimeout()), cfg, nil
 }
 
 // redactErr passes a *envelope.Error's Message/Details through

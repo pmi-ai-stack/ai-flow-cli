@@ -244,7 +244,7 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 				warnings = append(warnings, "tracker: configured status \""+s+"\" was not found in the tracker's workflow")
 			}
 
-			result.Host = doctorProbeHost(cmd.Context())
+			result.Host = doctorProbeHost(cmd.Context(), cfg)
 			if result.Host.CredsSet && result.Host.Reachable != nil && !*result.Host.Reachable {
 				warnings = append(warnings, "host: "+result.Host.Error)
 			}
@@ -384,7 +384,8 @@ func redactMessage(err error) string {
 }
 
 // doctorProbeTracker reports Jira credential presence and, when set,
-// attempts Reachable and — only on success — Statuses, comparing the
+// attempts Reachable and — only on success — Statuses, each request
+// bounded by config.defaults.http_timeout_seconds, comparing the
 // result against cfg.Tracker.Statuses (the phase-4 "Decides" line).
 // cfg nil (config did not load) skips the statuses comparison, since
 // there is nothing configured to compare against.
@@ -396,7 +397,10 @@ func doctorProbeTracker(ctx context.Context, cfg *config.Config) doctorTracker {
 		return dt
 	}
 
-	var trk tracker.Tracker = jira.New(cfg.Tracker, email, token, newJiraTransport(), nil)
+	timeout := cfg.Defaults.HTTPTimeout()
+	ctx, cancel := context.WithTimeout(ctx, 2*timeout) // one deadline over both calls below, each also bounded by the client
+	defer cancel()
+	var trk tracker.Tracker = jira.New(cfg.Tracker, email, token, newJiraTransport(), nil).WithTimeout(timeout)
 	err := trk.Reachable(ctx)
 	ok := err == nil
 	dt.Reachable = &ok
@@ -440,15 +444,23 @@ func missingStatusNames(configured config.TrackerStatuses, real []string) []stri
 
 // doctorProbeHost reports GitHub credential presence (githubToken's own
 // fallback precedence — the same one buildHost uses) and, when set,
-// attempts Reachable.
-func doctorProbeHost(ctx context.Context) doctorHost {
+// attempts Reachable under config.defaults.http_timeout_seconds (the
+// documented default when cfg is nil — config did not load), so an
+// unreachable host is a reachable:false finding, never a hung doctor.
+func doctorProbeHost(ctx context.Context, cfg *config.Config) doctorHost {
 	token := githubToken()
 	dh := doctorHost{CredsSet: token != ""}
 	if !dh.CredsSet {
 		return dh
 	}
 
-	var h host.Host = github.New(token, newGitHubTransport(), nil)
+	timeout := config.Defaults{}.HTTPTimeout()
+	if cfg != nil {
+		timeout = cfg.Defaults.HTTPTimeout()
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var h host.Host = github.New(token, newGitHubTransport(), nil).WithTimeout(timeout)
 	err := h.Reachable(ctx)
 	ok := err == nil
 	dh.Reachable = &ok

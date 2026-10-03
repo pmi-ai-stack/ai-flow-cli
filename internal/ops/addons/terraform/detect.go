@@ -116,3 +116,10 @@ func filesUnder(path string, changed []string) []string {
 	}
 	return files
 }
+
+// SkipTreeDir implements ops.TreeSkipper with the same skipDir rule
+// Render's copyTree applies, so render.TreeHash never hashes content
+// the rendering cannot include.
+func (a *Addon) SkipTreeDir(name string) bool {
+	return skipDir(name)
+}

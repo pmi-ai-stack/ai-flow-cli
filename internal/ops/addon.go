@@ -17,6 +17,21 @@ const (
 	RefBase   Ref = "base"
 )
 
+// TreeSkipper is an optional interface an Addon implements when its
+// own Render copies a target's source tree with a directory-skip rule
+// (terraform's .terraform/, any dot-directory). internal/ops/render's
+// TreeHash applies the same rule, so content the rendering can never
+// include — a local `terraform init`'s provider binaries, a root-level
+// target's .git/ — neither costs a read nor moves the cache key.
+// Optional, so the Addon interface itself stays frozen (phase 18); an
+// addon that reads its source in place (kustomize, github-actions,
+// jenkins) does not implement it and every file stays hashed.
+type TreeSkipper interface {
+	// SkipTreeDir reports whether a directory with this base name, below
+	// the target root, is never part of a rendering's input.
+	SkipTreeDir(name string) bool
+}
+
 // Addon is the spec's own tool-independent interface (§ Addon
 // interface and capability matrix). No implementation exists before
 // phase 21 (terraform); this phase only declares the shape so

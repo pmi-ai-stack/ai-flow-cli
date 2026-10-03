@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff/handofftest"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -471,5 +473,28 @@ func TestDoctor_RenderCacheReportsStaleEntries(t *testing.T) {
 	}
 	if got.RenderCache.StaleEntries != 1 {
 		t.Errorf("StaleEntries = %d, want 1", got.RenderCache.StaleEntries)
+	}
+}
+
+// TestDoctorProbeHostIsBoundedByHTTPTimeout drives the probe against a
+// transport that never answers (a half-open server's shape): the probe
+// must come back as reachable:false within the configured deadline
+// rather than hang doctor, the only confirmed unbounded hang before
+// http_timeout_seconds existed.
+func TestDoctorProbeHostIsBoundedByHTTPTimeout(t *testing.T) {
+	t.Setenv("AI_FLOW_GITHUB_TOKEN", "tok")
+	useScriptedGitHub(t, func(r *http.Request) (*http.Response, error) {
+		<-r.Context().Done()
+		return nil, r.Context().Err()
+	})
+	cfg := &config.Config{Defaults: config.Defaults{HTTPTimeoutSeconds: 1}}
+
+	start := time.Now()
+	got := doctorProbeHost(context.Background(), cfg)
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("doctorProbeHost took %v, want it bounded by the 1s http_timeout_seconds", elapsed)
+	}
+	if got.Reachable == nil || *got.Reachable || got.Error == "" {
+		t.Errorf("Host = %+v, want reachable:false with an error", got)
 	}
 }

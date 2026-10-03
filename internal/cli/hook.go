@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -169,7 +170,7 @@ func newHookSessionStartCmd(bi BuildInfo, cio cmdIO) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f := FlagsFrom(cmd.Context())
-			*cio.exitCode = runHookSessionStart(cmd.InOrStdin(), f, bi, pluginRoot)
+			*cio.exitCode = runHookSessionStart(cmd.Context(), cmd.InOrStdin(), f, bi, pluginRoot)
 			return nil
 		},
 	}
@@ -182,7 +183,7 @@ func newHookSessionStartCmd(bi BuildInfo, cio cmdIO) *cobra.Command {
 // prints nothing to stdout on success — no host-specific SessionStart
 // response shape is documented for either host (unlike PreToolUse's),
 // so silence is the safe default.
-func runHookSessionStart(stdin io.Reader, f Flags, bi BuildInfo, pluginRoot string) int {
+func runHookSessionStart(ctx context.Context, stdin io.Reader, f Flags, bi BuildInfo, pluginRoot string) int {
 	claudeCode, cursorAdapter := adapters()
 	adapter, ok := agenthost.FromEnv(os.Environ(), claudeCode, cursorAdapter)
 	if !ok {
@@ -209,7 +210,7 @@ func runHookSessionStart(stdin io.Reader, f Flags, bi BuildInfo, pluginRoot stri
 		}
 	}
 
-	syncAbsentPacks(f.Home, f.Config)
+	syncAbsentPacks(ctx, f.Home, f.Config)
 	pruneStaleRenderCacheIfDue(f.Home)
 
 	cliVersion := bi.Version
@@ -239,7 +240,7 @@ func runHookSessionStart(stdin io.Reader, f Flags, bi BuildInfo, pluginRoot stri
 // `standards resolve`/`stage start` that actually needs the pack
 // reports `pack_unreachable` for real, with a proper exit code, at the
 // point it matters.
-func syncAbsentPacks(home, cfgPath string) {
+func syncAbsentPacks(ctx context.Context, home, cfgPath string) {
 	cfg, err := config.Load(home, cfgPath)
 	if err != nil || cfg == nil {
 		return
@@ -255,10 +256,14 @@ func syncAbsentPacks(home, cfgPath string) {
 		return
 	}
 
-	_, _ = standards.Sync(standards.SyncOptions{
+	// Bounded by http_timeout_seconds per source: a slow or half-open
+	// pack host becomes a skip here (the error is swallowed, as above),
+	// never a session start that hangs the agent's first turn.
+	_, _ = standards.Sync(ctx, standards.SyncOptions{
 		Home:        home,
 		Sources:     absent,
 		GitHubToken: standards.GitHubTokenFromEnv(),
+		Timeout:     cfg.Defaults.HTTPTimeout(),
 	})
 }
 

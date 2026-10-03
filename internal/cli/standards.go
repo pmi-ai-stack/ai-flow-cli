@@ -98,11 +98,12 @@ func newStandardsSyncCmd(cio cmdIO) *cobra.Command {
 				return Outcome{Result: result}, nil
 			}
 
-			synced, err := standards.Sync(standards.SyncOptions{
+			synced, err := standards.Sync(cmd.Context(), standards.SyncOptions{
 				Home:        f.Home,
 				Sources:     sources,
 				Only:        source,
 				GitHubToken: standards.GitHubTokenFromEnv(),
+				Timeout:     standards.DefaultSyncTimeout,
 			})
 			if err != nil {
 				return Outcome{}, err

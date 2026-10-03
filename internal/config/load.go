@@ -18,6 +18,12 @@ import (
 // once it does load, instead of restating the literal.
 const DefaultGuardIdleHours = 8
 
+// DefaultHTTPTimeoutSeconds is applied when
+// config.defaults.http_timeout_seconds is absent or non-positive, and
+// by callers that run without a loaded config (doctor on a broken
+// config.json) through Defaults.HTTPTimeout.
+const DefaultHTTPTimeoutSeconds = 30
+
 // ResolvePath returns the config.json path Load and Init use: configFlag
 // verbatim when non-empty (the --config flag), else
 // <homeDir>/config.json.
@@ -93,5 +99,8 @@ func decode(data []byte) (*Config, error) {
 func applyDefaults(cfg *Config) {
 	if cfg.Defaults.GuardIdleHours == 0 {
 		cfg.Defaults.GuardIdleHours = DefaultGuardIdleHours
+	}
+	if cfg.Defaults.HTTPTimeoutSeconds <= 0 {
+		cfg.Defaults.HTTPTimeoutSeconds = DefaultHTTPTimeoutSeconds
 	}
 }

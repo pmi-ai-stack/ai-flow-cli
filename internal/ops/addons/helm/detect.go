@@ -62,3 +62,10 @@ func hasChartFile(dir string) bool {
 	info, err := os.Stat(filepath.Join(dir, chartFileName))
 	return err == nil && !info.IsDir()
 }
+
+// SkipTreeDir implements ops.TreeSkipper with the same skipDirName rule
+// Render's copyTree applies, so render.TreeHash never hashes content
+// the rendering cannot include.
+func (a *Addon) SkipTreeDir(name string) bool {
+	return skipDirName(name)
+}

@@ -111,3 +111,24 @@ func readFixture(t *testing.T, artifact, name string) []byte {
 	}
 	return data
 }
+
+// TestEveryEmbeddedSchemaCompiles forces every artifact's lazy compile,
+// keeping the property the former eager, package-load compile gave for
+// free: a broken embedded schema fails every test run, not the first
+// command that happens to validate that one artifact.
+func TestEveryEmbeddedSchemaCompiles(t *testing.T) {
+	if len(compiled) != len(Artifacts()) {
+		t.Fatalf("compiled has %d entries, want one per artifact (%d)", len(compiled), len(Artifacts()))
+	}
+	for _, artifact := range Artifacts() {
+		t.Run(artifact, func(t *testing.T) {
+			get, ok := compiled[artifact]
+			if !ok {
+				t.Fatalf("no compiled entry for %q", artifact)
+			}
+			if get() == nil {
+				t.Fatalf("compiled[%q]() = nil", artifact)
+			}
+		})
+	}
+}

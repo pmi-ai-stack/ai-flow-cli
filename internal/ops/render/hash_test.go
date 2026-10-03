@@ -28,11 +28,11 @@ func TestTreeHashIdenticalContentSameHashRegardlessOfWalkOrder(t *testing.T) {
 		}
 	}
 
-	ha, err := render.TreeHash(a)
+	ha, err := render.TreeHash(a, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hb, err := render.TreeHash(b)
+	hb, err := render.TreeHash(b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestTreeHashChangesWhenContentChanges(t *testing.T) {
 	if err := os.WriteFile(path, []byte("one"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h1, err := render.TreeHash(dir)
+	h1, err := render.TreeHash(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +55,57 @@ func TestTreeHashChangesWhenContentChanges(t *testing.T) {
 	if err := os.WriteFile(path, []byte("two"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h2, err := render.TreeHash(dir)
+	h2, err := render.TreeHash(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if h1 == h2 {
 		t.Errorf("TreeHash did not change after content changed: both %q", h1)
+	}
+}
+
+// TestTreeHashSkipDirExcludesSubtreeButNeverRoot pins the skip
+// predicate's contract: nothing beneath a skipped directory moves the
+// hash, content outside it still does, and root itself is never
+// skipped even when its own name matches (a .github/workflows target).
+func TestTreeHashSkipDirExcludesSubtreeButNeverRoot(t *testing.T) {
+	skipDot := func(name string) bool { return name != "" && name[0] == '.' }
+	root := filepath.Join(t.TempDir(), ".root-is-a-dot-dir")
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("main.tf", "resource {}")
+	clean, err := render.TreeHash(root, skipDot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	write(".terraform/providers/huge-binary", "provider bytes")
+	write("modules/.cache/x", "cache")
+	withCache, err := render.TreeHash(root, skipDot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withCache != clean {
+		t.Errorf("hash moved after adding only skipped directories: %q → %q", clean, withCache)
+	}
+	if unskipped, err := render.TreeHash(root, nil); err != nil || unskipped == clean {
+		t.Errorf("TreeHash(root, nil) = %q, %v; want a different hash that includes the dot-directories", unskipped, err)
+	}
+
+	write("main.tf", "resource { changed = true }")
+	edited, err := render.TreeHash(root, skipDot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited == clean {
+		t.Error("hash did not move after editing a non-skipped file")
 	}
 }

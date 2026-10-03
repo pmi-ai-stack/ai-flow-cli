@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -65,7 +66,19 @@ func buildHost(cmd *cobra.Command, f Flags) (host.Host, error) {
 	if f.Verbose {
 		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
 	}
-	return github.New(token, newGitHubTransport(), verbose), nil
+	return github.New(token, newGitHubTransport(), verbose).WithTimeout(hostHTTPTimeout(f)), nil
+}
+
+// hostHTTPTimeout is config.defaults.http_timeout_seconds when config
+// loads, else the documented default. buildHost has never required
+// config.json and does not start to here: a bounded request with the
+// default deadline beats refusing a PR over an unrelated config error,
+// which the command reports elsewhere if it matters.
+func hostHTTPTimeout(f Flags) time.Duration {
+	if cfg, err := config.Load(f.Home, f.Config); err == nil {
+		return cfg.Defaults.HTTPTimeout()
+	}
+	return config.Defaults{}.HTTPTimeout()
 }
 
 // toRenderRepositories converts repo.json's own repository shape to

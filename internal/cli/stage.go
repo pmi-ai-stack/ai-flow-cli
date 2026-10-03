@@ -433,7 +433,7 @@ func checkDryRunFreshness(f Flags, key string) error {
 		if err != nil {
 			return err
 		}
-		hash, err := render.TreeHash(sourceDir)
+		hash, err := render.TreeHash(sourceDir, treeSkipFor(f, t.Addon))
 		if err != nil {
 			return err
 		}
@@ -445,6 +445,22 @@ func checkDryRunFreshness(f Flags, key string) error {
 		}
 	}
 	return nil
+}
+
+// treeSkipFor returns addon's render.TreeHash skip predicate, so this
+// freshness gate hashes exactly what render.Render keyed dry-run's own
+// recorded hash on — computed with any other rule, the two disagree and
+// the gate refuses forever. The registry is built with a nil config:
+// SkipTreeDir is a static rule reading no addon field (the same
+// property internal/skills/lint relies on for Capabilities()), and this
+// gate must not newly require config.json. An addon name the registry
+// does not know hashes everything, Render's own fallback.
+func treeSkipFor(f Flags, addon string) func(name string) bool {
+	a, ok := buildOpsRegistry(f, nil).Lookup(addon)
+	if !ok {
+		return nil
+	}
+	return render.SkipFor(a)
 }
 
 func newStageCompleteCmd(cio cmdIO) *cobra.Command {

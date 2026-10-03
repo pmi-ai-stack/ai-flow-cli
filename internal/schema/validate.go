@@ -23,7 +23,7 @@ func Validate(artifact string, data []byte) error {
 		}
 	}
 
-	s := compiled[artifact]
+	s := compiled[artifact]()
 	if err := s.Validate(v); err != nil {
 		return newValidationError(artifact, err)
 	}

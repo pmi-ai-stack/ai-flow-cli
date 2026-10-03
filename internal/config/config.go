@@ -91,6 +91,25 @@ type Defaults struct {
 	// meaningful value for this field, so treating it as "unset" costs
 	// nothing real.
 	GuardIdleHours int `json:"guard_idle_hours"`
+	// HTTPTimeoutSeconds bounds every tracker/host HTTP request and each
+	// pack clone session-start makes; absent or non-positive means
+	// DefaultHTTPTimeoutSeconds (see Load's applyDefaults). Without a
+	// bound, a half-open connection hangs a command — inside an agent
+	// turn — with no envelope and no exit code. Deliberately absent from
+	// the embedded template.json: config.Load rejects unknown fields, so
+	// a config.json written by `config init` (or session-start's first
+	// run) that named it would be unreadable by any older CLI a plugin
+	// still pins. Set it by hand to override the default.
+	HTTPTimeoutSeconds int `json:"http_timeout_seconds"`
+}
+
+// HTTPTimeout is HTTPTimeoutSeconds as a time.Duration, falling back to
+// DefaultHTTPTimeoutSeconds for a Defaults that did not go through Load.
+func (d Defaults) HTTPTimeout() time.Duration {
+	if d.HTTPTimeoutSeconds <= 0 {
+		return DefaultHTTPTimeoutSeconds * time.Second
+	}
+	return time.Duration(d.HTTPTimeoutSeconds) * time.Second
 }
 
 // MutationTimeout is MutationTimeoutMinutes as a time.Duration — call

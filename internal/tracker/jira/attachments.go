@@ -32,6 +32,8 @@ func (c *Client) DownloadAttachments(ctx context.Context, issue *tracker.Issue, 
 // already absolute — bypassing do's JSON decode step while reusing the
 // same auth header and status-code mapping.
 func (c *Client) getBytes(ctx context.Context, rawURL string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("jira: build attachment request: %w", err)

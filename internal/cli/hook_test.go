@@ -240,7 +240,7 @@ func TestSyncAbsentPacksSyncsMissingLocalSource(t *testing.T) {
 
 	writeConfigWithStandardsSources(t, home, []config.StandardsSource{{ID: "acme", Repo: localSrc, Ref: "local"}})
 
-	syncAbsentPacks(home, "")
+	syncAbsentPacks(context.Background(), home, "")
 
 	cacheDir := standards.CacheDir(home, "acme", "local")
 	if _, err := os.Stat(filepath.Join(cacheDir, "standards.json")); err != nil {
@@ -268,7 +268,7 @@ func TestSyncAbsentPacksLeavesAnAlreadySyncedSourceAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	syncAbsentPacks(home, "") // must not attempt to reach example.invalid
+	syncAbsentPacks(context.Background(), home, "") // must not attempt to reach example.invalid
 
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("already-synced source was touched: %v", err)

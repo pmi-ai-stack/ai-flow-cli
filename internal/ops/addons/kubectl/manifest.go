@@ -2,6 +2,7 @@ package kubectl
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -107,13 +108,20 @@ func parseManifestFile(path string) ([]resource, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	rel := filepath.Base(path)
-	dec := yaml.NewDecoder(f)
+	return decodeManifests(f, filepath.Base(path)), nil
+}
+
+// decodeManifests is parseManifestFile's decode loop over an
+// already-open reader, shared with detect.go's dirHasManifest, which
+// has the file's bytes in memory already. file is the resource.file
+// value every decoded resource carries.
+func decodeManifests(r io.Reader, file string) []resource {
+	dec := yaml.NewDecoder(r)
 	var out []resource
 	for {
 		var doc map[string]any
 		if err := dec.Decode(&doc); err != nil {
-			break // io.EOF (clean end) or a decode error (malformed content) — both stop here, see the doc comment above
+			break // io.EOF (clean end) or a decode error (malformed content) — both stop here, see parseManifestFile's doc comment
 		}
 		if doc == nil {
 			continue
@@ -128,7 +136,7 @@ func parseManifestFile(path string) ([]resource, error) {
 			namespace, _ = meta["namespace"].(string)
 			name, _ = meta["name"].(string)
 		}
-		out = append(out, resource{apiVersion: apiVersion, kind: kind, namespace: namespace, name: name, doc: doc, file: rel})
+		out = append(out, resource{apiVersion: apiVersion, kind: kind, namespace: namespace, name: name, doc: doc, file: file})
 	}
-	return out, nil
+	return out
 }

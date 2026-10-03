@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
@@ -23,8 +24,15 @@ type Client struct {
 	authHeader string
 	cfg        config.Tracker
 	httpClient *http.Client
+	timeout    time.Duration
 	verbose    io.Writer
 }
+
+// DefaultTimeout bounds every request a Client built by New makes until
+// WithTimeout says otherwise — the production caller passes
+// config.defaults.http_timeout_seconds; this default keeps any other
+// caller from ever being unbounded.
+const DefaultTimeout = 30 * time.Second
 
 // New builds a Client. transport is the http.RoundTripper the
 // production caller sets to http.DefaultTransport and a test sets to a
@@ -38,9 +46,23 @@ func New(cfg config.Tracker, email, token string, transport http.RoundTripper, v
 		baseURL:    cfg.BaseURL,
 		authHeader: "Basic " + creds,
 		cfg:        cfg,
-		httpClient: &http.Client{Transport: transport},
+		httpClient: &http.Client{Transport: transport, Timeout: DefaultTimeout},
+		timeout:    DefaultTimeout,
 		verbose:    verbose,
 	}
+}
+
+// WithTimeout sets the per-request deadline (non-positive keeps the
+// current one) and returns c. It is applied twice, deliberately:
+// http.Client.Timeout covers dial through body read on the default
+// transport, and a per-request context deadline covers a RoundTripper
+// that does not honour Client.Timeout.
+func (c *Client) WithTimeout(d time.Duration) *Client {
+	if d > 0 {
+		c.timeout = d
+		c.httpClient.Timeout = d
+	}
+	return c
 }
 
 // do sends one request: method against c.baseURL+path, body marshaled
@@ -57,6 +79,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		reqBody = bytes.NewReader(data)
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
 	if err != nil {
 		return fmt.Errorf("jira: build request: %w", err)
