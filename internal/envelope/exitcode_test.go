@@ -38,6 +38,7 @@ func TestExitCodeTable(t *testing.T) {
 		{"live_auth", ExitProviderFailure},
 		{"tool_failed", ExitProviderFailure},
 		{"pack_unreachable", ExitProviderFailure},
+		{"credentials_missing", ExitProviderFailure},
 
 		{"invalid_result", ExitSchemaInvalid},
 		{"unknown_report_format", ExitSchemaInvalid},

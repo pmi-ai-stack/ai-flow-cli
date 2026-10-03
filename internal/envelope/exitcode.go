@@ -45,6 +45,10 @@ var codeExitCode = map[string]ExitCode{
 	"live_auth":         ExitProviderFailure,
 	"tool_failed":       ExitProviderFailure,
 	"pack_unreachable":  ExitProviderFailure,
+	// credentials_missing (phase 35): a credential the caller declared
+	// required is not set — `skills evals --require-credentials` without
+	// ANTHROPIC_API_KEY. The message names the variable.
+	"credentials_missing": ExitProviderFailure,
 
 	"invalid_result":        ExitSchemaInvalid,
 	"unknown_report_format": ExitSchemaInvalid,

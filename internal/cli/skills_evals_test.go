@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -184,5 +185,44 @@ func TestSkillsEvals_FailingScenarioIsInvalidResult(t *testing.T) {
 	}
 	if env.Error == nil || env.Error.Code != "invalid_result" || len(env.Error.Details) == 0 {
 		t.Errorf("env.Error = %+v, want invalid_result with details", env.Error)
+	}
+}
+
+// TestSkillsEvals_RequireCredentialsFailsWithoutKey is Wave 4's 4.1: a
+// job that must have the key fails loudly (exit 5, naming the variable)
+// instead of passing green with nothing run.
+func TestSkillsEvals_RequireCredentialsFailsWithoutKey(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	dir := t.TempDir()
+	buildEvalsFixtureSkill(t, dir, "hello", "PROJ-1")
+
+	stdout, _, exitCode := runRoot(t, "skills", "evals", dir, "--home", t.TempDir(), "--require-credentials")
+	if exitCode != 5 {
+		t.Fatalf("exitCode = %d, want 5 (credentials_missing)\n%s", exitCode, stdout.String())
+	}
+	var env struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if env.Error.Code != "credentials_missing" || !strings.Contains(env.Error.Message, "ANTHROPIC_API_KEY") {
+		t.Errorf("error = %+v, want credentials_missing naming ANTHROPIC_API_KEY", env.Error)
+	}
+}
+
+// With the key present the flag changes nothing.
+func TestSkillsEvals_RequireCredentialsWithKeyRuns(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	dir := t.TempDir()
+	buildEvalsFixtureSkill(t, dir, "hello", "PROJ-1")
+	useSequencedEvalRunner(t, passingRunAndGrade()...)
+
+	stdout, _, exitCode := runRoot(t, "skills", "evals", dir, "--home", t.TempDir(), "--out", t.TempDir(), "--require-credentials")
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0\n%s", exitCode, stdout.String())
 	}
 }

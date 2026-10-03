@@ -39,6 +39,7 @@ type skillsEvalsResult struct {
 // failed — when ANTHROPIC_API_KEY is absent."
 func newSkillsEvalsCmd(cio cmdIO) *cobra.Command {
 	var skillFlag, hostFlag, modelFlag, outFlag string
+	var requireCredentials bool
 	cmd := &cobra.Command{
 		Use:   "evals <dir>",
 		Short: "Run every skill's evals/evals.json scenarios against a headless host",
@@ -47,6 +48,18 @@ func newSkillsEvalsCmd(cio cmdIO) *cobra.Command {
 			dir := args[0]
 
 			if os.Getenv("ANTHROPIC_API_KEY") == "" {
+				// A job that is supposed to have the key (a non-fork PR,
+				// a scheduled run) says so with --require-credentials, and
+				// then a missing key fails it instead of passing green
+				// with nothing run. Without the flag, the spec's "skipped,
+				// not failed" rule for fork PRs is unchanged.
+				if requireCredentials {
+					return Outcome{}, &envelope.Error{
+						Code:    "credentials_missing",
+						Message: "ANTHROPIC_API_KEY is not set, and --require-credentials says this run must have it",
+						Details: []string{"set the ANTHROPIC_API_KEY secret for this job, or drop --require-credentials where skipping is expected (fork pull requests)"},
+					}
+				}
 				return Outcome{Result: skillsEvalsResult{
 					Dir: dir, Skipped: true, SkipReason: "ANTHROPIC_API_KEY is not set",
 					Summary: evals.Summary{Skills: []evals.SkillResult{}},
@@ -123,6 +136,7 @@ func newSkillsEvalsCmd(cio cmdIO) *cobra.Command {
 	cmd.Flags().StringVar(&skillFlag, "skill", "", "run only this skill's scenarios (default: every skill under dir/skills/)")
 	cmd.Flags().StringVar(&hostFlag, "host", defaultEvalHost, "headless host to run against")
 	cmd.Flags().StringVar(&modelFlag, "model", defaultEvalModel, "model to run and grade with")
+	cmd.Flags().BoolVar(&requireCredentials, "require-credentials", false, "fail with credentials_missing instead of skipping when ANTHROPIC_API_KEY is absent")
 	cmd.Flags().StringVar(&outFlag, "out", "", "directory to write results.json into (default: a fresh temporary directory)")
 	return cmd
 }

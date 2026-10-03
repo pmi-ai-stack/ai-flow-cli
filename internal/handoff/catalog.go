@@ -89,7 +89,7 @@ var catalog = []CommandSpec{
 	{Name: "skills install", TicketScoped: false, Flags: []string{"from", "into"}},
 
 	// Phase 11.
-	{Name: "skills evals", TicketScoped: false, Positional: []string{"dir"}, Flags: []string{"skill", "host", "model", "out"}},
+	{Name: "skills evals", TicketScoped: false, Positional: []string{"dir"}, Flags: []string{"skill", "host", "model", "out", "require-credentials"}},
 
 	// Phase 12.
 	{Name: "standards validate", TicketScoped: false, Positional: []string{"dir"}},
