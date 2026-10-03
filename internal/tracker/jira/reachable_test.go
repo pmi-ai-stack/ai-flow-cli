@@ -55,6 +55,7 @@ func TestStatuses_RateLimited(t *testing.T) {
 		on(http.MethodGet, "/rest/api/2/status", http.StatusTooManyRequests, "error-429.txt")
 
 	c := New(testTrackerConfig(0), "a@b.com", "tok", ft, nil)
+	recordSleeps(c)
 	_, err := c.Statuses(context.Background())
 	var envErr *envelope.Error
 	if !errors.As(err, &envErr) || envErr.Code != "rate_limited" {

@@ -75,6 +75,11 @@ type StandardsSource struct {
 	ID   string `json:"id"`
 	Repo string `json:"repo"`
 	Ref  string `json:"ref"`
+	// Auth offers the GitHub token (AI_FLOW_GITHUB_TOKEN, …) to this
+	// source's https:// host even though it is not github.com — the way
+	// to sync a private pack from GitHub Enterprise. Optional and absent
+	// from the template (so new configs stay readable by older CLIs).
+	Auth bool `json:"auth,omitempty"`
 }
 
 // Defaults is config.defaults.

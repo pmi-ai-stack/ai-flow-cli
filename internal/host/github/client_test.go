@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
@@ -36,6 +37,7 @@ func TestStatusCodeMapping(t *testing.T) {
 		t.Run(c.wantCode, func(t *testing.T) {
 			ft := newFixtureTransport(t).on("GET", pullsPath("a", "b", "main", "feature"), c.status, c.file)
 			client := New("tok", ft, nil)
+			client.sleep = func(context.Context, time.Duration) error { return nil }
 
 			_, err := client.findOpenPR(context.Background(), "a", "b", "main", "feature")
 			var envErr *envelope.Error

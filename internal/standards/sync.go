@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -52,6 +53,9 @@ type Source struct {
 	Repo  string
 	Ref   string
 	Layer string // "org" or "team"
+	// Auth is config's standards source opt-in: offer the GitHub token
+	// to a non-github.com https host (see authFor).
+	Auth bool
 }
 
 // SourcesFromConfig collects every org and team pack source from cfg,
@@ -63,7 +67,7 @@ type Source struct {
 func SourcesFromConfig(cfg *config.Config) []Source {
 	out := make([]Source, 0, len(cfg.Standards.Sources))
 	for _, s := range cfg.Standards.Sources {
-		out = append(out, Source{ID: s.ID, Repo: s.Repo, Ref: s.Ref, Layer: "org"})
+		out = append(out, Source{ID: s.ID, Repo: s.Repo, Ref: s.Ref, Layer: "org", Auth: s.Auth})
 	}
 
 	teamNames := make([]string, 0, len(cfg.Routing.Teams))
@@ -73,7 +77,7 @@ func SourcesFromConfig(cfg *config.Config) []Source {
 	sort.Strings(teamNames)
 	for _, name := range teamNames {
 		for _, s := range cfg.Routing.Teams[name].Standards {
-			out = append(out, Source{ID: s.ID, Repo: s.Repo, Ref: s.Ref, Layer: "team"})
+			out = append(out, Source{ID: s.ID, Repo: s.Repo, Ref: s.Ref, Layer: "team", Auth: s.Auth})
 		}
 	}
 	return out
@@ -181,7 +185,7 @@ func syncOne(ctx context.Context, home string, src Source, token string, now fun
 		// early above, before any cache-meta read.
 	}
 
-	auth := authFor(src.Repo, token)
+	auth := authFor(src.Repo, token, src.Auth)
 	kind, refName, err := classifyRef(ctx, src.Repo, src.Ref, auth)
 	if err != nil {
 		return SyncedSource{}, packUnreachable(src.ID, err)
@@ -306,13 +310,22 @@ func packUnreachable(id string, err error) error {
 	return &envelope.Error{Code: "pack_unreachable", Message: fmt.Sprintf("%s: %v", id, err)}
 }
 
-// authFor returns http.BasicAuth for an https:// source when token is
-// set, else nil (go-git treats a nil AuthMethod as "no auth offered").
-// A non-https remote (ssh, a bare local path already handled by
-// isLocalPath) never receives this token — it has no https endpoint to
-// present it to.
-func authFor(repoURL, token string) transport.AuthMethod {
-	if token == "" || !strings.HasPrefix(repoURL, "https://") {
+// authFor returns http.BasicAuth carrying the GitHub token for an
+// https:// source on github.com, or on any other host whose source opts
+// in (optIn — config's `auth: true`, for GitHub Enterprise); otherwise
+// nil (go-git treats a nil AuthMethod as "no auth offered"). It used to
+// offer the token to every https:// source, handing a GitHub credential
+// to whatever host a pack's URL named (SEC-13). A non-https remote (ssh,
+// a local path already handled by isLocalPath) never receives it.
+func authFor(repoURL, token string, optIn bool) transport.AuthMethod {
+	if token == "" {
+		return nil
+	}
+	u, err := url.Parse(repoURL)
+	if err != nil || u.Scheme != "https" {
+		return nil
+	}
+	if !optIn && !strings.EqualFold(u.Hostname(), "github.com") {
 		return nil
 	}
 	return &githttp.BasicAuth{Username: "x-access-token", Password: token}

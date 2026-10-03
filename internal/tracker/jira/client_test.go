@@ -44,7 +44,11 @@ func statusMappingCase(t *testing.T, status int, file, wantCode string) {
 		on(http.MethodGet, "/rest/api/2/issue/TEST-1?fields="+issueFields, status, file)
 
 	c := New(testTrackerConfig(0), "a@b.com", "tok", ft, nil)
+	slept := recordSleeps(c)
 	_, err := c.Fetch(context.Background(), "TEST-1")
+	if wantCode == "rate_limited" && len(*slept) != 2 {
+		t.Errorf("rate limit: %d backoffs, want 2 (three attempts)", len(*slept))
+	}
 
 	var envErr *envelope.Error
 	if !errors.As(err, &envErr) {

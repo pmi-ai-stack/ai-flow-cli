@@ -12,6 +12,7 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/httpretry"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 )
 
@@ -26,7 +27,19 @@ type Client struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	verbose    io.Writer
+	// sleep waits between retry attempts; nil is a real sleep. Tests
+	// set it so retries cost no wall time.
+	sleep func(context.Context, time.Duration) error
 }
+
+// Size limits on what is read from Jira (SEC-12): a response or
+// attachment over the limit is an error, never a silent truncation;
+// an error body is cut to errorBodyBytes before it reaches a message.
+const (
+	maxResponseBytes   = 32 << 20
+	maxAttachmentBytes = 100 << 20
+	errorBodyBytes     = 2 << 10
+)
 
 // DefaultTimeout bounds every request a Client built by New makes until
 // WithTimeout says otherwise — the production caller passes
@@ -70,44 +83,41 @@ func (c *Client) WithTimeout(d time.Duration) *Client {
 // out (nil when the caller expects no meaningful body, e.g. a 204). A
 // non-2xx response is mapped to *envelope.Error via statusError.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
-	var reqBody io.Reader
+	var reqBody []byte
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("jira: marshal request body: %w", err)
 		}
-		reqBody = bytes.NewReader(data)
+		reqBody = data
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
-	if err != nil {
-		return fmt.Errorf("jira: build request: %w", err)
-	}
-	req.Header.Set("Authorization", c.authHeader)
-	req.Header.Set("Accept", "application/json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	if c.verbose != nil {
-		fmt.Fprintf(c.verbose, "%s %s\n", method, path) //nolint:errcheck // best-effort diagnostic logging to --verbose's writer, never load-bearing
-	}
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.send(ctx, maxResponseBytes, func(ctx context.Context) (*http.Request, error) {
+		var body io.Reader
+		if reqBody != nil {
+			body = bytes.NewReader(reqBody)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+		if err != nil {
+			return nil, fmt.Errorf("jira: build request: %w", err)
+		}
+		req.Header.Set("Authorization", c.authHeader)
+		req.Header.Set("Accept", "application/json")
+		if reqBody != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		if c.verbose != nil {
+			fmt.Fprintf(c.verbose, "%s %s\n", method, path) //nolint:errcheck // best-effort diagnostic logging to --verbose's writer, never load-bearing
+		}
+		return req, nil
+	})
 	if err != nil {
 		return fmt.Errorf("jira: %s %s: %w", method, path, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	respBody := resp.Body
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("jira: read response body: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return statusError(method, path, resp.StatusCode, respBody)
+	if resp.Status < 200 || resp.Status >= 300 {
+		return statusError(method, path, resp.Status, respBody)
 	}
 	if out == nil || len(respBody) == 0 {
 		return nil
@@ -116,6 +126,14 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return fmt.Errorf("jira: decode %s %s response: %w", method, path, err)
 	}
 	return nil
+}
+
+// send runs one logical request through httpretry: a fresh request per
+// attempt (newReq), each attempt under c.timeout, at most maxBody bytes
+// read, rate limits and idempotent gateway errors retried (PERF-10).
+func (c *Client) send(ctx context.Context, maxBody int64, newReq func(context.Context) (*http.Request, error)) (httpretry.Response, error) {
+	rc := &httpretry.Client{HTTP: c.httpClient, Timeout: c.timeout, MaxBody: maxBody, Sleep: c.sleep}
+	return rc.Do(ctx, newReq)
 }
 
 // statusError maps a non-2xx Jira response to a documented exit-5
@@ -135,6 +153,6 @@ func statusError(method, path string, status int, body []byte) error {
 	}
 	return &envelope.Error{
 		Code:    code,
-		Message: fmt.Sprintf("jira: %s %s: HTTP %d: %s", method, path, status, string(body)),
+		Message: fmt.Sprintf("jira: %s %s: HTTP %d: %s", method, path, status, httpretry.Truncate(body, errorBodyBytes)),
 	}
 }

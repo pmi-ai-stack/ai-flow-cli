@@ -10,6 +10,8 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 )
 
 // fixtureRemote is a non-bare local git repository this test drives
@@ -295,15 +297,39 @@ func TestGitHubTokenFromEnvFallbackOrder(t *testing.T) {
 	}
 }
 
-func TestAuthForOnlyOffersCredentialToHTTPS(t *testing.T) {
-	if auth := authFor("https://example.com/pack.git", "tok"); auth == nil {
-		t.Error("authFor(https, token) = nil, want BasicAuth")
+// TestAuthForOnlyOffersCredentialToGitHubOrOptIn is SEC-13: the GitHub
+// token goes to github.com over https, or to another https host only
+// when that source says `auth: true` — never to whatever host a pack
+// URL happens to name.
+func TestAuthForOnlyOffersCredentialToGitHubOrOptIn(t *testing.T) {
+	cases := []struct {
+		url   string
+		token string
+		optIn bool
+		want  bool
+	}{
+		{"https://github.com/acme/standards.git", "tok", false, true},
+		{"https://GitHub.com/acme/standards.git", "tok", false, true},
+		{"https://github.com/acme/standards.git", "", false, false},
+		{"https://example.com/pack.git", "tok", false, false},
+		{"https://github.com.attacker.example/pack.git", "tok", false, false},
+		{"https://ghe.acme.internal/org/pack.git", "tok", true, true},
+		{"http://github.com/acme/standards.git", "tok", true, false},
+		{"git@github.com:org/pack.git", "tok", true, false},
 	}
-	if auth := authFor("https://example.com/pack.git", ""); auth != nil {
-		t.Errorf("authFor(https, no token) = %v, want nil", auth)
+	for _, c := range cases {
+		if got := authFor(c.url, c.token, c.optIn) != nil; got != c.want {
+			t.Errorf("authFor(%q, token=%v, optIn=%v) offered = %v, want %v", c.url, c.token != "", c.optIn, got, c.want)
+		}
 	}
-	if auth := authFor("git@example.com:org/pack.git", "tok"); auth != nil {
-		t.Errorf("authFor(ssh, token) = %v, want nil (no https endpoint to present it to)", auth)
+}
+
+func TestSourcesFromConfigCarriesAuth(t *testing.T) {
+	cfg := &config.Config{Standards: config.Standards{Sources: []config.StandardsSource{
+		{ID: "ghe", Repo: "https://ghe.acme.internal/org/pack.git", Ref: "v1", Auth: true},
+	}}}
+	if got := SourcesFromConfig(cfg); len(got) != 1 || !got[0].Auth {
+		t.Errorf("SourcesFromConfig = %+v, want Auth carried through", got)
 	}
 }
 
