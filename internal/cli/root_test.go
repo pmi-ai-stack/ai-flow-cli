@@ -226,3 +226,40 @@ func TestWrapCarriesNeedsInputOnErrorPath(t *testing.T) {
 		t.Errorf("needs_input.resume_with = %q", env.NeedsInput.ResumeWith)
 	}
 }
+
+// TestJSONFlagIsAcceptedAndWinsOverHuman pins the spec's own global
+// `--json` flag: accepted as a no-op on its own (session-start.sh runs
+// `ai-flow version --json`; every skill appends it), and the machine
+// envelope still when combined with --human.
+func TestJSONFlagIsAcceptedAndWinsOverHuman(t *testing.T) {
+	for _, args := range [][]string{
+		{"version", "--json"},
+		{"--json", "version"},
+		{"version", "--human", "--json"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			exitCode := -1
+			root := NewRoot(fixedBuildInfo, strings.NewReader(""), &stdout, &stderr, &exitCode)
+			root.SetArgs(args)
+			if err := root.ExecuteContext(context.Background()); err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d, want 0; stdout:\n%s", exitCode, stdout.String())
+			}
+			var env struct {
+				OK     bool `json:"ok"`
+				Result struct {
+					Version string `json:"version"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+				t.Fatalf("stdout is not a JSON envelope: %v\n%s", err, stdout.String())
+			}
+			if !env.OK || env.Result.Version != fixedBuildInfo.Version {
+				t.Errorf("envelope = %+v, want ok with version %q", env, fixedBuildInfo.Version)
+			}
+		})
+	}
+}

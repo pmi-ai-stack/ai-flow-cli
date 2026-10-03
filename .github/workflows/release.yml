@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  # Keyless cosign signing of checksums.txt (.goreleaser.yaml's signs:)
+  # mints its certificate from this workflow's GitHub OIDC token.
+  id-token: write
 
 env:
   GOTOOLCHAIN: local
@@ -23,6 +26,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      # cosign v2 specifically: .goreleaser.yaml's signs: args are v2's
+      # --output-certificate/--output-signature, which v3's bundle-first
+      # defaults change.
+      - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.4.1
+
+      - uses: anchore/sbom-action/download-syft@v0
 
       - name: goreleaser release
         env:

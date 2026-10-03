@@ -62,6 +62,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 		simulateFlag bool
 		verboseFlag  bool
 		humanFlag    bool
+		jsonFlag     bool
 	)
 
 	root := &cobra.Command{
@@ -79,6 +80,12 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 	root.PersistentFlags().BoolVar(&simulateFlag, "simulate", false, "print side effects without performing them, then exit 0")
 	root.PersistentFlags().BoolVar(&verboseFlag, "verbose", false, "tool logs to stderr, secrets redacted")
 	root.PersistentFlags().BoolVar(&humanFlag, "human", false, "human-readable output instead of --json (the default)")
+	// --json is the spec's own default output mode (Global flags), so on
+	// its own it changes nothing — but it must be accepted: every skill
+	// calls `ai-flow <noun> <verb> --json`, and session-start.sh parses
+	// `ai-flow version --json`. Given alongside --human, --json wins, so
+	// a caller that asks for the machine envelope always gets it.
+	root.PersistentFlags().BoolVar(&jsonFlag, "json", false, "JSON envelope output (the default; overrides --human)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		f := Flags{
@@ -86,7 +93,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 			Config:   configFlag,
 			Simulate: simulateFlag,
 			Verbose:  verboseFlag,
-			Human:    humanFlag,
+			Human:    humanFlag && !jsonFlag,
 		}
 		cmd.SetContext(WithFlags(cmd.Context(), f))
 		return nil
