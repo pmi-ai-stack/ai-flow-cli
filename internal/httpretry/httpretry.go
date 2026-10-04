@@ -6,11 +6,14 @@ package httpretry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
 // MaxAttempts bounds every call: the first try plus two retries.
@@ -44,6 +47,30 @@ type ErrTooLarge struct{ Limit int64 }
 
 func (e *ErrTooLarge) Error() string {
 	return fmt.Sprintf("response body exceeds %d bytes", e.Limit)
+}
+
+// TransportError is a failure to complete the exchange — the dial, TLS,
+// a deadline, or a body cut short — as opposed to a response with a bad
+// status. It is never retried (a POST may have landed), and Failure
+// reports it as the provider being unreachable rather than as a bug.
+type TransportError struct{ Err error }
+
+func (e *TransportError) Error() string { return e.Err.Error() }
+func (e *TransportError) Unwrap() error { return e.Err }
+
+// Failure turns an error from Do into what a command reports. A
+// transport failure or an over-size body is exit-5 tool_failed — the
+// provider was unreachable or misbehaved, which the agent should halt on
+// and name — with prefix and the cause in the message. Anything else
+// (a request that could not be built) is wrapped unchanged and stays an
+// internal error: that one is ours.
+func Failure(prefix string, err error) error {
+	var te *TransportError
+	var tl *ErrTooLarge
+	if errors.As(err, &te) || errors.As(err, &tl) {
+		return &envelope.Error{Code: "tool_failed", Message: prefix + ": " + err.Error()}
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
 }
 
 // Do runs newReq (called once per attempt, so a request body is always
@@ -83,7 +110,7 @@ func (c *Client) once(ctx context.Context, newReq func(context.Context) (*http.R
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return Response{}, err
+		return Response{}, &TransportError{Err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -93,7 +120,7 @@ func (c *Client) once(ctx context.Context, newReq func(context.Context) (*http.R
 	}
 	body, err := io.ReadAll(r)
 	if err != nil {
-		return Response{}, err
+		return Response{}, &TransportError{Err: err}
 	}
 	if c.MaxBody > 0 && int64(len(body)) > c.MaxBody {
 		return Response{}, &ErrTooLarge{Limit: c.MaxBody}

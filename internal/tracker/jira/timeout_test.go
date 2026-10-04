@@ -2,12 +2,14 @@ package jira
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
 // halfOpenListener accepts TCP connections and never writes a byte —
@@ -62,5 +64,21 @@ func TestNewIsBoundedByDefault(t *testing.T) {
 	}
 	if c.WithTimeout(0).timeout != DefaultTimeout {
 		t.Error("WithTimeout(0) must keep the current timeout")
+	}
+}
+
+func TestTransportFailureIsToolFailed(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "http://" + ln.Addr().String()
+	_ = ln.Close() // nothing listens: connection refused
+
+	c := New(config.Tracker{BaseURL: base}, "e", "t", http.DefaultTransport, nil)
+	err = c.Reachable(context.Background())
+	var env *envelope.Error
+	if !errors.As(err, &env) || env.Code != "tool_failed" {
+		t.Fatalf("Reachable against a refused connection = %v, want envelope.Error{tool_failed}", err)
 	}
 }

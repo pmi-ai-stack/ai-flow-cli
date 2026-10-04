@@ -51,7 +51,7 @@ func TreeHash(root string, skipDir func(name string) bool) (string, error) {
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0 {
+		if !ops.IsTreeInput(d.Type()) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)

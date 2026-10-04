@@ -81,6 +81,9 @@ func copyTree(src, dst string) error {
 			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0o700)
 		}
+		if !ops.IsTreeInput(d.Type()) {
+			return nil
+		}
 		data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from WalkDir over src, a source directory this package itself resolved
 		if err != nil {
 			return err

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -224,4 +225,36 @@ func TestStandardsCheckUsageBadStage(t *testing.T) {
 	if ec != 2 {
 		t.Fatalf("exitCode = %d, want 2 (usage)", ec)
 	}
+}
+
+// The directory form runs stage `checks` only. Accepting --stage ship
+// there would let a CI author believe ship-scoped checks ran.
+func TestStandardsCheckDirFormRejectsShipStage(t *testing.T) {
+	home := t.TempDir()
+	repoDir := t.TempDir()
+	writeFileTest(t, filepath.Join(repoDir, "AGENTS.md"), "# repo\n")
+
+	stdout, _, ec := runRoot(t, "standards", "check", repoDir, "--stage", "ship", "--home", home)
+	if ec != 2 {
+		t.Fatalf("standards check <dir> --stage ship: exitCode = %d, want 2 (usage)\n%s", ec, stdout.String())
+	}
+	var env checksEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if env.Error == nil || env.Error.Code != "usage" || !strings.Contains(env.Error.Message, "--stage") {
+		t.Fatalf("error = %+v, want usage naming --stage", env.Error)
+	}
+}
+
+func TestStandardsCheckDirFormAcceptsExplicitChecksStage(t *testing.T) {
+	home := t.TempDir()
+	repoDir := t.TempDir()
+	writeFileTest(t, filepath.Join(repoDir, "AGENTS.md"), "# repo\n")
+	x := scriptEmbeddedGoChecks(t, `{"Issues":[]}`)
+	orig := newExecer
+	newExecer = func() exec.Execer { return x }
+	t.Cleanup(func() { newExecer = orig })
+
+	runChecks(t, 0, "standards", "check", repoDir, "--stage", "checks", "--home", home)
 }

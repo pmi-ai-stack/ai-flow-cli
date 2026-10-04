@@ -2,10 +2,13 @@ package github
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
 // halfOpenListener accepts TCP connections and never writes a byte —
@@ -57,5 +60,22 @@ func TestNewIsBoundedByDefault(t *testing.T) {
 	c := New("tok", http.DefaultTransport, nil)
 	if c.httpClient.Timeout != DefaultTimeout || c.timeout != DefaultTimeout {
 		t.Errorf("timeouts = %v/%v, want DefaultTimeout %v on both", c.httpClient.Timeout, c.timeout, DefaultTimeout)
+	}
+}
+
+func TestTransportFailureIsToolFailed(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "http://" + ln.Addr().String()
+	_ = ln.Close() // nothing listens: connection refused
+
+	c := New("tok", http.DefaultTransport, nil)
+	c.baseURL = base
+	err = c.Reachable(context.Background())
+	var env *envelope.Error
+	if !errors.As(err, &env) || env.Code != "tool_failed" {
+		t.Fatalf("Reachable against a refused connection = %v, want envelope.Error{tool_failed}", err)
 	}
 }

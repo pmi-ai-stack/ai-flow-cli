@@ -71,13 +71,16 @@ func newStandardsCheckCmd(cio cmdIO) *cobra.Command {
 				}
 				return runStandardsCheckTicket(cmd.Context(), f, key, stage, fix)
 			}
+			if stage != "checks" {
+				return Outcome{}, &envelope.Error{Code: "usage", Message: fmt.Sprintf("--stage %s applies to a ticket key only; a directory is checked at stage \"checks\"", stage)}
+			}
 			return runStandardsCheckDir(cmd.Context(), f, arg, dirCheckOptions{
 				Fix: fix, Pack: packFlag, RequireInstructions: requireInstructions,
 			})
 		}),
 	}
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply format-kind autofixes at the source")
-	cmd.Flags().StringVar(&stageFlag, "stage", "checks", "which stage's findings this run replaces: checks or ship")
+	cmd.Flags().StringVar(&stageFlag, "stage", "checks", "ticket form: which stage's findings this run replaces, checks or ship (the directory form is always checks)")
 	cmd.Flags().StringVar(&packFlag, "pack", "", "directory form: use this pack as the org layer — a local directory, or <git-url>@<ref>")
 	cmd.Flags().BoolVar(&requireInstructions, "require-instructions", false, "directory form: fail with missing_repo_instructions when the directory has no AGENTS.md or CLAUDE.md")
 	return cmd

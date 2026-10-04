@@ -10,6 +10,7 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/httpretry"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 )
 
@@ -55,7 +56,7 @@ func (c *Client) getBytes(ctx context.Context, rawURL string) ([]byte, error) {
 		return req, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("jira: GET %s: %w", rawURL, err)
+		return nil, httpretry.Failure("jira: GET "+rawURL, err)
 	}
 	if resp.Status < 200 || resp.Status >= 300 {
 		return nil, statusError(http.MethodGet, rawURL, resp.Status, resp.Body)

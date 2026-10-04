@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 )
 
 // scripted answers each request with the next status (and headers),
@@ -129,5 +131,52 @@ func TestTruncate(t *testing.T) {
 	}
 	if got := Truncate([]byte("abc"), 3); got != "abc" {
 		t.Errorf("Truncate at the limit = %q", got)
+	}
+}
+
+// failing is a RoundTripper whose every exchange fails at the transport.
+type failing struct{ err error }
+
+func (f failing) RoundTrip(*http.Request) (*http.Response, error) { return nil, f.err }
+
+func TestFailureMapsTransportErrorsToToolFailed(t *testing.T) {
+	c := &Client{HTTP: &http.Client{Transport: failing{errors.New("connection refused")}}, Timeout: time.Second}
+	_, err := c.Do(context.Background(), func(ctx context.Context) (*http.Request, error) {
+		return http.NewRequestWithContext(ctx, http.MethodGet, "https://api.example.com/x", nil)
+	})
+	if err == nil {
+		t.Fatal("Do returned nil for a failing transport")
+	}
+	var te *TransportError
+	if !errors.As(err, &te) {
+		t.Fatalf("Do error %T is not a *TransportError", err)
+	}
+	got := Failure("jira: GET /x", err)
+	var env *envelope.Error
+	if !errors.As(got, &env) || env.Code != "tool_failed" {
+		t.Fatalf("Failure = %#v, want *envelope.Error{tool_failed}", got)
+	}
+	if !strings.HasPrefix(env.Message, "jira: GET /x: ") || !strings.Contains(env.Message, "connection refused") {
+		t.Errorf("message %q lost its prefix or cause", env.Message)
+	}
+}
+
+func TestFailureMapsOversizeBodyToToolFailed(t *testing.T) {
+	_, _, err := run(t, http.MethodGet, &scripted{statuses: []int{200}, body: strings.Repeat("x", 100)}, 10)
+	var env *envelope.Error
+	if !errors.As(Failure("github: GET /x", err), &env) || env.Code != "tool_failed" {
+		t.Fatalf("oversize body: got %v, want tool_failed", err)
+	}
+}
+
+func TestFailureKeepsOtherErrorsInternal(t *testing.T) {
+	build := errors.New("build request: bad url")
+	got := Failure("jira: GET /x", build)
+	var env *envelope.Error
+	if errors.As(got, &env) {
+		t.Fatalf("a request-build error became %q; it is our bug and must stay unclassified", env.Code)
+	}
+	if !errors.Is(got, build) {
+		t.Errorf("Failure dropped the wrapped cause: %v", got)
 	}
 }

@@ -112,7 +112,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return req, nil
 	})
 	if err != nil {
-		return fmt.Errorf("jira: %s %s: %w", method, path, err)
+		return httpretry.Failure(fmt.Sprintf("jira: %s %s", method, path), err)
 	}
 	respBody := resp.Body
 
