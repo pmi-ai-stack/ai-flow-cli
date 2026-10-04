@@ -93,7 +93,7 @@ func newSkillsEvalsCmd(cio cmdIO) *cobra.Command {
 
 			// The host CLIs run outside the allowlist; each run is
 			// recorded in the global events.jsonl (no ticket owns it).
-			x := unlistedRunnerFor(handoff.GlobalEventsPath(FlagsFrom(cmd.Context()).Home))
+			x := unlistedRunnerFor(FlagsFrom(cmd.Context()), handoff.GlobalEventsPath(FlagsFrom(cmd.Context()).Home))
 			bySkill := map[string][]evals.ScenarioResult{}
 			for _, sk := range discovered {
 				scenarios, err := evals.LoadScenarios(sk.Dir)

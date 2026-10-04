@@ -38,6 +38,11 @@ type Event struct {
 	To      string `json:"to,omitempty"`
 	Command string `json:"command,omitempty"`
 	Reason  string `json:"reason,omitempty"`
+	// RunID names the CLI invocation that wrote the event — the same
+	// run_id every --verbose log line of that invocation carries, so a
+	// stderr line can be joined to the record of what the run did. Empty
+	// (and omitted) when the writer had no invocation at hand.
+	RunID string `json:"run_id,omitempty"`
 	// Host, HostVersion, PluginRoot and CLIVersion are set only on a
 	// "session_start" event, written by `hook session-start` (phase 9).
 	// doctor's doctorLastSessionHost (built in phase 8, unchanged since)

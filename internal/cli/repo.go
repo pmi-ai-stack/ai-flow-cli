@@ -176,7 +176,7 @@ func driveCLIOnlyStage(f Flags, key string, stage handoff.Stage, command string)
 	}
 	to := st.Entry(stage).State
 
-	return finalizeTransition(f.Home, key, stage, st, command, from, to, "")
+	return finalizeTransition(f, key, stage, st, command, from, to, "")
 }
 
 // needsInputFor builds needs_input for the three exit-4 ambiguity

@@ -75,18 +75,18 @@ func parseKeyStage(args []string) (string, handoff.Stage, error) {
 // status.json, rewrite active.json for this ticket (with the tool
 // configuration files the guard's row 5 protects), append one
 // stage_transition event.
-func finalizeTransition(home, key string, stage handoff.Stage, st *handoff.Status, command string, from, to handoff.State, reason string) error {
-	if _, err := handoff.SaveStatus(home, st); err != nil {
+func finalizeTransition(f Flags, key string, stage handoff.Stage, st *handoff.Status, command string, from, to handoff.State, reason string) error {
+	if _, err := handoff.SaveStatus(f.Home, st); err != nil {
 		return err
 	}
-	toolConfigs, err := toolConfigFilesFor(home, key)
+	toolConfigs, err := toolConfigFilesFor(f.Home, key)
 	if err != nil {
 		return err
 	}
-	if err := handoff.RecordActive(home, key, stage, toolConfigs); err != nil {
+	if err := handoff.RecordActive(f.Home, key, stage, toolConfigs); err != nil {
 		return err
 	}
-	return handoff.AppendEvent(handoff.TicketEventsPath(home, key), handoff.StageTransitionEvent(stage, from, to, command, reason))
+	return appendEvent(f, handoff.TicketEventsPath(f.Home, key), handoff.StageTransitionEvent(stage, from, to, command, reason))
 }
 
 // isMissingArtifact reports whether err is the envelope.Error a caller
@@ -260,7 +260,7 @@ func newStageStartCmd(cio cmdIO) *cobra.Command {
 				return Outcome{}, err
 			}
 
-			if err := finalizeTransition(f.Home, key, stage, st, "stage start", from, to, ""); err != nil {
+			if err := finalizeTransition(f, key, stage, st, "stage start", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}, Warnings: warnings}, nil
@@ -551,7 +551,7 @@ func newStageCompleteCmd(cio cmdIO) *cobra.Command {
 				}
 			}
 
-			if err := finalizeTransition(f.Home, key, stage, st, "stage complete", from, to, ""); err != nil {
+			if err := finalizeTransition(f, key, stage, st, "stage complete", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil
@@ -670,7 +670,7 @@ func newStageApproveCmd(cio cmdIO) *cobra.Command {
 				}
 			}
 
-			if err := finalizeTransition(f.Home, key, stage, st, "stage approve", from, to, ""); err != nil {
+			if err := finalizeTransition(f, key, stage, st, "stage approve", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil
@@ -781,7 +781,7 @@ func newStageSkipCmd(cio cmdIO) *cobra.Command {
 			}
 			to := st.Entry(stage).State
 
-			if err := finalizeTransition(f.Home, key, stage, st, "stage skip", from, to, reasonFlag); err != nil {
+			if err := finalizeTransition(f, key, stage, st, "stage skip", from, to, reasonFlag); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil
@@ -830,7 +830,7 @@ func newStageResetCmd(cio cmdIO) *cobra.Command {
 				}
 			}
 
-			if err := finalizeTransition(f.Home, key, stage, st, "stage reset", from, to, ""); err != nil {
+			if err := finalizeTransition(f, key, stage, st, "stage reset", from, to, ""); err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: stageResult{Key: key, Stage: string(stage), State: string(to)}}, nil

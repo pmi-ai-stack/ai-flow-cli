@@ -4,7 +4,11 @@
 // "version", "schema <artifact>" and "config init"/"config validate".
 package cli
 
-import "context"
+import (
+	"context"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+)
 
 // Flags are the global flags, parsed once by the root command's
 // PersistentPreRunE and plumbed to every subcommand through a single
@@ -25,6 +29,11 @@ type Flags struct {
 	Verbose bool
 	// Human is --human. --json is the default (Human == false).
 	Human bool
+	// RunID names this invocation: 16 random hex digits, generated for
+	// every run. It is on every --verbose JSON log line and on every
+	// events.jsonl entry the invocation writes — never in the envelope or
+	// an artifact, which must stay byte-stable.
+	RunID string
 }
 
 type flagsCtxKey struct{}
@@ -40,4 +49,12 @@ func WithFlags(ctx context.Context, f Flags) context.Context {
 func FlagsFrom(ctx context.Context) Flags {
 	f, _ := ctx.Value(flagsCtxKey{}).(Flags)
 	return f
+}
+
+// appendEvent appends e to the events.jsonl at path, stamped with this
+// invocation's run id. Best-effort callers ignore the error, as they
+// always did with handoff.AppendEvent.
+func appendEvent(f Flags, path string, e handoff.Event) error {
+	e.RunID = f.RunID
+	return handoff.AppendEvent(path, e)
 }

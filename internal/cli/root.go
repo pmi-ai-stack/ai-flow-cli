@@ -100,6 +100,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 			Simulate: simulateFlag,
 			Verbose:  verboseFlag,
 			Human:    humanFlag && !jsonFlag,
+			RunID:    runlog.NewRunID(),
 		}
 		format, err := runlog.ParseFormat(logFormat)
 		if err != nil {
@@ -108,7 +109,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 		ctx := WithFlags(cmd.Context(), f)
 		if f.Verbose {
 			command := strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")
-			ctx = runlog.WithLogger(ctx, runlog.New(cmd.ErrOrStderr(), format, runlog.NewRunID(), command, redact.New(os.Environ()).String, handoff.Now))
+			ctx = runlog.WithLogger(ctx, runlog.New(cmd.ErrOrStderr(), format, f.RunID, command, redact.New(os.Environ()).String, handoff.Now))
 		}
 		cmd.SetContext(ctx)
 		return nil
@@ -201,7 +202,7 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 			// envelope, since this event is additive telemetry, not a
 			// documented side effect in the exit-code contract.
 			if !f.Simulate && len(args) > 0 && handoff.IsTicketScoped(name) && !handoff.SkipToolRunEvent(name) {
-				_ = handoff.AppendEvent(handoff.TicketEventsPath(f.Home, args[0]), handoff.ToolRunEvent(name))
+				_ = appendEvent(f, handoff.TicketEventsPath(f.Home, args[0]), handoff.ToolRunEvent(name))
 			}
 		}
 

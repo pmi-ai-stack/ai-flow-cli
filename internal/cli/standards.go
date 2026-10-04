@@ -116,7 +116,7 @@ func newStandardsSyncCmd(cio cmdIO) *cobra.Command {
 					ID: s.ID, Ref: s.Ref, RefKind: string(s.RefKind), Path: s.Path,
 					Skipped: s.Skipped, SkippedReason: s.SkippedReason,
 				})
-				_ = handoff.AppendEvent(handoff.GlobalEventsPath(f.Home), handoff.StandardsSyncEvent(s.ID, s.Ref, string(s.RefKind), !s.Skipped))
+				_ = appendEvent(f, handoff.GlobalEventsPath(f.Home), handoff.StandardsSyncEvent(s.ID, s.Ref, string(s.RefKind), !s.Skipped))
 			}
 			return Outcome{Result: result}, nil
 		}),

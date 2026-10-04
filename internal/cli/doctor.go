@@ -23,6 +23,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/harness"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/render"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker/jira"
@@ -411,7 +412,7 @@ func doctorProbeTracker(ctx context.Context, cfg *config.Config) doctorTracker {
 	timeout := cfg.Defaults.HTTPTimeout()
 	ctx, cancel := context.WithTimeout(ctx, 2*timeout) // one deadline over both calls below, each also bounded by the client
 	defer cancel()
-	var trk tracker.Tracker = jira.New(cfg.Tracker, email, token, newJiraTransport(), nil).WithTimeout(timeout)
+	var trk tracker.Tracker = jira.New(cfg.Tracker, email, token, newJiraTransport(), runlog.From(ctx).LineWriter("jira")).WithTimeout(timeout)
 	err := trk.Reachable(ctx)
 	ok := err == nil
 	dt.Reachable = &ok
@@ -471,7 +472,7 @@ func doctorProbeHost(ctx context.Context, cfg *config.Config) doctorHost {
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var h host.Host = github.New(token, newGitHubTransport(), nil).WithTimeout(timeout)
+	var h host.Host = github.New(token, newGitHubTransport(), runlog.From(ctx).LineWriter("github")).WithTimeout(timeout)
 	err := h.Reachable(ctx)
 	ok := err == nil
 	dh.Reachable = &ok

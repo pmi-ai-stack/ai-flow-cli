@@ -113,7 +113,7 @@ func runHookGuard(stdin io.Reader, stdout io.Writer, f Flags) int {
 		Event: ev, Active: active, Home: f.Home, Idle: guardIdleDuration(f), Now: handoff.Now(),
 	})
 
-	logGuardDecision(f.Home, adapter.Host(), ev, active, decision)
+	logGuardDecision(f, adapter.Host(), ev, active, decision)
 
 	out, err := adapter.EncodeHook(decision)
 	if err != nil {
@@ -146,18 +146,18 @@ func guardIdleDuration(f Flags) time.Duration {
 // directory section's own words for what belongs there. Logging
 // failures are swallowed: a broken events.jsonl write must never turn
 // an allow decision into a denial, or vice versa.
-func logGuardDecision(home string, host agenthost.Host, ev agenthost.HookEvent, active *handoff.Active, d agenthost.Decision) {
+func logGuardDecision(f Flags, host agenthost.Host, ev agenthost.HookEvent, active *handoff.Active, d agenthost.Decision) {
 	command := ev.Command
 	if command == "" {
 		command = ev.FilePath
 	}
 	event := handoff.GuardDecisionEvent(string(host), d.Reason, command, d.Allow)
 
-	path := handoff.GlobalEventsPath(home)
+	path := handoff.GlobalEventsPath(f.Home)
 	if active != nil {
-		path = handoff.TicketEventsPath(home, active.Key)
+		path = handoff.TicketEventsPath(f.Home, active.Key)
 	}
-	_ = handoff.AppendEvent(path, event)
+	_ = appendEvent(f, path, event)
 }
 
 // --- hook session-start ---
@@ -217,7 +217,7 @@ func runHookSessionStart(ctx context.Context, stdin io.Reader, f Flags, bi Build
 	if cliVersion == "" {
 		cliVersion = "dev"
 	}
-	_ = handoff.AppendEvent(handoff.GlobalEventsPath(f.Home),
+	_ = appendEvent(f, handoff.GlobalEventsPath(f.Home),
 		handoff.SessionStartEvent(string(adapter.Host()), hostVersion, pluginRoot, cliVersion))
 
 	return 0

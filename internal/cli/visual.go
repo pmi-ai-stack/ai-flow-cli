@@ -41,19 +41,20 @@ var newUnlistedRunner = func() exec.UnlistedRunner { return exec.NewRunner() }
 // process it starts is first recorded as an unlisted_run event in
 // eventsPath. The spec's Execution allowlist section allows a process
 // outside the table only on that condition.
-func unlistedRunnerFor(eventsPath string) exec.UnlistedRunner {
-	return &auditedUnlisted{inner: newUnlistedRunner(), eventsPath: eventsPath}
+func unlistedRunnerFor(f Flags, eventsPath string) exec.UnlistedRunner {
+	return &auditedUnlisted{inner: newUnlistedRunner(), flags: f, eventsPath: eventsPath}
 }
 
 type auditedUnlisted struct {
 	inner      exec.UnlistedRunner
+	flags      Flags
 	eventsPath string
 }
 
 func (a *auditedUnlisted) record(tool string, args []string) {
 	// Best-effort like every other events.jsonl append: the record is
 	// an audit trail, and a full disk must not abort a capture.
-	_ = handoff.AppendEvent(a.eventsPath, handoff.UnlistedRunEvent(append([]string{tool}, args...)))
+	_ = appendEvent(a.flags, a.eventsPath, handoff.UnlistedRunEvent(append([]string{tool}, args...)))
 }
 
 func (a *auditedUnlisted) StartUnlisted(ctx context.Context, dir, tool string, args, env []string) (*exec.Process, error) {
@@ -139,17 +140,17 @@ func newVisualRunCmd(cio cmdIO) *cobra.Command {
 				return Outcome{Result: visualRunResult{Key: key, Repo: repo.Name, Screens: map[string]string{}}}, nil
 			}
 
-			runner := unlistedRunnerFor(handoff.TicketEventsPath(f.Home, key))
+			runner := unlistedRunnerFor(f, handoff.TicketEventsPath(f.Home, key))
 			dev := &visual.DevServer{Runner: runner}
 			if err := dev.Start(cmd.Context(), repo.LocalPath, visualCfg.DevServer); err != nil {
 				return Outcome{}, err
 			}
-			_ = handoff.AppendEvent(handoff.TicketEventsPath(f.Home, key), handoff.Event{
+			_ = appendEvent(f, handoff.TicketEventsPath(f.Home, key), handoff.Event{
 				Type: "dev_server_start", Command: strings.Join(visualCfg.DevServer.Command, " "),
 			})
 			defer func() {
 				_ = dev.Stop(cmd.Context())
-				_ = handoff.AppendEvent(handoff.TicketEventsPath(f.Home, key), handoff.Event{
+				_ = appendEvent(f, handoff.TicketEventsPath(f.Home, key), handoff.Event{
 					Type: "dev_server_stop", Command: strings.Join(visualCfg.DevServer.Command, " "),
 				})
 			}()

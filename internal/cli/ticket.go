@@ -195,7 +195,7 @@ func driveFetchStage(f Flags, key string) error {
 	}
 	to := st.Entry(handoff.StageFetch).State
 
-	return finalizeTransition(f.Home, key, handoff.StageFetch, st, "ticket fetch", from, to, "")
+	return finalizeTransition(f, key, handoff.StageFetch, st, "ticket fetch", from, to, "")
 }
 
 // ticketFetchSimulateResult is `ticket fetch --simulate`'s result: the

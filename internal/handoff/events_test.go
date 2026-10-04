@@ -123,3 +123,26 @@ func TestAppendEventRedactsSecrets(t *testing.T) {
 		t.Errorf("events.jsonl does not contain a redaction token:\n%s", data)
 	}
 }
+
+func TestRunIDIsWrittenWhenSetAndOmittedWhenEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	with := ToolRunEvent("status")
+	with.RunID = "0123456789abcdef"
+	if err := AppendEvent(path, with); err != nil {
+		t.Fatal(err)
+	}
+	if err := AppendEvent(path, ToolRunEvent("status")); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if !strings.Contains(lines[0], `"run_id":"0123456789abcdef"`) {
+		t.Errorf("line with a run id = %s", lines[0])
+	}
+	if strings.Contains(lines[1], "run_id") {
+		t.Errorf("an event without a run id grew the field: %s", lines[1])
+	}
+}
