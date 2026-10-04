@@ -77,6 +77,7 @@ var catalog = []CommandSpec{
 	// Phase 8.
 	{Name: "summary render", TicketScoped: true},
 	{Name: "doctor", TicketScoped: false},
+	{Name: "explain", TicketScoped: false, Positional: []string{"code"}},
 
 	// Phase 9.
 	{Name: "hook guard", TicketScoped: false},

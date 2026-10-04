@@ -58,6 +58,8 @@ linters:
         linters: [gochecknoglobals] # CommandHints is a lookup table, not mutable state
       - path: ^internal/envelope/exitcode\.go$
         linters: [gochecknoglobals] # codeExitCode is a lookup table, not mutable state
+      - path: ^internal/envelope/explain\.go$
+        linters: [gochecknoglobals] # explanationTexts is a lookup table, not mutable state
       - path: ^schema/embed\.go$
         linters: [gochecknoglobals] # FS is the embedded schema content, not mutable state
       - path: ^internal/schema/registry\.go$
