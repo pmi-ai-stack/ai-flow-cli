@@ -133,3 +133,40 @@ func TestAddWaiverRefusesAWaiverWithNoExpiry(t *testing.T) {
 		t.Fatal("AddWaiver with no expires = nil error, want a schema failure")
 	}
 }
+
+func TestExpiryState(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	window := 14 * 24 * time.Hour
+	for _, tc := range []struct {
+		name, expires, wantState string
+		wantDays                 int
+	}{
+		{"far future", "2027-01-01", StateActive, 88},
+		{"just outside the window", "2026-10-19", StateActive, 14},
+		{"inside the window", "2026-10-10", StateExpiring, 5},
+		{"last day of the window", "2026-10-18T12:00:00Z", StateExpiring, 14},
+		{"later today", "2026-10-04T18:00:00Z", StateExpiring, 0},
+		{"the instant itself", "2026-10-04T12:00:00Z", StateExpired, 0},
+		{"yesterday", "2026-10-03", StateExpired, -1},
+		{"long ago", "2026-09-01", StateExpired, -33},
+		{"unreadable", "whenever", StateExpired, 0},
+	} {
+		state, days := ExpiryState(Waiver{Expires: tc.expires}, now, window)
+		if state != tc.wantState || days != tc.wantDays {
+			t.Errorf("%s: ExpiryState(%q) = %s, %d; want %s, %d", tc.name, tc.expires, state, days, tc.wantState, tc.wantDays)
+		}
+	}
+}
+
+// TestExpiryStateAgreesWithExpired: the two must never disagree about
+// whether a waiver still suppresses its check.
+func TestExpiryStateAgreesWithExpired(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	for _, e := range []string{"2099-01-01", "2026-10-04T12:00:00Z", "2026-10-04T12:00:01Z", "2020-01-01", "x", ""} {
+		w := Waiver{Expires: e}
+		state, _ := ExpiryState(w, now, 14*24*time.Hour)
+		if (state == StateExpired) != Expired(w, now) {
+			t.Errorf("expires %q: ExpiryState says %s but Expired says %v", e, state, Expired(w, now))
+		}
+	}
+}

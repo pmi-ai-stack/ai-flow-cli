@@ -99,6 +99,7 @@ var catalog = []CommandSpec{
 	// Phase 13.
 	{Name: "standards resolve", TicketScoped: true},
 	{Name: "standards show", TicketScoped: true, Flags: []string{"id"}},
+	{Name: "standards waivers list", Positional: []string{"dir"}, Flags: []string{"expiring"}},
 	{Name: "standards waive", TicketScoped: true, Flags: []string{"check", "repo", "reason", "expires", "confirmed"}},
 
 	// Phase 14. Registered ticket-scoped only — the directory (CI) form

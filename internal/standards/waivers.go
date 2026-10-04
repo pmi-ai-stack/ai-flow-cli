@@ -137,3 +137,31 @@ func Expired(w Waiver, now time.Time) bool {
 	}
 	return !now.Before(exp)
 }
+
+// Waiver states reported by ExpiryState.
+const (
+	StateActive   = "active"
+	StateExpiring = "expiring"
+	StateExpired  = "expired"
+)
+
+// ExpiryState classifies w at now: expired when Expired says so (an
+// unreadable expiry included), expiring when it lapses within window,
+// active otherwise. daysLeft counts whole days toward the expiry,
+// truncated, negative once past; an unreadable expiry reports 0.
+func ExpiryState(w Waiver, now time.Time, window time.Duration) (state string, daysLeft int) {
+	exp, err := ParseExpiry(w.Expires)
+	if err != nil {
+		return StateExpired, 0
+	}
+	left := exp.Sub(now)
+	daysLeft = int(left / (24 * time.Hour))
+	switch {
+	case Expired(w, now):
+		return StateExpired, daysLeft
+	case left <= window:
+		return StateExpiring, daysLeft
+	default:
+		return StateActive, daysLeft
+	}
+}

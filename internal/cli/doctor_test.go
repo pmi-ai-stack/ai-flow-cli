@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -496,5 +497,89 @@ func TestDoctorProbeHostIsBoundedByHTTPTimeout(t *testing.T) {
 	}
 	if got.Reachable == nil || *got.Reachable || got.Error == "" {
 		t.Errorf("Host = %+v, want reachable:false with an error", got)
+	}
+}
+
+// doctorWithWarnings runs doctor and returns the result and the
+// envelope's warnings, which runDoctor discards.
+func doctorWithWarnings(t *testing.T, home string) (doctorResult, []string, string) {
+	t.Helper()
+	stdout, _, exitCode := runRoot(t, "doctor", "--home", home)
+	if exitCode != 0 {
+		t.Fatalf("doctor: exitCode = %d, want 0\n%s", exitCode, stdout.String())
+	}
+	var env struct {
+		Result   doctorResult `json:"result"`
+		Warnings []string     `json:"warnings"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout not valid JSON: %v\n%s", err, stdout.String())
+	}
+	return env.Result, env.Warnings, stdout.String()
+}
+
+func activeWithRepo(t *testing.T, home, repo string) {
+	t.Helper()
+	active := &handoff.Active{
+		Key: "PROJ-1", Stage: "implement", RepoRoots: []string{repo}, ToolConfigFiles: []string{},
+		AllowlistHash: exec.Hash(), LastEventAt: handoff.Now().Add(-time.Minute).Format(time.RFC3339),
+	}
+	if _, err := handoff.SaveActive(home, active); err != nil {
+		t.Fatalf("SaveActive: %v", err)
+	}
+}
+
+func TestDoctor_WaiversExpiredAndExpiringForActiveRepos(t *testing.T) {
+	home, repo := t.TempDir(), filepath.Join(t.TempDir(), "payments")
+	handofftest.FixedClock(t, time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC))
+	writeFileTest(t, filepath.Join(repo, ".ai-flow", "waivers.json"), waiversFixture)
+	activeWithRepo(t, home, repo)
+
+	got, warnings, _ := doctorWithWarnings(t, home)
+	if len(got.ExpiringWaivers) != 2 {
+		t.Fatalf("ExpiringWaivers = %+v, want the expired go.lint and the expiring go.format only", got.ExpiringWaivers)
+	}
+	byCheck := map[string]doctorWaiver{}
+	for _, w := range got.ExpiringWaivers {
+		byCheck[w.CheckID] = w
+	}
+	if w := byCheck["go.lint"]; w.State != "expired" || w.Repo != "payments" || w.DaysLeft != -4 {
+		t.Errorf("go.lint = %+v, want expired, repo payments, -4 days", w)
+	}
+	if w := byCheck["go.format"]; w.State != "expiring" || w.DaysLeft != 5 {
+		t.Errorf("go.format = %+v, want expiring in 5 days", w)
+	}
+	var sawExpired, sawExpiring bool
+	for _, w := range warnings {
+		sawExpired = sawExpired || (strings.Contains(w, "payments") && strings.Contains(w, "go.lint") && strings.Contains(w, "expired"))
+		sawExpiring = sawExpiring || (strings.Contains(w, "payments") && strings.Contains(w, "go.format") && strings.Contains(w, "5 days"))
+	}
+	if !sawExpired || !sawExpiring {
+		t.Errorf("warnings = %q, want one for the expired and one for the expiring waiver", warnings)
+	}
+}
+
+func TestDoctor_WaiversNothingToReport(t *testing.T) {
+	// No active ticket: nothing to inspect, and the field is [] not null.
+	home := t.TempDir()
+	_, _, raw := doctorWithWarnings(t, home)
+	if !strings.Contains(raw, `"expiring_waivers": []`) {
+		t.Errorf("expiring_waivers is not an empty list without an active ticket:\n%s", raw)
+	}
+
+	// Active ticket, only a far-future waiver: still nothing.
+	handofftest.FixedClock(t, time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC))
+	repo := t.TempDir()
+	writeFileTest(t, filepath.Join(repo, ".ai-flow", "waivers.json"),
+		`{"schema_version":1,"waivers":[{"check_id":"go.docs","reason":"r","author":"a","created":"2026-09-25","expires":"2027-06-01"}]}`)
+	activeWithRepo(t, home, repo)
+	got, warnings, _ := doctorWithWarnings(t, home)
+	if len(got.ExpiringWaivers) != 0 {
+		t.Errorf("ExpiringWaivers = %+v, want none", got.ExpiringWaivers)
+	}
+	for _, w := range warnings {
+		if strings.Contains(w, "waiver") {
+			t.Errorf("unexpected waiver warning %q", w)
+		}
 	}
 }

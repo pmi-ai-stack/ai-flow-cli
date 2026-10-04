@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -138,6 +139,12 @@ type doctorResult struct {
 	HookSelftest    []doctorSelftestReport `json:"hook_selftest"`
 	Packs           []doctorPackReport     `json:"packs"`
 	GuidanceBudget  *doctorGuidanceBudget  `json:"guidance_budget"`
+
+	// ExpiringWaivers is the active ticket's repositories' waivers that
+	// are already expired or lapse within waiverExpiringDays. An expired
+	// waiver has already stopped suppressing its check; this is the
+	// advance notice for the rest.
+	ExpiringWaivers []doctorWaiver `json:"expiring_waivers"`
 
 	// MissingCheckRunners is the phase-14 growing-surfaces line: every
 	// tool the active ticket's resolved checks name that is not on
@@ -289,6 +296,10 @@ func newDoctorCmd(cio cmdIO) *cobra.Command {
 			// doctorProbeCheckRunners both read the same active ticket's
 			// standards.json.
 			activeStandards := doctorActiveStandards(f.Home, result.Active)
+
+			var waiverWarnings []string
+			result.ExpiringWaivers, waiverWarnings = doctorProbeWaivers(f.Home)
+			warnings = append(warnings, waiverWarnings...)
 
 			var budgetWarnings []string
 			result.GuidanceBudget, budgetWarnings = doctorProbeGuidanceBudget(result.Active, activeStandards)
@@ -902,4 +913,49 @@ func doctorProbeRenderCache(home string) (doctorRenderCache, []string) {
 			result.StaleEntries, result.Entries, render.DefaultCacheMaxAge))
 	}
 	return result, warnings
+}
+
+// doctorWaiver is one waiver doctor flags: repo is the repository
+// directory's name, as `check`'s own findings name it.
+type doctorWaiver struct {
+	Repo     string `json:"repo"`
+	CheckID  string `json:"check_id"`
+	Expires  string `json:"expires"`
+	State    string `json:"state"`
+	DaysLeft int    `json:"days_left"`
+}
+
+// doctorProbeWaivers reports expired and soon-to-expire waivers in the
+// active ticket's repositories — the only repositories doctor knows. A
+// repository whose waivers file cannot be read is skipped, never an
+// error: doctor reports on what it can read.
+func doctorProbeWaivers(home string) ([]doctorWaiver, []string) {
+	out := []doctorWaiver{}
+	active, err := handoff.LoadActive(home)
+	if err != nil || active == nil {
+		return out, nil
+	}
+	var warnings []string
+	now := handoff.Now()
+	window := time.Duration(waiverExpiringDays) * 24 * time.Hour
+	for _, root := range active.RepoRoots {
+		repo := filepath.Base(root)
+		ws, err := standards.LoadWaivers(repo, root)
+		if err != nil {
+			continue
+		}
+		for _, w := range ws {
+			state, days := standards.ExpiryState(w, now, window)
+			switch state {
+			case standards.StateExpired:
+				warnings = append(warnings, fmt.Sprintf("waivers: %s: waiver for check %s expired on %s; the check fires again until it is fixed or re-waived", repo, w.CheckID, w.Expires))
+			case standards.StateExpiring:
+				warnings = append(warnings, fmt.Sprintf("waivers: %s: waiver for check %s expires on %s (in %d days)", repo, w.CheckID, w.Expires, days))
+			default:
+				continue
+			}
+			out = append(out, doctorWaiver{Repo: repo, CheckID: w.CheckID, Expires: w.Expires, State: state, DaysLeft: days})
+		}
+	}
+	return out, warnings
 }
