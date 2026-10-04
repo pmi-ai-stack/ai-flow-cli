@@ -75,14 +75,22 @@ func newOpsDriftCmd(cio cmdIO) *cobra.Command {
 
 			reg := buildOpsRegistry(f, cfg)
 			var entries []opsDriftResultTarget
+			var failed targetFailures
 			for _, t := range targets {
 				rt, err := driftOneTarget(cmd.Context(), f, key, repoArt, t, reg)
 				if err != nil {
-					return Outcome{}, err
+					failed.add(t, err)
+					if cmd.Context().Err() != nil {
+						break
+					}
+					continue
 				}
 				if rt != nil {
 					entries = append(entries, *rt)
 				}
+			}
+			if err := failed.err(len(targets)); err != nil {
+				return Outcome{}, err
 			}
 			if entries == nil {
 				entries = []opsDriftResultTarget{}

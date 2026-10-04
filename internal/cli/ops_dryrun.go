@@ -99,15 +99,23 @@ func newOpsDryRunCmd(cio cmdIO) *cobra.Command {
 			reg := buildOpsRegistry(f, cfg)
 			var results []opsDryRunResultTarget
 			var artifactTargets []opsDryRunArtifactTarget
+			var failed targetFailures
 			for _, t := range targets {
 				rt, at, err := dryRunOneTarget(cmd.Context(), f, key, repoArt, t, reg, drift, offlineFlag)
 				if err != nil {
-					return Outcome{NeedsInput: needsInputFor(err, key)}, err
+					failed.add(t, err)
+					if cmd.Context().Err() != nil {
+						break
+					}
+					continue
 				}
 				if rt != nil {
 					results = append(results, *rt)
 					artifactTargets = append(artifactTargets, *at)
 				}
+			}
+			if err := failed.err(len(targets)); err != nil {
+				return Outcome{NeedsInput: needsInputFor(failed.first(), key)}, err
 			}
 			if results == nil {
 				results = []opsDryRunResultTarget{}

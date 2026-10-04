@@ -294,14 +294,22 @@ func newOpsRenderCmd(cio cmdIO) *cobra.Command {
 
 			reg := buildOpsRegistry(f, cfg)
 			result := opsRenderResult{Key: key, Ref: refFlag}
+			var failed targetFailures
 			for _, t := range targets {
 				rt, err := renderOneTarget(cmd.Context(), f, key, repoArt, t, ref, reg)
 				if err != nil {
-					return Outcome{}, err
+					failed.add(t, err)
+					if cmd.Context().Err() != nil {
+						break
+					}
+					continue
 				}
 				if rt != nil {
 					result.Targets = append(result.Targets, *rt)
 				}
+			}
+			if err := failed.err(len(targets)); err != nil {
+				return Outcome{}, err
 			}
 			if result.Targets == nil {
 				result.Targets = []opsRenderResultTarget{}
