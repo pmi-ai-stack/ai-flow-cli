@@ -86,6 +86,7 @@ func (r *Runner) StartUnlisted(ctx context.Context, dir, tool string, args, env 
 	cmd, stdout, stderr := unlistedCmd(ctx, dir, tool, args, env)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 
+	logStart(ctx, tool, args, dir)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("exec: start %s: %w", tool, err)
 	}
@@ -154,6 +155,7 @@ func (r *Runner) RunUnlisted(ctx context.Context, dir, tool string, args, env []
 
 	cmd, stdout, stderr := unlistedCmd(ctx, dir, tool, args, env)
 
+	started := logStart(ctx, tool, args, dir)
 	runErr := cmd.Run()
 	out := Output{
 		Stdout: r.Redact.String(stdout.String()),
@@ -162,6 +164,7 @@ func (r *Runner) RunUnlisted(ctx context.Context, dir, tool string, args, env []
 	if cmd.ProcessState != nil {
 		out.ExitCode = cmd.ProcessState.ExitCode()
 	}
+	logEnd(ctx, tool, exitCodeOf(cmd.ProcessState != nil, out.ExitCode), started)
 	if runErr != nil {
 		return out, fmt.Errorf("exec: %s: %w: %s", strings.Join(append([]string{tool}, args...), " "), runErr, strings.TrimSpace(out.Stderr))
 	}

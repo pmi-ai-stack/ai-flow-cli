@@ -130,6 +130,7 @@ func NewRunner() *Runner {
 func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOpts) (Output, error) {
 	argv := append([]string{tool}, args...)
 	if _, ok := r.Allowlist.Match(argv); !ok {
+		logDenied(ctx, tool, args)
 		return Output{}, NotAllowed(argv)
 	}
 
@@ -151,6 +152,7 @@ func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOp
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	started := logStart(ctx, tool, args, opts.Dir)
 	runErr := cmd.Run()
 	out := Output{
 		Stdout: r.Redact.String(stdout.String()),
@@ -159,6 +161,7 @@ func (r *Runner) Run(ctx context.Context, tool string, args []string, opts RunOp
 	if cmd.ProcessState != nil {
 		out.ExitCode = cmd.ProcessState.ExitCode()
 	}
+	logEnd(ctx, tool, exitCodeOf(cmd.ProcessState != nil, out.ExitCode), started)
 	if runErr != nil {
 		failed := &envelope.Error{
 			Code:    "tool_failed",

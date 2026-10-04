@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,8 +15,8 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/host/github"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/render"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 )
 
 func newPRCmd(cio cmdIO) *cobra.Command {
@@ -62,10 +61,7 @@ func buildHost(cmd *cobra.Command, f Flags) (host.Host, error) {
 		}
 	}
 
-	var verbose io.Writer
-	if f.Verbose {
-		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
-	}
+	verbose := runlog.From(cmd.Context()).LineWriter("github")
 	return github.New(token, newGitHubTransport(), verbose).WithTimeout(hostHTTPTimeout(f)), nil
 }
 

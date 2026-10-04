@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker/jira"
 )
@@ -110,10 +110,7 @@ func buildTracker(cmd *cobra.Command, f Flags) (*jira.Client, *config.Config, er
 		}
 	}
 
-	var verbose io.Writer
-	if f.Verbose {
-		verbose = redact.New(os.Environ()).Writer(cmd.ErrOrStderr())
-	}
+	verbose := runlog.From(cmd.Context()).LineWriter("jira")
 
 	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose).WithTimeout(cfg.Defaults.HTTPTimeout()), cfg, nil
 }

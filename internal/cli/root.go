@@ -6,11 +6,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 )
 
 // BuildInfo carries version metadata injected at link time via -X, with
@@ -62,6 +65,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 		configFlag   string
 		simulateFlag bool
 		verboseFlag  bool
+		logFormat    string
 		humanFlag    bool
 		jsonFlag     bool
 	)
@@ -80,6 +84,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 	root.PersistentFlags().StringVar(&configFlag, "config", "", "path to config.json (default <home>/config.json)")
 	root.PersistentFlags().BoolVar(&simulateFlag, "simulate", false, "print side effects without performing them, then exit 0")
 	root.PersistentFlags().BoolVar(&verboseFlag, "verbose", false, "tool logs to stderr, secrets redacted")
+	root.PersistentFlags().StringVar(&logFormat, "log-format", "text", "format of the --verbose log on stderr: text, or json (one object per line with a run id)")
 	root.PersistentFlags().BoolVar(&humanFlag, "human", false, "human-readable output instead of --json (the default)")
 	// --json is the spec's own default output mode (Global flags), so on
 	// its own it changes nothing — but it must be accepted: every skill
@@ -96,7 +101,16 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 			Verbose:  verboseFlag,
 			Human:    humanFlag && !jsonFlag,
 		}
-		cmd.SetContext(WithFlags(cmd.Context(), f))
+		format, err := runlog.ParseFormat(logFormat)
+		if err != nil {
+			return err
+		}
+		ctx := WithFlags(cmd.Context(), f)
+		if f.Verbose {
+			command := strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")
+			ctx = runlog.WithLogger(ctx, runlog.New(cmd.ErrOrStderr(), format, runlog.NewRunID(), command, redact.New(os.Environ()).String, handoff.Now))
+		}
+		cmd.SetContext(ctx)
 		return nil
 	}
 
