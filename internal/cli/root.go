@@ -214,7 +214,7 @@ func wrap(name string, stdout io.Writer, exitCode *int, h Handler) func(cmd *cob
 		var buf bytes.Buffer
 		render := envelope.Print
 		if f.Human {
-			render = envelope.PrintHuman
+			render = printHuman
 		}
 		printErr := render(&buf, env)
 		if _, err := stdout.Write(envelopeRedactor().Output(buf.Bytes())); err != nil {

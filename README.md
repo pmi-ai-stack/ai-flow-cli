@@ -25,7 +25,7 @@ It runs every check that applies to the languages and infrastructure it detects 
 
 ## The contract
 
-- Every command prints exactly one JSON envelope on stdout (`{ok, command, result, needs_input, error, warnings}`); progress goes to stderr. `--human` renders it for people; `--json` is the default.
+- Every command prints exactly one JSON envelope on stdout (`{ok, command, result, needs_input, error, warnings}`); progress goes to stderr. `--json` is the default. `--human` is for a person at a terminal: `doctor`, `standards check` and `status` print readable text, every other command prints its result as indented JSON under a header, and failures always print the code, message and any question.
 - Exit codes 0–6 carry a documented `error.code`; exit 4 always means `needs_input` — the CLI never asks a question itself.
 - Nothing is committed, pushed, transitioned or applied unless `status.json` records the gate that authorizes it.
 
