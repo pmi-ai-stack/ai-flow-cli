@@ -44,6 +44,9 @@ type Outcome struct {
 type cmdIO struct {
 	stdout   io.Writer
 	exitCode *int
+	// version is the binary's own version, for output that names its
+	// producer (standards check --sarif); "dev" outside a release build.
+	version string
 }
 
 // Handler is the signature every ai-flow subcommand implements. A
@@ -115,7 +118,7 @@ func NewRoot(bi BuildInfo, stdin io.Reader, stdout, stderr io.Writer, exitCode *
 		return nil
 	}
 
-	cio := cmdIO{stdout: stdout, exitCode: exitCode}
+	cio := cmdIO{stdout: stdout, exitCode: exitCode, version: buildVersionResult(bi, "").Version}
 	root.AddCommand(newVersionCmd(bi, cio))
 	root.AddCommand(newSchemaCmd(cio))
 	root.AddCommand(newConfigCmd(cio))

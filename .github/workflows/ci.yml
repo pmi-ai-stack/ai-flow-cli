@@ -147,3 +147,48 @@ jobs:
           jq . "$out"
           test "$code" -eq 6
           jq -e '[.error.details[] | select(startswith("infra.terraform.policy: main.tf: "))] | length == 2' "$out"
+
+  # The repository's own GitHub Action (action.yml), run on every PR
+  # against this PR's build (the `binary` input skips the release
+  # install): a terraform repository with two reference-policy
+  # violations must fail the step with exit 6 and leave a SARIF file
+  # holding exactly those two policy results.
+  action-smoke:
+    name: Action smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: build ai-flow and install conftest
+        run: |
+          go build -o "$RUNNER_TEMP/ai-flow" ./cmd/ai-flow
+          go install github.com/open-policy-agent/conftest@v0.70.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: stage a violating terraform repository
+        run: |
+          repo="$RUNNER_TEMP/infra-repo"
+          cp -r testdata/repos/terraform-e2e "$repo"
+          mv "$repo/main.tf.fixture" "$repo/main.tf"
+
+      - id: smoke
+        uses: ./
+        continue-on-error: true
+        with:
+          binary: ${{ runner.temp }}/ai-flow
+          path: ${{ runner.temp }}/infra-repo
+          sarif: ${{ runner.temp }}/smoke.sarif
+
+      - name: the action failed the step, with the SARIF it promised
+        env:
+          OUTCOME: ${{ steps.smoke.outcome }}
+          EXIT_CODE: ${{ steps.smoke.outputs.exit-code }}
+          SARIF: ${{ steps.smoke.outputs.sarif }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$EXIT_CODE" = 6
+          jq -e '[.runs[0].results[] | select(.ruleId == "infra.terraform.policy" and .level == "error")] | length == 2' "$SARIF"

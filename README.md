@@ -74,6 +74,76 @@ ai-flow standards check .
 
 It runs every check that applies to the languages and infrastructure it detects (terraform, Kubernetes manifests, Helm, kustomize, GitHub Actions, Jenkins) and exits 6 naming every open `must` finding. The check tools themselves (`gitleaks`, `conftest`, `checkov`, your linters) must be on `PATH`; one that is missing is reported as an open finding at that check's severity, never skipped silently. Checks that need a rendering (`input: render` — most Kubernetes and pipeline policy) cannot run without a ticket and are listed under `result.skipped`. `--pack DIR` or `--pack <git-url>@<ref>` checks against your own pack instead of the built-in reference one; `--require-instructions` fails when the repository has no `AGENTS.md`/`CLAUDE.md`.
 
+`--sarif FILE` also writes the findings as SARIF 2.1.0, whether the run passes or fails:
+- open findings are results at their severity (`must` → error, `should` → warning, `may` → note);
+- waived ones are marked as suppressed;
+- an empty run lets code scanning close fixed alerts.
+
+Stdout is the same envelope either way.
+
+### GitHub Actions
+
+```yaml
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # only for the SARIF upload
+    steps:
+      - uses: actions/checkout@<sha> # v4
+      # Install the check tools your pack runs, e.g. gitleaks and conftest.
+      - id: ai-flow
+        uses: pmi-ai-stack/ai-flow-cli@vX.Y.Z
+      - if: always()
+        uses: github/codeql-action/upload-sarif@<sha> # v4
+        with:
+          sarif_file: ${{ steps.ai-flow.outputs.sarif }}
+```
+
+What the action does:
+- It installs the release named by its own tag, using the `install.sh` at that tag, with the cosign signature check mandatory. It then runs `standards check`.
+- It writes a verdict to the job summary and fails the step while a `must` finding is open.
+
+Inputs:
+- `path` (default `.`)
+- `pack`
+- `require-instructions`
+- `sarif` (default `ai-flow.sarif`)
+- `version`, to install a release other than the action's tag
+
+Outputs: `exit-code` and `sarif`.
+
+Linux and macOS runners only.
+
+### Jenkins
+
+With the [Warnings Next Generation](https://plugins.jenkins.io/warnings-ng/) plugin and cosign on the agent:
+
+```groovy
+pipeline {
+  agent any
+  stages {
+    stage('Standards') {
+      steps {
+        sh '''
+          curl -fsSL -o install.sh https://raw.githubusercontent.com/pmi-ai-stack/ai-flow-cli/vX.Y.Z/install.sh
+          sh install.sh -s -v vX.Y.Z -d "$WORKSPACE/.bin"
+          "$WORKSPACE/.bin/ai-flow" standards check . --sarif ai-flow.sarif
+        '''
+      }
+    }
+  }
+  post {
+    always {
+      recordIssues(tools: [sarif(pattern: 'ai-flow.sarif')])
+    }
+  }
+}
+```
+
+The `sh` step fails the stage while a `must` finding is open (exit 6). `recordIssues` publishes every open finding either way.
+
 ## The contract
 
 - Every command prints exactly one JSON envelope on stdout (`{ok, command, result, needs_input, error, warnings}`); progress goes to stderr. `--json` is the default. `--human` is for a person at a terminal: `doctor`, `standards check` and `status` print readable text, every other command prints its result as indented JSON under a header, and failures always print the code, message and any question.

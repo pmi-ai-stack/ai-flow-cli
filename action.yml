@@ -1,0 +1,94 @@
+name: ai-flow standards check
+description: >-
+  Check a repository against its ai-flow standards pack: installs the
+  pinned, signature-verified ai-flow CLI, runs `standards check <dir>`,
+  writes SARIF for code scanning and a verdict to the job summary, and
+  fails the step while a must finding is open. Linux and macOS runners.
+author: pmi-ai-stack
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  version:
+    description: >-
+      ai-flow-cli release tag to install (vX.Y.Z). Defaults to this
+      action's own ref when that is a release tag, so
+      `uses: pmi-ai-stack/ai-flow-cli@v0.4.0` installs v0.4.0.
+    required: false
+    default: ""
+  path:
+    description: Directory to check.
+    required: false
+    default: "."
+  pack:
+    description: Org-layer pack, a directory or <git-url>@<ref> (standards check --pack). Empty means the built-in reference pack, or config's sources.
+    required: false
+    default: ""
+  require-instructions:
+    description: '"true" fails when the directory has no AGENTS.md or CLAUDE.md.'
+    required: false
+    default: "false"
+  sarif:
+    description: Where to write the SARIF 2.1.0 file, for github/codeql-action/upload-sarif.
+    required: false
+    default: ai-flow.sarif
+  binary:
+    description: An ai-flow binary already on the runner; skips the install. For testing this action against a build.
+    required: false
+    default: ""
+
+outputs:
+  exit-code:
+    description: ai-flow's exit code (0 passed, 6 an open must finding, see `ai-flow explain`).
+    value: ${{ steps.check.outputs.exit-code }}
+  sarif:
+    description: Path of the SARIF file.
+    value: ${{ steps.check.outputs.sarif }}
+
+runs:
+  using: composite
+  steps:
+    # The install below passes install.sh -s: the checksums.txt signature
+    # check is mandatory, so cosign must be on PATH.
+    - if: inputs.binary == ''
+      uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      with:
+        cosign-release: v2.4.1
+
+    # install.sh is the copy at this action's own ref ($GITHUB_ACTION_PATH),
+    # never one fetched from a branch.
+    - id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_BINARY: ${{ inputs.binary }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -eu
+        if [ -n "$INPUT_BINARY" ]; then
+          echo "bin=$INPUT_BINARY" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        version="$INPUT_VERSION"
+        if [ -z "$version" ]; then
+          case "$ACTION_REF" in
+          v[0-9]*.[0-9]*.[0-9]*) version="$ACTION_REF" ;;
+          *)
+            echo "::error::set the version input: this action is used at '${ACTION_REF}', which is not a release tag"
+            exit 1
+            ;;
+          esac
+        fi
+        sh "$GITHUB_ACTION_PATH/install.sh" -s -v "$version" -d "$RUNNER_TEMP/ai-flow-bin"
+        echo "bin=$RUNNER_TEMP/ai-flow-bin/ai-flow" >> "$GITHUB_OUTPUT"
+
+    - id: check
+      shell: bash
+      env:
+        AI_FLOW_BIN: ${{ steps.install.outputs.bin }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_PACK: ${{ inputs.pack }}
+        INPUT_REQUIRE_INSTRUCTIONS: ${{ inputs.require-instructions }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+      run: sh "$GITHUB_ACTION_PATH/scripts/action-run.sh"

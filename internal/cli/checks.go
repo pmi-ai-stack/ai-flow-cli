@@ -51,7 +51,7 @@ type checksResultsWire struct {
 
 func newStandardsCheckCmd(cio cmdIO) *cobra.Command {
 	var fix, requireInstructions bool
-	var stageFlag, packFlag string
+	var stageFlag, packFlag, sarifFlag string
 	cmd := &cobra.Command{
 		Use:   "check KEY_OR_DIR",
 		Short: "Run every applicable standards check and write checks-results.json (or, for a bare directory, print findings for CI)",
@@ -66,8 +66,8 @@ func newStandardsCheckCmd(cio cmdIO) *cobra.Command {
 			}
 
 			if key, ok := ticketKeyIfExists(f.Home, arg); ok {
-				if packFlag != "" || requireInstructions {
-					return Outcome{}, &envelope.Error{Code: "usage", Message: "--pack and --require-instructions apply to the directory form only; a ticket resolves its own packs"}
+				if packFlag != "" || requireInstructions || sarifFlag != "" {
+					return Outcome{}, &envelope.Error{Code: "usage", Message: "--pack, --require-instructions and --sarif apply to the directory form only; a ticket resolves its own packs and records findings in checks-results.json"}
 				}
 				return runStandardsCheckTicket(cmd.Context(), f, key, stage, fix)
 			}
@@ -76,6 +76,7 @@ func newStandardsCheckCmd(cio cmdIO) *cobra.Command {
 			}
 			return runStandardsCheckDir(cmd.Context(), f, arg, dirCheckOptions{
 				Fix: fix, Pack: packFlag, RequireInstructions: requireInstructions,
+				SARIF: sarifFlag, Version: cio.version,
 			})
 		}),
 	}
@@ -83,6 +84,7 @@ func newStandardsCheckCmd(cio cmdIO) *cobra.Command {
 	cmd.Flags().StringVar(&stageFlag, "stage", "checks", "ticket form: which stage's findings this run replaces, checks or ship (the directory form is always checks)")
 	cmd.Flags().StringVar(&packFlag, "pack", "", "directory form: use this pack as the org layer — a local directory, or <git-url>@<ref>")
 	cmd.Flags().BoolVar(&requireInstructions, "require-instructions", false, "directory form: fail with missing_repo_instructions when the directory has no AGENTS.md or CLAUDE.md")
+	cmd.Flags().StringVar(&sarifFlag, "sarif", "", "directory form: also write the findings as SARIF 2.1.0 to this file, whether or not the run passes")
 	return cmd
 }
 
@@ -197,6 +199,10 @@ type dirCheckOptions struct {
 	Fix                 bool
 	Pack                string
 	RequireInstructions bool
+	// SARIF, when set, is the file the findings are also written to.
+	SARIF string
+	// Version names the producer inside the SARIF file.
+	Version string
 }
 
 // runStandardsCheckDir is the ticket-free CI form: org+repo layers
@@ -258,6 +264,14 @@ func runStandardsCheckDir(ctx context.Context, f Flags, dir string, opts dirChec
 	findings, skipped, err := runEffectiveChecks(ctx, e, repos, targets, "checks", opts.Fix, "", newExecer(), cfg.Ops.ToolTimeout())
 	if err != nil {
 		return Outcome{}, err
+	}
+
+	// Written before the verdict: a failing run is exactly when CI
+	// needs the file.
+	if opts.SARIF != "" {
+		if err := writeSARIF(opts.SARIF, opts.Version, findings); err != nil {
+			return Outcome{Warnings: warnings}, err
+		}
 	}
 
 	if open := openMustFindings(findings); len(open) > 0 {

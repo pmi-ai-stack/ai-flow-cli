@@ -133,3 +133,49 @@ func TestStandardsCheckFindsSecretInMarkdown(t *testing.T) {
 		t.Errorf("no org.secrets finding on README.md:\n%s", stdout.String())
 	}
 }
+
+// TestStandardsCheckSARIFEndToEnd is the README's CI command with
+// --sarif, run for real against conftest: the file holds the two
+// policy violations at main.tf as errors, plus the two checks whose
+// tools are not on PATH (the must secrets check as an error, the should
+// checkov scan as a warning), located at the repository root.
+//
+// Needs a real conftest. Skipped when there is none, unless
+// AI_FLOW_E2E_REQUIRE_TOOLS=1 (CI's required job sets it).
+func TestStandardsCheckSARIFEndToEnd(t *testing.T) {
+	conftest, ok := exec.Which("conftest")
+	if !ok {
+		if os.Getenv("AI_FLOW_E2E_REQUIRE_TOOLS") == "1" {
+			t.Fatal("conftest is not on PATH and AI_FLOW_E2E_REQUIRE_TOOLS=1")
+		}
+		t.Skip("conftest not on PATH")
+	}
+	bin := t.TempDir()
+	if err := os.Symlink(conftest, filepath.Join(bin, "conftest")); err != nil {
+		t.Fatalf("symlink conftest: %v", err)
+	}
+	args := readmeCICommand(t)
+	repo := stageTerraformE2E(t)
+	sarif := filepath.Join(t.TempDir(), "ai-flow.sarif")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", bin)
+	t.Chdir(repo)
+
+	stdout, _, ec := runRoot(t, append(args, "--sarif", sarif)...)
+	if ec != 6 {
+		t.Fatalf("exitCode = %d, want 6\n%s", ec, stdout.String())
+	}
+	var got []string
+	for _, r := range readSARIF(t, sarif).Runs[0].Results {
+		got = append(got, r.RuleID+" "+r.Level+" "+r.Locations[0].PhysicalLocation.ArtifactLocation.URI)
+	}
+	want := []string{
+		"infra.terraform.scan warning .",
+		"org.secrets error .",
+		"infra.terraform.policy error main.tf",
+		"infra.terraform.policy error main.tf",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("results = %q\nwant      %q", got, want)
+	}
+}
