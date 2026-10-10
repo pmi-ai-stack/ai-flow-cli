@@ -13,6 +13,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/githubactions"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // TestRealActionlintDetectRenderValidate is the spec's own "-tags ops
@@ -27,9 +28,7 @@ import (
 // real, configured environment" posture terraform's own integration
 // test already carries for its own live-backend path.
 func TestRealActionlintDetectRenderValidate(t *testing.T) {
-	if _, ok := exec.Which("actionlint"); !ok {
-		t.Skip("actionlint not on PATH")
-	}
+	exectest.RequireTool(t, "actionlint")
 
 	repoDir := t.TempDir()
 	src, err := os.ReadFile("testdata/ci.yml")

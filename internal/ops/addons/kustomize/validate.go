@@ -10,11 +10,8 @@ import (
 )
 
 // kubeconformReport mirrors kubectl's own — kubeconform's report shape
-// is addon-independent (it reads a directory of plain YAML manifests,
-// which is exactly what this addon's own rendering already is). Not
-// recorded from a real binary (absent in this environment, see
-// .ai/phase-26/plan.md §0.1) — the identical provisional posture
-// kubectl's own phase-22 Validate already carries, unrevisited here.
+// is addon-independent, checked against a real binary in phase 58
+// (internal/ops/addons/kubectl/testdata/kubeconform-report.json).
 type kubeconformReport struct {
 	Resources []struct {
 		Filename string `json:"filename"`
@@ -24,8 +21,8 @@ type kubeconformReport struct {
 }
 
 const (
-	kubeconformStatusInvalid = "invalid"
-	kubeconformStatusError   = "error"
+	kubeconformStatusInvalid = "statusInvalid"
+	kubeconformStatusError   = "statusError"
 )
 
 // Validate runs kubeconform against r (the rendering itself — a
@@ -33,7 +30,9 @@ const (
 // Helm chart does, so kubeconform is the entire Validate cell here,
 // per the capability matrix).
 func (a *Addon) Validate(ctx context.Context, r *ops.Rendered) ([]ops.Finding, error) {
-	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary"}, exec.RunOpts{Dir: r.Dir, Timeout: a.timeout()})
+	// The rendering's one file; with no path argument kubeconform reads
+	// stdin, finds nothing and exits 1 with no report.
+	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary", renderedFileName}, exec.RunOpts{Dir: r.Dir, Timeout: a.timeout()})
 	if err != nil && !exec.IsToolFailed(err) {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // TestRealHelmDetectRenderValidateHarnesses drives Detect, Render,
@@ -21,9 +22,7 @@ import (
 // exercised here: no live cluster is reachable in this environment,
 // the same carried-forward gap phases 21/22/24 each already disclosed.
 func TestRealHelmDetectRenderValidateHarnesses(t *testing.T) {
-	if _, ok := exec.Which("helm"); !ok {
-		t.Skip("helm not on PATH")
-	}
+	exectest.RequireTool(t, "helm")
 
 	a := New(exec.NewRunner(), &config.Config{Ops: config.Ops{ToolTimeoutMinutes: 1}})
 
@@ -56,8 +55,8 @@ func TestRealHelmDetectRenderValidateHarnesses(t *testing.T) {
 		t.Logf("helm lint finding: %+v", f)
 	}
 
-	if _, ok := exec.Which("kubeconform"); !ok {
-		t.Log("kubeconform not on PATH, skipping the kubeconform half of Validate")
+	if !exectest.HasTool(t, "kubeconform") {
+		// the helm lint half above already ran.
 	} else if _, err := a.runKubeconform(context.Background(), out); err != nil {
 		t.Errorf("real kubeconform failed: %v", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // TestRealKustomizeDetectRenderValidateHarnesses drives Detect, Render
@@ -21,9 +22,7 @@ import (
 // reachable in this environment, the same carried-forward gap phases
 // 21/22/24 each already disclosed for their own live-tool paths.
 func TestRealKustomizeDetectRenderValidateHarnesses(t *testing.T) {
-	if _, ok := exec.Which("kustomize"); !ok {
-		t.Skip("kustomize not on PATH")
-	}
+	exectest.RequireTool(t, "kustomize")
 
 	a := New(exec.NewRunner(), &config.Config{Ops: config.Ops{ToolTimeoutMinutes: 1}})
 
@@ -51,8 +50,8 @@ func TestRealKustomizeDetectRenderValidateHarnesses(t *testing.T) {
 		t.Fatalf("rendered.yaml missing or empty: %v", err)
 	}
 
-	if _, ok := exec.Which("kubeconform"); !ok {
-		t.Log("kubeconform not on PATH, skipping Validate")
+	if !exectest.HasTool(t, "kubeconform") {
+		// Validate is kubeconform; the rest of the test ran without it.
 	} else if _, err := a.Validate(context.Background(), rendered); err != nil {
 		t.Errorf("real kubeconform failed: %v", err)
 	}

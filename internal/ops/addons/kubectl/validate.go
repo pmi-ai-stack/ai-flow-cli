@@ -9,13 +9,11 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
 )
 
-// kubeconformReport mirrors kubeconform's own "-output json -summary"
-// shape closely enough for this addon's needs. This shape is not
-// recorded from a real binary (none is available in this environment —
-// see .ai/phase-22/plan.md §0.8/§1.2.3) and is built from kubeconform's
-// publicly documented output conventions instead — flagged provisional
-// the same way phase 9's Cursor payload shapes and phase 20's doctor
-// read_only heuristic already are, revisit against a real binary.
+// kubeconformReport is the subset of kubeconform's "-output json
+// -summary" report this addon reads, checked against real kubeconform
+// v0.8.0 output in phase 58 (testdata/kubeconform-report.json): only
+// invalid and error resources are listed, with statuses
+// "statusInvalid" and "statusError".
 type kubeconformReport struct {
 	Resources []struct {
 		Filename string `json:"filename"`
@@ -25,11 +23,10 @@ type kubeconformReport struct {
 }
 
 // kubeconformStatus is a resource's own validation outcome — only
-// "invalid"/"error" become a Finding; "valid"/"skipped"/"empty" do
-// not.
+// invalid and error become a Finding; valid, skipped and empty do not.
 const (
-	kubeconformStatusInvalid = "invalid"
-	kubeconformStatusError   = "error"
+	kubeconformStatusInvalid = "statusInvalid"
+	kubeconformStatusError   = "statusError"
 )
 
 // Validate runs kubeconform against r (a plain manifest copy — no
@@ -39,7 +36,9 @@ const (
 // exec.IsToolFailed exactly like tflint's own tolerance in the
 // terraform addon.
 func (a *Addon) Validate(ctx context.Context, r *ops.Rendered) ([]ops.Finding, error) {
-	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary"}, exec.RunOpts{Dir: r.Dir, Timeout: a.timeout()})
+	// "." is the rendering itself: with no path argument kubeconform
+	// reads stdin, finds nothing and exits 1 with no report.
+	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary", "."}, exec.RunOpts{Dir: r.Dir, Timeout: a.timeout()})
 	if err != nil && !exec.IsToolFailed(err) {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/jenkins"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // TestRealJenkinsCliDetectRender is the spec's own "-tags ops runs the
@@ -42,7 +43,5 @@ func TestRealJenkinsCliDetectRender(t *testing.T) {
 		t.Fatalf("targets = %v, want exactly one Jenkinsfile", targets)
 	}
 
-	if _, ok := exec.Which("jenkins-cli"); !ok {
-		t.Skip("jenkins-cli not on PATH — Validate/Drift/DryRun left to a human running this tag against a real, credentialed Jenkins server")
-	}
+	exectest.RequireTool(t, "jenkins-cli")
 }

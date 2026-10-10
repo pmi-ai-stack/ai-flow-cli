@@ -20,8 +20,9 @@ import (
 // establishes).
 var helmLintLine = regexp.MustCompile(`^\[(ERROR|WARNING|INFO)\]\s+([^:]+):\s*(.+)$`)
 
-// kubeconformReport mirrors kubectl's own — provisional, kubeconform
-// remains absent in this environment (.ai/phase-26/plan.md §0.1).
+// kubeconformReport mirrors kubectl's own, checked against a real
+// binary in phase 58 (internal/ops/addons/kubectl/testdata/
+// kubeconform-report.json).
 type kubeconformReport struct {
 	Resources []struct {
 		Filename string `json:"filename"`
@@ -31,8 +32,8 @@ type kubeconformReport struct {
 }
 
 const (
-	kubeconformStatusInvalid = "invalid"
-	kubeconformStatusError   = "error"
+	kubeconformStatusInvalid = "statusInvalid"
+	kubeconformStatusError   = "statusError"
 )
 
 // Validate runs both tools the capability matrix's own helm row names:
@@ -97,7 +98,10 @@ func helmLintSeverity(level string) (string, bool) {
 }
 
 func (a *Addon) runKubeconform(ctx context.Context, dir string) ([]ops.Finding, error) {
-	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary"}, exec.RunOpts{Dir: dir, Timeout: a.timeout()})
+	// rendered.yaml only: dir also holds chart/, the unrendered
+	// templates, which are not YAML until helm template runs. With no
+	// path argument kubeconform reads stdin and reports nothing.
+	out, err := a.x.Run(ctx, "kubeconform", []string{"-output", "json", "-summary", renderedFileName}, exec.RunOpts{Dir: dir, Timeout: a.timeout()})
 	if err != nil && !exec.IsToolFailed(err) {
 		return nil, err
 	}

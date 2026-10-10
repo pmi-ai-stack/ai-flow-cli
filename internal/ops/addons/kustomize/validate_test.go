@@ -13,16 +13,16 @@ import (
 
 const kubeconformReportJSON = `{
   "resources": [
-    {"filename": "rendered.yaml", "kind": "Deployment", "name": "web", "version": "apps/v1", "status": "valid", "msg": ""},
-    {"filename": "rendered.yaml", "kind": "Secret", "name": "web-credentials", "version": "v1", "status": "invalid", "msg": "missing required field"},
-    {"filename": "rendered.yaml", "kind": "", "name": "", "version": "", "status": "error", "msg": "could not parse"},
-    {"filename": "rendered.yaml", "kind": "Widget", "name": "w", "version": "example.com/v1", "status": "skipped", "msg": "no schema"}
+    {"filename": "rendered.yaml", "kind": "Deployment", "name": "web", "version": "apps/v1", "status": "statusValid", "msg": ""},
+    {"filename": "rendered.yaml", "kind": "Secret", "name": "web-credentials", "version": "v1", "status": "statusInvalid", "msg": "missing required field"},
+    {"filename": "rendered.yaml", "kind": "", "name": "", "version": "", "status": "statusError", "msg": "could not parse"},
+    {"filename": "rendered.yaml", "kind": "Widget", "name": "w", "version": "example.com/v1", "status": "statusSkipped", "msg": "no schema"}
   ]
 }`
 
 func TestValidateMapsInvalidAndErrorStatusesToFindings(t *testing.T) {
 	x := exectest.New(t)
-	x.On("kubeconform", []string{"-output", "json", "-summary"}, exec.Output{Stdout: kubeconformReportJSON})
+	x.On("kubeconform", []string{"-output", "json", "-summary", "rendered.yaml"}, exec.Output{Stdout: kubeconformReportJSON})
 
 	a := New(x, &config.Config{})
 	findings, err := a.Validate(context.Background(), &ops.Rendered{Dir: "/rendered"})
@@ -42,7 +42,7 @@ func TestValidateMapsInvalidAndErrorStatusesToFindings(t *testing.T) {
 
 func TestValidateToleratesNonZeroExit(t *testing.T) {
 	x := exectest.New(t)
-	x.OnFailWithOutput("kubeconform", []string{"-output", "json", "-summary"},
+	x.OnFailWithOutput("kubeconform", []string{"-output", "json", "-summary", "rendered.yaml"},
 		exec.Output{Stdout: kubeconformReportJSON, ExitCode: 1},
 		&envelope.Error{Code: "tool_failed", Message: "kubeconform found issues"},
 	)

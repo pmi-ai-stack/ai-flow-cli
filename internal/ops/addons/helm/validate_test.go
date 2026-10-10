@@ -29,7 +29,7 @@ func TestValidateParsesRealHelmLintOutputShape(t *testing.T) {
 
 	x := exectest.New(t)
 	x.OnFailWithOutput("helm", []string{"lint", chartDir}, exec.Output{Stdout: realHelmLintOutput, ExitCode: 1}, &envelope.Error{Code: "tool_failed", Message: "1 chart(s) failed"})
-	x.On("kubeconform", []string{"-output", "json", "-summary"}, exec.Output{Stdout: `{"resources":[]}`})
+	x.On("kubeconform", []string{"-output", "json", "-summary", "rendered.yaml"}, exec.Output{Stdout: `{"resources":[]}`})
 
 	a := New(x, &config.Config{})
 	findings, err := a.Validate(context.Background(), &ops.Rendered{Dir: renderedDir})
@@ -53,7 +53,7 @@ func TestValidateConcatenatesHelmLintAndKubeconformFindings(t *testing.T) {
 
 	x := exectest.New(t)
 	x.On("helm", []string{"lint", chartDir}, exec.Output{Stdout: "==> Linting " + chartDir + "\n\n1 chart(s) linted, 0 chart(s) failed\n"})
-	x.On("kubeconform", []string{"-output", "json", "-summary"}, exec.Output{Stdout: `{"resources":[{"filename":"rendered.yaml","status":"invalid","msg":"bad"}]}`})
+	x.On("kubeconform", []string{"-output", "json", "-summary", "rendered.yaml"}, exec.Output{Stdout: `{"resources":[{"filename":"rendered.yaml","status":"statusInvalid","msg":"bad"}]}`})
 
 	a := New(x, &config.Config{})
 	findings, err := a.Validate(context.Background(), &ops.Rendered{Dir: renderedDir})

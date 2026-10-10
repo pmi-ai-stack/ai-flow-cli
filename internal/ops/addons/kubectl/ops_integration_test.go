@@ -13,6 +13,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/addons/kubectl"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // TestRealKubectlDetectRenderValidateHarnesses is the spec's own
@@ -28,12 +29,8 @@ import (
 // identical reason (no safe, credential-free fixture to run against in
 // CI).
 func TestRealKubectlDetectRenderValidateHarnesses(t *testing.T) {
-	if _, ok := exec.Which("kubectl"); !ok {
-		t.Skip("kubectl not on PATH")
-	}
-	if _, ok := exec.Which("kubeconform"); !ok {
-		t.Skip("kubeconform not on PATH")
-	}
+	exectest.RequireTool(t, "kubectl")
+	exectest.RequireTool(t, "kubeconform")
 
 	repoDir := t.TempDir()
 	src, err := os.ReadFile("testdata/manifests/deployment.yaml")
@@ -64,8 +61,28 @@ func TestRealKubectlDetectRenderValidateHarnesses(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 
-	if _, err := a.Validate(context.Background(), rendered); err != nil {
+	findings, err := a.Validate(context.Background(), rendered)
+	if err != nil {
 		t.Fatalf("Validate: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Errorf("Validate on the valid fixture = %v, want no findings", findings)
+	}
+
+	// An invalid manifest must come back as a finding: before phase 58
+	// Validate passed no path (kubeconform read stdin and reported
+	// nothing) and matched status names kubeconform never prints.
+	invalid := t.TempDir()
+	bad := "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: broken\nspec:\n  replicas: \"three\"\n"
+	if err := os.WriteFile(filepath.Join(invalid, "bad.yaml"), []byte(bad), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	findings, err = a.Validate(context.Background(), &ops.Rendered{Dir: invalid})
+	if err != nil {
+		t.Fatalf("Validate (invalid manifest): %v", err)
+	}
+	if len(findings) != 1 || findings[0].Severity != "error" || findings[0].File != "bad.yaml" {
+		t.Errorf("Validate (invalid manifest) = %+v, want one error finding for bad.yaml", findings)
 	}
 
 	harnesses, err := a.Harnesses(detect.Repo{Name: "acme.k8s", LocalPath: repoDir}, targets[0])

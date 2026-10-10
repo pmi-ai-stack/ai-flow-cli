@@ -1,0 +1,36 @@
+{
+  "resources": [
+    {
+      "filename": "crd.yaml",
+      "kind": "Widget",
+      "name": "w",
+      "version": "example.com/v1",
+      "status": "statusError",
+      "msg": "could not find schema for Widget"
+    },
+    {
+      "filename": "bad.yaml",
+      "kind": "Deployment",
+      "name": "broken",
+      "version": "apps/v1",
+      "status": "statusInvalid",
+      "msg": "problem validating schema. Check JSON formatting: jsonschema validation failed with 'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone/deployment-apps-v1.json#' - at '/spec': missing properties 'selector', 'template' - at '/spec/replicas': got string, want null or integer",
+      "validationErrors": [
+        {
+          "path": "/spec",
+          "msg": "missing properties 'selector', 'template'"
+        },
+        {
+          "path": "/spec/replicas",
+          "msg": "got string, want null or integer"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "valid": 1,
+    "invalid": 1,
+    "errors": 1,
+    "skipped": 0
+  }
+}

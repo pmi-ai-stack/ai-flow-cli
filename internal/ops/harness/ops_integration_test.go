@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/harness"
 )
 
@@ -30,12 +31,8 @@ import (
 const clusterOpTimeout = 3 * time.Minute
 
 func TestRealKindClusterLifecycle(t *testing.T) {
-	if _, ok := exec.Which("kind"); !ok {
-		t.Skip("kind not on PATH")
-	}
-	if _, ok := exec.Which("docker"); !ok {
-		t.Skip("docker not on PATH")
-	}
+	exectest.RequireTool(t, "kind")
+	exectest.RequireTool(t, "docker")
 
 	x := exec.NewRunner()
 	ctx := context.Background()

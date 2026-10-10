@@ -58,6 +58,15 @@ jobs:
           go install github.com/kudobuilder/kuttl/cmd/kubectl-kuttl@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # The validators the -tags ops tests need beyond the addon tools
+      # themselves (phase 58): without them the terraform, kubectl and
+      # github-actions real-tool tests skipped every night unnoticed.
+      - name: Install tflint, kubeconform, actionlint
+        run: |
+          go install github.com/terraform-linters/tflint@v0.64.0
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
       - name: Install mutmut (real mutmut for the -tags mutation Python path, best-effort)
         run: pip install --user mutmut || true
 
@@ -74,13 +83,17 @@ jobs:
       - name: go test -tags mutation
         run: go test -tags mutation -count=1 ./...
 
-      # -tags ops: real terraform/kubectl/helm/kustomize/kind against
-      # this runner's own Docker daemon (already present on
-      # ubuntu-latest); kubeconform/ct/kuttl/chainsaw/act/actionlint/
-      # jenkins-cli remain absent here and skip cleanly, the identical
-      # disclosed gap phases 21/22/24/26/27 each already recorded by
-      # hand for their own development environment.
+      # -tags ops: real terraform (detect, render, validate, drift and
+      # dry-run on a built-in-provider module), kubectl, helm, kustomize,
+      # kind against this runner's own Docker daemon, and the validators
+      # installed above. AI_FLOW_REQUIRE_TOOLS names every tool this job
+      # provisions: a test that would skip for one of them fails instead
+      # (exectest.RequireTool), so a broken install cannot pass as a
+      # night of skips. ct/chainsaw/act/jenkins-cli are not provisioned
+      # and still skip.
       - name: go test -tags ops
+        env:
+          AI_FLOW_REQUIRE_TOOLS: terraform,tflint,kubectl,kubeconform,helm,kustomize,kind,docker,actionlint
         run: go test -tags ops -count=1 -timeout 20m ./...
 
       # -tags e2e (phase 33): `standards check <dir>`, the documented CI

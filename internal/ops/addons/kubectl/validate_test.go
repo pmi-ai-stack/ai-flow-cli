@@ -2,6 +2,7 @@ package kubectl
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
@@ -11,18 +12,28 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
-const kubeconformReportJSON = `{
-  "resources": [
-    {"filename": "deployment.yaml", "kind": "Deployment", "name": "web", "version": "apps/v1", "status": "valid", "msg": ""},
-    {"filename": "secret.yaml", "kind": "Secret", "name": "web-credentials", "version": "v1", "status": "invalid", "msg": "missing required field"},
-    {"filename": "broken.yaml", "kind": "", "name": "", "version": "", "status": "error", "msg": "could not parse"},
-    {"filename": "crd.yaml", "kind": "Widget", "name": "w", "version": "example.com/v1", "status": "skipped", "msg": "no schema"}
-  ]
-}`
+// recordedKubeconformReport is real kubeconform v0.8.0 output
+// (`-output json -summary .` over a directory holding a valid
+// ConfigMap, a Deployment with a string replicas and no selector, and
+// a CRD-kind resource with no schema), recorded in phase 58 — the
+// first run against a real binary. Only invalid and error resources
+// are listed; their statuses are "statusInvalid" and "statusError".
+func recordedKubeconformReport(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile("testdata/kubeconform-report.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// kubeconformArgs is Validate's argv: the rendering directory is the
+// path argument; with none, kubeconform reads stdin.
+var kubeconformArgs = []string{"-output", "json", "-summary", "."}
 
 func TestValidateMapsInvalidAndErrorStatusesToFindings(t *testing.T) {
 	x := exectest.New(t)
-	x.On("kubeconform", []string{"-output", "json", "-summary"}, exec.Output{Stdout: kubeconformReportJSON})
+	x.On("kubeconform", kubeconformArgs, exec.Output{Stdout: recordedKubeconformReport(t)})
 
 	a := New(x, &config.Config{})
 	findings, err := a.Validate(context.Background(), &ops.Rendered{Dir: "/rendered"})
@@ -30,13 +41,13 @@ func TestValidateMapsInvalidAndErrorStatusesToFindings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(findings) != 2 {
-		t.Fatalf("Validate = %v, want two findings (invalid + error; valid/skipped produce none)", findings)
+		t.Fatalf("Validate = %v, want two findings (one statusError, one statusInvalid)", findings)
 	}
-	if findings[0].Severity != "error" || findings[0].File != "secret.yaml" {
-		t.Errorf("findings[0] = %+v, want severity error, file secret.yaml", findings[0])
+	if findings[0].Severity != "warning" || findings[0].File != "crd.yaml" {
+		t.Errorf("findings[0] = %+v, want severity warning (statusError), file crd.yaml", findings[0])
 	}
-	if findings[1].Severity != "warning" || findings[1].File != "broken.yaml" {
-		t.Errorf("findings[1] = %+v, want severity warning, file broken.yaml", findings[1])
+	if findings[1].Severity != "error" || findings[1].File != "bad.yaml" {
+		t.Errorf("findings[1] = %+v, want severity error (statusInvalid), file bad.yaml", findings[1])
 	}
 	for _, f := range findings {
 		if f.Tool != "kubeconform" {
@@ -47,8 +58,8 @@ func TestValidateMapsInvalidAndErrorStatusesToFindings(t *testing.T) {
 
 func TestValidateToleratesNonZeroExit(t *testing.T) {
 	x := exectest.New(t)
-	x.OnFailWithOutput("kubeconform", []string{"-output", "json", "-summary"},
-		exec.Output{Stdout: kubeconformReportJSON, ExitCode: 1},
+	x.OnFailWithOutput("kubeconform", kubeconformArgs,
+		exec.Output{Stdout: recordedKubeconformReport(t), ExitCode: 1},
 		&envelope.Error{Code: "tool_failed", Message: "kubeconform found issues"},
 	)
 
