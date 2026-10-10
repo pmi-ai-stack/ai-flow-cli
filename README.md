@@ -5,7 +5,7 @@ The deterministic side of the ai-flow pipeline. One Go binary; every tracker, gi
 ## Install
 
 ```sh
-curl -fsSL -o install.sh https://raw.githubusercontent.com/pmi-ai-stack/ai-flow-cli/4b760f37cd6207cfb48b250a962c2b585adb4605/install.sh
+curl -fsSL -o install.sh https://raw.githubusercontent.com/pmi-ai-stack/ai-flow-cli/3785e5fca8fa7c463d568da0cde3c57483526d82/install.sh
 sh install.sh
 ```
 
