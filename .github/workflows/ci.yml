@@ -91,6 +91,11 @@ jobs:
       - name: cross-build six platforms (goreleaser snapshot)
         run: go tool goreleaser build --snapshot --clean
 
+      # The release-only sections (dockers_v2, docker_signs,
+      # homebrew_casks) are not exercised by `build`; check validates them.
+      - name: goreleaser check
+        run: go tool goreleaser check
+
       - name: govulncheck
         run: go tool govulncheck ./...
 

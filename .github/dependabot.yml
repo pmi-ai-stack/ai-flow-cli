@@ -1,5 +1,6 @@
-# Keeps the SHA-pinned actions (phase 33) and the Go module's direct
-# requirements moving by reviewed PR instead of rotting in place.
+# Keeps the SHA-pinned actions (phase 33), the Go module's direct
+# requirements and the Dockerfile's digest-pinned base image (phase 50)
+# moving by reviewed PR instead of rotting in place.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -7,6 +8,10 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly

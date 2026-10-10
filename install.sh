@@ -55,18 +55,27 @@ need() {
 need curl
 need tar
 
-OS=""
-case "$(uname -s)" in
-Linux) OS="linux" ;;
-Darwin) OS="darwin" ;;
-*) die "unsupported OS: $(uname -s) (only linux and darwin are supported; Windows support is a known, tracked gap)" ;;
-esac
-
 ARCH=""
 case "$(uname -m)" in
 x86_64 | amd64) ARCH="amd64" ;;
 arm64 | aarch64) ARCH="arm64" ;;
 *) die "unsupported architecture: $(uname -m)" ;;
+esac
+
+# Windows (Git Bash, MSYS2, Cygwin) gets a release archive but no
+# installer: the plugin's hook scripts need a POSIX shell and OPS tooling
+# on Windows is unverified, so this script points at the documented
+# manual path instead of half-installing.
+OS=""
+case "$(uname -s)" in
+Linux) OS="linux" ;;
+Darwin) OS="darwin" ;;
+MINGW* | MSYS* | CYGWIN*)
+	zip_version="${VERSION#v}"
+	[ -n "$zip_version" ] || zip_version="<version>"
+	die "Windows is not installed by this script. Download ai-flow_${zip_version}_windows_${ARCH}.zip and checksums.txt from https://github.com/${REPO}/releases, then verify and unpack it as README.md's \"Windows\" section shows."
+	;;
+*) die "unsupported OS: $(uname -s) (only linux and darwin are supported; Windows: see README.md's \"Windows\" section)" ;;
 esac
 
 if [ -z "$VERSION" ]; then

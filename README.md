@@ -13,6 +13,57 @@ The URL is pinned to a commit, not a branch, so what you run is a fixed, reviewa
 
 Or download a release archive from the [releases page](https://github.com/pmi-ai-stack/ai-flow-cli/releases) and verify it against `checksums.txt` yourself. `install.sh -v vX.Y.Z -d DIR` pins a specific release and install directory — this is what the [`ai-flow` plugin's `session-start.sh`](../ai-flow/hooks/session-start.sh) calls automatically, resolved against its own manifest's `cli_version` range, so most people never run this by hand.
 
+### Homebrew (macOS, Linux)
+
+```sh
+brew install --cask pmi-ai-stack/tap/ai-flow
+```
+
+The cask is published to `pmi-ai-stack/homebrew-tap` by each release. The binary is not notarized by Apple, so the cask removes macOS's quarantine attribute after install. For provenance, verify the archive against the release's signed `checksums.txt`, as `install.sh` does.
+
+### Container image
+
+```sh
+docker run --rm -v "$PWD:/src" -w /src ghcr.io/pmi-ai-stack/ai-flow-cli:vX.Y.Z standards check .
+```
+
+The image is `linux/amd64` and `linux/arm64`. It holds the same static binary on a distroless base, runs as a non-root user, and has `/usr/local/bin/ai-flow` as its entrypoint. Each manifest is signed keylessly by the release workflow, the same identity as `checksums.txt`, and carries an SBOM attestation:
+
+```sh
+cosign verify ghcr.io/pmi-ai-stack/ai-flow-cli:vX.Y.Z \
+  --certificate-identity https://github.com/pmi-ai-stack/ai-flow-cli/.github/workflows/release.yml@refs/tags/vX.Y.Z \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+It carries **no check tools**. Run as is, every check whose tool is missing is reported as an open finding. For a real CI image, copy the binary into an image that already pins your tools:
+
+```dockerfile
+COPY --from=ghcr.io/pmi-ai-stack/ai-flow-cli:vX.Y.Z /usr/local/bin/ai-flow /usr/local/bin/ai-flow
+```
+
+### Windows
+
+Each release builds `ai-flow_<version>_windows_amd64.zip` and `…_windows_arm64.zip`. There is no installer: `install.sh` stops on Windows and points here. In PowerShell:
+
+```powershell
+$v = "X.Y.Z"; $arch = "amd64"   # or arm64
+$base = "https://github.com/pmi-ai-stack/ai-flow-cli/releases/download/v$v"
+Invoke-WebRequest "$base/ai-flow_${v}_windows_$arch.zip" -OutFile ai-flow.zip
+Invoke-WebRequest "$base/checksums.txt" -OutFile checksums.txt
+$want = (Select-String "ai-flow_${v}_windows_$arch.zip" checksums.txt).Line.Split(" ")[0]
+if ((Get-FileHash ai-flow.zip -Algorithm SHA256).Hash.ToLower() -ne $want) { throw "checksum mismatch" }
+Expand-Archive ai-flow.zip -DestinationPath "$env:LOCALAPPDATA\ai-flow"
+```
+
+Then add `%LOCALAPPDATA%\ai-flow` to `PATH`. With cosign installed, verify `checksums.txt` first, using `checksums.txt.sig`, `checksums.txt.pem` and the same `cosign verify-blob` identity as `install.sh`.
+
+**What works on Windows today:**
+- The CLI itself, e.g. `standards check <dir>` in CI.
+
+**What does not:**
+- The plugin's hook scripts need a POSIX shell (Git Bash or WSL). Without one the guard fails open, by design.
+- OPS tooling on Windows is unverified.
+
 ## Use in CI
 
 Check a repository against the standards pack from its own pipeline — no ticket, no `config.json` and no `~/.ai-flow` needed:

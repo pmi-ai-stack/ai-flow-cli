@@ -61,6 +61,69 @@ signs:
 sboms:
   - artifacts: archive
 
+# A multi-platform image of the same static binary (Dockerfile). buildx
+# attaches an SBOM attestation; docker_signs below signs the manifest
+# with the same keyless identity as checksums.txt. release.yml logs in
+# to ghcr.io and grants packages: write.
+dockers_v2:
+  - id: ai-flow
+    ids: [ai-flow]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/pmi-ai-stack/ai-flow-cli
+    tags:
+      - "{{ .Version }}"
+      - "v{{ .Major }}.{{ .Minor }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: true
+    labels:
+      org.opencontainers.image.title: ai-flow
+      org.opencontainers.image.description: The deterministic side of the ai-flow pipeline
+      org.opencontainers.image.source: https://github.com/pmi-ai-stack/ai-flow-cli
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+
+docker_signs:
+  - cmd: cosign
+    artifacts: manifests
+    args:
+      - sign
+      - "${artifact}@${digest}"
+      - "--yes"
+    output: true
+
+# A Homebrew cask in pmi-ai-stack/homebrew-tap. Uploaded only when
+# release.yml has HOMEBREW_TAP_GITHUB_TOKEN (a token with write access
+# to the tap); without it the release still succeeds and the cask stays
+# in dist/. The binary is not notarized, so the post-install hook
+# removes macOS's quarantine attribute, as goreleaser documents for CLIs.
+homebrew_casks:
+  - name: ai-flow
+    ids: [ai-flow]
+    binaries: [ai-flow]
+    repository:
+      owner: pmi-ai-stack
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}'
+    directory: Casks
+    homepage: https://github.com/pmi-ai-stack/ai-flow-cli
+    description: The deterministic side of the ai-flow pipeline
+    skip_upload: '{{ if not (index .Env "HOMEBREW_TAP_GITHUB_TOKEN") }}true{{ end }}'
+    caveats: |
+      The binary is not notarized by Apple; this cask removes the
+      quarantine attribute after install. Verify it against the
+      release's signed checksums.txt if you need provenance.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ai-flow"]
+          end
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
