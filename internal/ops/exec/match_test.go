@@ -9,6 +9,7 @@ func TestVerbMatchingOneWord(t *testing.T) {
 	al := NewAllowlist(Row{
 		Tool:  "kubectl",
 		Verb:  []string{"diff"},
+		Flags: []string{"-f"},
 		Class: ClassReadOnlyLive,
 	})
 
@@ -24,9 +25,9 @@ func TestVerbMatchingOneWord(t *testing.T) {
 }
 
 // TestVerbMatchingTwoWord proves two-word verbs (e.g. "rollout history")
-// match on both words, and that free arguments after the verb are never
-// matched — "helm diff upgrade" is the verb "diff", per the spec's own
-// example.
+// match on both words, and that free arguments after the verb are not
+// matched by value — "helm diff upgrade" is the verb "diff", per the
+// spec's own example.
 func TestVerbMatchingTwoWord(t *testing.T) {
 	al := NewAllowlist(
 		Row{Tool: "kubectl", Verb: []string{"rollout", "history"}, Class: ClassReadOnlyLive},
@@ -43,7 +44,7 @@ func TestVerbMatchingTwoWord(t *testing.T) {
 		t.Error("a two-word verb with only the first word present should not match")
 	}
 	if _, ok := al.Match([]string{"helm", "diff", "upgrade", "myrelease", "./chart"}); !ok {
-		t.Error(`"helm diff upgrade …" is the verb "diff" — free arguments after it are never matched`)
+		t.Error(`"helm diff upgrade …" is the verb "diff" — free arguments after it are not matched by value`)
 	}
 }
 
@@ -53,6 +54,7 @@ func TestVerbMatchingRequiredAndForbiddenFlags(t *testing.T) {
 			Tool:          "kubectl",
 			Verb:          []string{"apply"},
 			RequiredFlags: []string{"--dry-run=server"},
+			Flags:         []string{"-f"},
 			Mutating:      true,
 			Class:         ClassReadOnlyLive,
 		},

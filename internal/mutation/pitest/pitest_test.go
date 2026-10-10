@@ -10,6 +10,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/detect"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/mutation"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 func TestFqnFor(t *testing.T) {
@@ -78,6 +79,9 @@ type fakeExecer struct {
 }
 
 func (f fakeExecer) Run(_ context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
+	if err := exectest.Refused(tool, args); err != nil {
+		return exec.Output{}, err // what the real Runner answers (phase 54)
+	}
 	f.t.Helper()
 	if tool != "mvn" {
 		f.t.Fatalf("unexpected tool %q", tool)

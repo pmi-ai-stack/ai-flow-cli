@@ -213,6 +213,9 @@ type mutationFakeExecer struct {
 }
 
 func (f *mutationFakeExecer) Run(ctx context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
+	if err := exectest.Refused(tool, args); err != nil {
+		return exec.Output{}, err // what the real Runner answers (phase 54)
+	}
 	if tool != "gremlins" {
 		return f.Scripted.Run(ctx, tool, args, opts)
 	}

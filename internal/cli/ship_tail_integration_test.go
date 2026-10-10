@@ -24,10 +24,10 @@ import (
 // module, test files included) — the same pattern
 // internal/gitops/integration_test.go already established.
 var fixtureRows = []exec.Row{
-	{Tool: "git", Verb: []string{"init"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"config"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"remote"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"log"}, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"init"}, Flags: []string{"--bare"}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"config"}, Flags: []string{}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"remote"}, Flags: []string{}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"log"}, Flags: []string{"-1", "--pretty"}, Class: exec.ClassRepoWrite},
 }
 
 func fixtureRunner() *exec.Runner {

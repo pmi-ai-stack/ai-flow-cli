@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
@@ -155,8 +156,11 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	var env struct {
 		Result struct {
 			Rows []struct {
-				Tool  string `json:"tool"`
-				Class string `json:"class"`
+				Tool       string   `json:"tool"`
+				Verb       []string `json:"verb"`
+				Class      string   `json:"class"`
+				Flags      []string `json:"flags"`
+				ValueFlags []string `json:"value_flags"`
 			} `json:"rows"`
 		} `json:"result"`
 	}
@@ -174,6 +178,17 @@ func TestOpsAllowlistCommandListsOpsRows(t *testing.T) {
 	}
 	if !sawTerraform {
 		t.Error("ops allowlist did not list a terraform row")
+	}
+	// Phase 54: each row's declared flags are part of what it allows.
+	for _, r := range env.Result.Rows {
+		if r.Tool == "git" && len(r.Verb) == 1 && r.Verb[0] == "commit" {
+			if !slices.Equal(r.Flags, []string{"-m"}) || !slices.Equal(r.ValueFlags, []string{"-m"}) {
+				t.Errorf("git commit row flags = %v / %v, want [-m] / [-m]", r.Flags, r.ValueFlags)
+			}
+		}
+		if r.Flags == nil {
+			t.Errorf("%s %v: flags missing from ops allowlist", r.Tool, r.Verb)
+		}
 	}
 }
 

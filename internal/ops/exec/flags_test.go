@@ -53,7 +53,11 @@ func TestForbiddenFlagMatchesValueSpelling(t *testing.T) {
 	if _, ok := al.Match([]string{"kyverno", "apply", "policy.yaml", "--resource", "r.yaml"}); !ok {
 		t.Error("kyverno apply without --cluster should still match")
 	}
-	if _, ok := al.Match([]string{"eslint", "--fix-dry-run", "."}); !ok {
+	// A different flag sharing a prefix is not the forbidden one. The
+	// production eslint row declares no --fix-dry-run (phase 54), so the
+	// prefix rule is checked on a row that does.
+	prefix := NewAllowlist(Row{Tool: "eslint", ForbiddenFlags: []string{"--fix"}, Flags: []string{"--fix-dry-run"}, Class: ClassNone})
+	if _, ok := prefix.Match([]string{"eslint", "--fix-dry-run", "."}); !ok {
 		t.Error("a different flag sharing a prefix (--fix-dry-run) is not --fix")
 	}
 }

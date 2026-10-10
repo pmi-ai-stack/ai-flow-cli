@@ -41,7 +41,7 @@ func TestRunLogsStartAndEnd(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/sh")
 	}
-	r := testRunner(Row{Tool: "sh", Class: ClassRepoWrite})
+	r := testRunner(Row{Tool: "sh", Flags: []string{"-c"}, Class: ClassRepoWrite})
 	ctx, buf := logCtx(redact.New(nil))
 	dir := t.TempDir()
 
@@ -87,7 +87,7 @@ func TestRunLogRedactsSecretsInArguments(t *testing.T) {
 	}
 	const secret = "super-secret-token-value"
 	rd := redact.New([]string{"AI_FLOW_JIRA_TOKEN=" + secret})
-	r := &Runner{Allowlist: NewAllowlist(Row{Tool: "sh", Class: ClassRepoWrite}), Redact: rd}
+	r := &Runner{Allowlist: NewAllowlist(Row{Tool: "sh", Flags: []string{"-c"}, Class: ClassRepoWrite}), Redact: rd}
 	ctx, buf := logCtx(rd)
 	if _, err := r.Run(ctx, "sh", []string{"-c", "echo " + secret}, RunOpts{}); err != nil {
 		t.Fatal(err)

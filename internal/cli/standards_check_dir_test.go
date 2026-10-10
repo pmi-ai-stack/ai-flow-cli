@@ -11,6 +11,7 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec/exectest"
 )
 
 // toolFunc is an Execer answering by tool name, for check runners whose
@@ -22,6 +23,9 @@ type toolFunc struct {
 }
 
 func (f *toolFunc) Run(_ context.Context, tool string, args []string, _ exec.RunOpts) (exec.Output, error) {
+	if err := exectest.Refused(tool, args); err != nil {
+		return exec.Output{}, err // what the real Runner answers (phase 54)
+	}
 	f.calls = append(f.calls, tool)
 	return f.answer(tool, args)
 }

@@ -25,6 +25,9 @@ type pytestWritingExecer struct {
 }
 
 func (p *pytestWritingExecer) Run(ctx context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
+	if err := exectest.Refused(tool, args); err != nil {
+		return exec.Output{}, err // what the real Runner answers (phase 54)
+	}
 	if tool == "pytest" {
 		data, err := os.ReadFile(p.fixture)
 		if err != nil {

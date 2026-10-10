@@ -66,7 +66,7 @@ func TestRunNonZeroExitReturnsToolFailedWithOutput(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/sh")
 	}
-	r := testRunner(Row{Tool: "sh", Verb: nil, Class: ClassRepoWrite})
+	r := testRunner(Row{Tool: "sh", Verb: nil, Flags: []string{"-c"}, Class: ClassRepoWrite})
 	out, err := r.Run(context.Background(), "sh", []string{"-c", "echo boom >&2; exit 3"}, RunOpts{})
 	if err == nil {
 		t.Fatal("expected an error for a non-zero exit")
@@ -85,7 +85,7 @@ func TestRunRedactsSecretsFromOutput(t *testing.T) {
 	}
 	const secret = "super-secret-token-value"
 	rd := redact.New([]string{"AI_FLOW_JIRA_TOKEN=" + secret})
-	r := &Runner{Allowlist: NewAllowlist(Row{Tool: "sh", Verb: nil, Class: ClassRepoWrite}), Redact: rd}
+	r := &Runner{Allowlist: NewAllowlist(Row{Tool: "sh", Verb: nil, Flags: []string{"-c"}, Class: ClassRepoWrite}), Redact: rd}
 
 	out, err := r.Run(context.Background(), "sh", []string{"-c", "echo " + secret}, RunOpts{})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestRunRespectsTimeout(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/sh")
 	}
-	r := testRunner(Row{Tool: "sh", Verb: nil, Class: ClassRepoWrite})
+	r := testRunner(Row{Tool: "sh", Verb: nil, Flags: []string{"-c"}, Class: ClassRepoWrite})
 	_, err := r.Run(context.Background(), "sh", []string{"-c", "sleep 5"}, RunOpts{Timeout: 50 * time.Millisecond})
 	if err == nil {
 		t.Fatal("expected the timeout to kill the process and return an error")
@@ -182,7 +182,7 @@ func TestRunNonZeroExitIsNotNotFound(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses /bin/sh")
 	}
-	r := testRunner(Row{Tool: "sh", Verb: nil, Class: ClassRepoWrite})
+	r := testRunner(Row{Tool: "sh", Verb: nil, Flags: []string{"-c"}, Class: ClassRepoWrite})
 	_, err := r.Run(context.Background(), "sh", []string{"-c", "exit 127"}, RunOpts{})
 	if _, ok := IsNotFound(err); ok {
 		t.Error("a tool that ran and exited non-zero is reported as not found")

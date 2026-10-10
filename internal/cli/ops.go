@@ -556,6 +556,8 @@ type opsAllowlistRow struct {
 	Verb           []string   `json:"verb"`
 	RequiredFlags  []string   `json:"required_flags,omitempty"`
 	ForbiddenFlags []string   `json:"forbidden_flags,omitempty"`
+	Flags          []string   `json:"flags"`
+	ValueFlags     []string   `json:"value_flags,omitempty"`
 	Mutating       bool       `json:"mutating"`
 	Class          exec.Class `json:"class"`
 }
@@ -574,7 +576,8 @@ func newOpsAllowlistCmd(cio cmdIO) *cobra.Command {
 			for _, r := range exec.Table {
 				rows = append(rows, opsAllowlistRow{
 					Tool: r.Tool, Verb: r.Verb, RequiredFlags: r.RequiredFlags,
-					ForbiddenFlags: r.ForbiddenFlags, Mutating: r.Mutating, Class: r.Class,
+					ForbiddenFlags: r.ForbiddenFlags, Flags: r.Flags, ValueFlags: r.ValueFlags,
+					Mutating: r.Mutating, Class: r.Class,
 				})
 			}
 			return Outcome{Result: opsAllowlistResult{Rows: rows}}, nil

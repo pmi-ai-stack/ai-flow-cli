@@ -83,9 +83,14 @@ func (s *Scripted) OnFailWithOutput(tool string, args []string, out exec.Output,
 	return s
 }
 
-// Run implements exec.Execer against the registered script.
+// Run implements exec.Execer against the registered script. Every call
+// must also pass the production allowlist (RequireAllowlisted): a
+// double that answers what the real Runner would refuse hides a broken
+// call site — phase 54 found terraform's dry-run plan refused in
+// production behind exactly such a double.
 func (s *Scripted) Run(_ context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
 	s.t.Helper()
+	RequireAllowlisted(s.t, tool, args)
 	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir, Stdin: opts.Stdin, Env: opts.Env})
 	k := key(tool, args)
 	if f, ok := s.fail[k]; ok {
@@ -117,4 +122,28 @@ func (s *Scripted) CalledWithPrefix(tool string, prefix ...string) bool {
 		}
 	}
 	return false
+}
+
+// RequireAllowlisted fails tb when tool+args is not on the production
+// allowlist (exec.Table, declared flags included). Every Execer test
+// double calls it, so a call site whose argv the real Runner would
+// refuse fails its own unit test instead of passing behind the double.
+func RequireAllowlisted(tb testing.TB, tool string, args []string) {
+	tb.Helper()
+	argv := append([]string{tool}, args...)
+	if _, ok := exec.NewAllowlist(exec.Table...).Match(argv); !ok {
+		tb.Errorf("exectest: %q is not on the production allowlist; the real Runner would refuse it with exec_not_allowed", strings.Join(argv, " "))
+	}
+}
+
+// Refused is what the real Runner answers before running tool+args:
+// nil when the production allowlist matches it, else the same
+// exec_not_allowed error. A package-local Execer double returns it
+// first, so it refuses exactly what production refuses.
+func Refused(tool string, args []string) error {
+	argv := append([]string{tool}, args...)
+	if _, ok := exec.NewAllowlist(exec.Table...).Match(argv); !ok {
+		return exec.NotAllowed(argv)
+	}
+	return nil
 }

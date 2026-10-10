@@ -20,11 +20,14 @@ import (
 // through internal/ops/exec's Runner too (TestNoOsExecOutsideExecPackage
 // forbids os/exec anywhere else in the module, test files included).
 var fixtureRows = []exec.Row{
-	{Tool: "git", Verb: []string{"init"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"config"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"remote"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"branch"}, Mutating: true, Class: exec.ClassRepoWrite},
-	{Tool: "git", Verb: []string{"log"}, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"init"}, Flags: []string{"--bare"}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"config"}, Flags: []string{}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"remote"}, Flags: []string{}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"branch"}, Flags: []string{}, Mutating: true, Class: exec.ClassRepoWrite},
+	{Tool: "git", Verb: []string{"log"}, Flags: []string{"-1", "--pretty"}, Class: exec.ClassRepoWrite},
+	// A test's own query, not a production call: production git
+	// never asks for --abbrev-ref (phase 54 declared flags).
+	{Tool: "git", Verb: []string{"rev-parse"}, Flags: []string{"--abbrev-ref"}, Class: exec.ClassRepoWrite},
 }
 
 func fixtureRunner() *exec.Runner {
@@ -87,7 +90,7 @@ func TestIntegrationPrepareCleanRepoPlainCheckout(t *testing.T) {
 		t.Error("BranchCreated = false, want true")
 	}
 
-	branch := strings.TrimSpace(mustRun(t, real, work, "rev-parse", "--abbrev-ref", "HEAD").Stdout)
+	branch := strings.TrimSpace(mustRun(t, fixtureRunner(), work, "rev-parse", "--abbrev-ref", "HEAD").Stdout)
 	if branch != "feature/PROJ-1" {
 		t.Errorf("HEAD branch = %q, want feature/PROJ-1", branch)
 	}
@@ -133,7 +136,7 @@ func TestIntegrationPrepareWorktreeMode(t *testing.T) {
 		t.Errorf("worktree %s does not contain README.md: %v", res.WorkingPath, err)
 	}
 	// The original clone's own branch is untouched.
-	branch := strings.TrimSpace(mustRun(t, exec.NewRunner(), work, "rev-parse", "--abbrev-ref", "HEAD").Stdout)
+	branch := strings.TrimSpace(mustRun(t, fixtureRunner(), work, "rev-parse", "--abbrev-ref", "HEAD").Stdout)
 	if branch != "main" {
 		t.Errorf("original clone's HEAD branch = %q, want main (untouched)", branch)
 	}

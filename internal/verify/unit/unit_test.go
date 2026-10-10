@@ -102,6 +102,9 @@ type pytestFakeExecer struct {
 }
 
 func (f pytestFakeExecer) Run(_ context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
+	if err := exectest.Refused(tool, args); err != nil {
+		return exec.Output{}, err // what the real Runner answers (phase 54)
+	}
 	f.t.Helper()
 	if tool != "pytest" {
 		f.t.Fatalf("unexpected tool %q", tool)
