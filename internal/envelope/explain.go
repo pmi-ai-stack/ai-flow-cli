@@ -99,11 +99,11 @@ var explanationTexts = map[string]explanationText{
 	},
 
 	"tracker_auth": {
-		meaning:  "The tracker rejected the credentials (HTTP 401 or 403).",
-		recovery: "Halt. Tell the developer to check AI_FLOW_JIRA_EMAIL and AI_FLOW_JIRA_TOKEN, and that the account may see the project.",
+		meaning:  "The tracker's credentials are missing, or it rejected them (HTTP 401 or 403).",
+		recovery: "Halt. Tell the developer to check the tracker credentials — AI_FLOW_JIRA_EMAIL and AI_FLOW_JIRA_TOKEN for Jira, AI_FLOW_GITHUB_TOKEN (or GITHUB_TOKEN, GH_TOKEN) for GitHub Issues — and that the account may see the project or repository.",
 	},
 	"tracker_not_found": {
-		meaning:  "The tracker answered 404: the issue, project or transition does not exist, or the account cannot see it.",
+		meaning:  "The tracker answered 404: the issue, project or transition does not exist, the account cannot see it, or (GitHub Issues) the number is a pull request.",
 		recovery: "Halt. Check the ticket key and the account's access to the project.",
 	},
 	"host_auth": {

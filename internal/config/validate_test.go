@@ -53,6 +53,46 @@ func TestValidateRules(t *testing.T) {
 			wantErr: `tracker.base_url: "" must be an https:// URL`,
 		},
 		{
+			name: "rule14_tracker_provider_unknown",
+			mutate: func(c *Config) {
+				c.Tracker.Provider = "linear"
+			},
+			wantErr: `tracker.provider: "linear" is not one of jira, github`,
+		},
+		{
+			name: "rule14_github_needs_repositories",
+			mutate: func(c *Config) {
+				c.Tracker.Provider = "github"
+				c.Tracker.BaseURL = "https://api.github.com"
+			},
+			wantErr: `tracker.repositories: must map at least one ticket-key prefix to owner/repo when tracker.provider is "github"`,
+		},
+		{
+			name: "rule14_jira_refuses_repositories",
+			mutate: func(c *Config) {
+				c.Tracker.Repositories = map[string]string{"CLI": "cli/cli"}
+			},
+			wantErr: `tracker.repositories: only used when tracker.provider is "github" (it is "jira")`,
+		},
+		{
+			name: "rule14_repositories_bad_prefix",
+			mutate: func(c *Config) {
+				c.Tracker.Provider = "github"
+				c.Tracker.BaseURL = "https://api.github.com"
+				c.Tracker.Repositories = map[string]string{"cli": "cli/cli"}
+			},
+			wantErr: `tracker.repositories.cli: the key must be a ticket-key prefix (uppercase letter, then uppercase letters or digits)`,
+		},
+		{
+			name: "rule14_repositories_bad_repo",
+			mutate: func(c *Config) {
+				c.Tracker.Provider = "github"
+				c.Tracker.BaseURL = "https://api.github.com"
+				c.Tracker.Repositories = map[string]string{"CLI": "https://github.com/cli/cli"}
+			},
+			wantErr: `tracker.repositories.CLI: "https://github.com/cli/cli" is not owner/repo`,
+		},
+		{
 			name: "rule1_team_not_defined",
 			mutate: func(c *Config) {
 				c.Routing.ProjectKeyMap["PROJ"] = ProjectKeyMapEntry{Team: "Ghost Team", Repos: []string{"acme.billing.api"}}
@@ -248,5 +288,28 @@ func TestCheckTrackerBaseURL(t *testing.T) {
 		if err := CheckTrackerBaseURL(u); err == nil {
 			t.Errorf("CheckTrackerBaseURL(%q) = nil, want an error", u)
 		}
+	}
+}
+
+// TestValidateEmptyProviderIsJira: a configuration written before
+// phase 53 may carry no provider at all; it keeps meaning jira.
+func TestValidateEmptyProviderIsJira(t *testing.T) {
+	c := validConfig()
+	c.Tracker.Provider = ""
+	if _, err := Validate(c, ""); err != nil {
+		t.Errorf("Validate = %v, want nil", err)
+	}
+}
+
+// TestValidateAcceptsGitHubTracker: a github tracker with its
+// repositories is a valid configuration (phase 53).
+func TestValidateAcceptsGitHubTracker(t *testing.T) {
+	c := validConfig()
+	c.Tracker.Provider = "github"
+	c.Tracker.BaseURL = "https://api.github.com"
+	c.Tracker.Repositories = map[string]string{"CLI": "cli/cli", "PROJ": "acme-org/acme.billing-api"}
+	c.Tracker.Statuses = TrackerStatuses{Todo: []string{"open"}, InProgress: "in progress", InReview: "in review"}
+	if _, err := Validate(c, ""); err != nil {
+		t.Errorf("Validate = %v, want nil", err)
 	}
 }

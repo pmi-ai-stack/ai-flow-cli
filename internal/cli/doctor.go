@@ -25,8 +25,6 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker/jira"
 )
 
 // doctorEnvVar reports whether one environment variable is set, by
@@ -395,30 +393,34 @@ func redactMessage(err error) string {
 	return redact.New(os.Environ()).String(err.Error())
 }
 
-// doctorProbeTracker reports Jira credential presence and, when set,
+// doctorProbeTracker reports the configured tracker's credential presence and, when set,
 // attempts Reachable and — only on success — Statuses, each request
 // bounded by config.defaults.http_timeout_seconds, comparing the
 // result against cfg.Tracker.Statuses (the phase-4 "Decides" line).
 // cfg nil (config did not load) skips the statuses comparison, since
 // there is nothing configured to compare against.
 func doctorProbeTracker(ctx context.Context, cfg *config.Config) doctorTracker {
-	email := os.Getenv("AI_FLOW_JIRA_EMAIL")
-	token := os.Getenv("AI_FLOW_JIRA_TOKEN")
-	dt := doctorTracker{CredsSet: email != "" && token != ""}
-	if !dt.CredsSet || cfg == nil {
-		return dt
+	provider := config.TrackerJira
+	if cfg != nil {
+		provider = cfg.Tracker.TrackerProvider()
 	}
-	// No probe — and so no credential sent — to an insecure base_url.
-	if err := config.CheckTrackerBaseURL(cfg.Tracker.BaseURL); err != nil {
-		dt.Error = err.Error()
+	set, _ := trackerCredsSet(provider)
+	dt := doctorTracker{CredsSet: set}
+	if !dt.CredsSet || cfg == nil {
 		return dt
 	}
 
 	timeout := cfg.Defaults.HTTPTimeout()
 	ctx, cancel := context.WithTimeout(ctx, 2*timeout) // one deadline over both calls below, each also bounded by the client
 	defer cancel()
-	var trk tracker.Tracker = jira.New(cfg.Tracker, email, token, newJiraTransport(), runlog.From(ctx).LineWriter("jira")).WithTimeout(timeout)
-	err := trk.Reachable(ctx)
+	// newTracker refuses an insecure base_url before building a client:
+	// no probe, and so no credential sent, to one.
+	trk, err := newTracker(ctx, cfg)
+	if err != nil {
+		dt.Error = redactMessage(err)
+		return dt
+	}
+	err = trk.Reachable(ctx)
 	ok := err == nil
 	dt.Reachable = &ok
 	if err != nil {

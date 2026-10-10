@@ -18,7 +18,7 @@ The plugin's skills make judgement calls. This binary does everything else: ever
    - loads config (`internal/config/`) and the ticket's handoff artifacts (`internal/handoff/`);
    - calls the domain package.
    - The command list itself is data: `handoff.Catalog()` and `handoff.StageTable()` (in `internal/handoff/`) feed `skills lint`, `status` and `explain`.
-3. **Domain:** a package such as `internal/standards/`, `internal/ops/`, `internal/gitops/` or `internal/mutation/` does the work. It reaches the outside world only through interfaces (`tracker.Tracker`, `host.Host`, `mutation.Tool`, `ops.Addon`, `exec.Execer`). A new provider is a new package plus a config value.
+3. **Domain:** a package such as `internal/standards/`, `internal/ops/`, `internal/gitops/` or `internal/mutation/` does the work. It reaches the outside world only through interfaces (`tracker.Tracker`, `host.Host`, `mutation.Tool`, `ops.Addon`, `exec.Execer`). A new provider is a new package plus a config value. `newTracker` in `internal/cli/tracker.go` is the one place a tracker provider is chosen.
 4. **Subprocess:** every subprocess goes through `internal/ops/exec/`, which matches argv against the typed allowlist before running it. It is the only importer of `os/exec` (`TestNoOsExecOutsideExecPackage`). No allowlist row can mutate a persistent infrastructure target (`TestAllowlistNeverMutatesPersistentState`).
 5. **Artifacts:** JSON files are written through `handoff.WriteArtifact`: canonical key order, atomic write, schema-validated against `schema/*.schema.json`. The same inputs give the same bytes (`internal/handoff/handofftest/`, `RequireByteStable`).
 6. **Output:** `internal/envelope/` prints the one envelope and maps `error.code` to the exit code (`TestExitCodeTable`; `explain` covers every code, `TestExplainEveryKnownCode`). Secrets are removed by `internal/redact/` on every path out: subprocess output, `events.jsonl`, stderr logs and the envelope.
@@ -42,6 +42,7 @@ The plugin's skills make judgement calls. This binary does everything else: ever
 ### Providers
 - `internal/tracker/`: the `Tracker` interface.
 - `internal/tracker/jira/`: its Jira REST v2 implementation.
+- `internal/tracker/github/`: its GitHub Issues implementation. Keys stay `<PREFIX>-<n>` through `tracker.repositories`, and statuses are labels.
 - `internal/host/`: the `Host` interface (`pr create`).
 - `internal/host/github/`: its GitHub REST implementation.
 - `internal/httpretry/`: the request loop both clients share, with per-attempt deadlines, bounded body reads, and retries only where they are safe.

@@ -16,9 +16,7 @@ import (
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/handoff"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/redact"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/runlog"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker/jira"
 )
 
 func newTicketCmd(cio cmdIO) *cobra.Command {
@@ -91,35 +89,18 @@ func inTodoClass(status string, todo []string) bool {
 // this for Jira; pr_test.go already relies on the GitHub equivalent).
 var newJiraTransport = func() http.RoundTripper { return http.DefaultTransport }
 
-// buildTracker reads AI_FLOW_JIRA_EMAIL/AI_FLOW_JIRA_TOKEN and builds a
-// jira.Client. Read here, never inside the jira package itself
-// (internal/tracker/jira's own doc comment); missing either variable
-// is tracker_auth before any HTTP call is attempted.
-func buildTracker(cmd *cobra.Command, f Flags) (*jira.Client, *config.Config, error) {
+// buildTracker loads config.json and builds the configured tracker
+// (newTracker): Jira or GitHub Issues.
+func buildTracker(cmd *cobra.Command, f Flags) (tracker.Tracker, *config.Config, error) {
 	cfg, err := config.Load(f.Home, f.Config)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	email := os.Getenv("AI_FLOW_JIRA_EMAIL")
-	token := os.Getenv("AI_FLOW_JIRA_TOKEN")
-	if email == "" || token == "" {
-		return nil, nil, &envelope.Error{
-			Code:    "tracker_auth",
-			Message: "AI_FLOW_JIRA_EMAIL and AI_FLOW_JIRA_TOKEN must both be set",
-		}
+	trk, err := newTracker(cmd.Context(), cfg)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	// The credentials go to base_url on every request: refuse an
-	// insecure one before they are attached, since nothing forces
-	// `config validate` to have run first.
-	if err := config.CheckTrackerBaseURL(cfg.Tracker.BaseURL); err != nil {
-		return nil, nil, &envelope.Error{Code: "config_invalid", Message: err.Error()}
-	}
-
-	verbose := runlog.From(cmd.Context()).LineWriter("jira")
-
-	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose).WithTimeout(cfg.Defaults.HTTPTimeout()), cfg, nil
+	return trk, cfg, nil
 }
 
 // redactErr passes a *envelope.Error's Message/Details through
@@ -345,7 +326,7 @@ func newTicketUpdateCmd(cio cmdIO) *cobra.Command {
 					if err != nil {
 						return Outcome{}, redactErr(err)
 					}
-					target, _ := jira.TargetStatusName(cfg.Tracker, class)
+					target, _ := tracker.TargetStatusName(cfg.Tracker, class)
 					if current != target {
 						wouldTransition = &target
 					}
@@ -362,7 +343,7 @@ func newTicketUpdateCmd(cio cmdIO) *cobra.Command {
 				if err := trk.Transition(cmd.Context(), key, class); err != nil {
 					return Outcome{}, redactErr(err)
 				}
-				result.TransitionedTo, _ = jira.TargetStatusName(cfg.Tracker, class)
+				result.TransitionedTo, _ = tracker.TargetStatusName(cfg.Tracker, class)
 			}
 			if commentFlag != "" {
 				if err := trk.Comment(cmd.Context(), key, markerFlag, commentFlag); err != nil {

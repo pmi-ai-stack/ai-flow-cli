@@ -100,6 +100,8 @@ linters:
         linters: [gochecknoglobals] # primaryArtifacts/schemaArtifactNames are lookup tables, not mutable state
       - path: ^internal/cli/ticket\.go$
         linters: [gochecknoglobals] # imageExtensions is a lookup table, not mutable state
+      - path: ^internal/cli/tracker\.go$
+        linters: [gochecknoglobals] # newGitHubIssuesTransport is the injectable RoundTripper source, newJiraTransport's counterpart (ticket.go)
       - path: ^internal/cli/git\.go$
         linters: [gochecknoglobals] # newExecer is the injectable Execer constructor by design — tests reassign it, mirroring handoff/clock.go's Now
       - path: ^internal/cli/ops\.go$

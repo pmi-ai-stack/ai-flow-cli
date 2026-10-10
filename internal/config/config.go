@@ -19,11 +19,32 @@ type Config struct {
 
 // Tracker is config.tracker.
 type Tracker struct {
-	Provider     string          `json:"provider"`
-	BaseURL      string          `json:"base_url"`
-	Statuses     TrackerStatuses `json:"statuses"`
-	BugTypes     []string        `json:"bug_types"`
-	CommentLimit int             `json:"comment_limit"`
+	// Provider is "jira" or "github" (GitHub Issues); empty means jira,
+	// which is all a configuration written before phase 53 could mean.
+	Provider string          `json:"provider"`
+	BaseURL  string          `json:"base_url"`
+	Statuses TrackerStatuses `json:"statuses"`
+	BugTypes []string        `json:"bug_types"`
+	// Repositories maps a ticket-key prefix to the GitHub owner/repo
+	// whose issue numbers it names ("CLI" → "cli/cli": CLI-42 is issue
+	// #42 there). github only, so keys keep the one shape every ticket
+	// directory, branch name and routing rule already relies on.
+	Repositories map[string]string `json:"repositories,omitempty"`
+	CommentLimit int               `json:"comment_limit"`
+}
+
+// Tracker providers config.tracker.provider accepts.
+const (
+	TrackerJira   = "jira"
+	TrackerGitHub = "github"
+)
+
+// TrackerProvider is t.Provider with the empty default resolved to jira.
+func (t Tracker) TrackerProvider() string {
+	if t.Provider == "" {
+		return TrackerJira
+	}
+	return t.Provider
 }
 
 // TrackerStatuses is config.tracker.statuses: the tracker's own status

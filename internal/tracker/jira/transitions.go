@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/envelope"
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/tracker"
 )
@@ -32,30 +31,12 @@ type jiraTransitionRequestBody struct {
 	Transition jiraTransitionRef `json:"transition"`
 }
 
-// TargetStatusName resolves class to the tracker's configured status
-// name. todo is never a transition target — the spec's "Ticket side
-// effects" table only ever transitions *to* in_progress or in_review;
-// todo only appears there as a source class. Exported so a caller that
-// needs the name without performing a transition (the CLI's --simulate
-// preview) has one place to ask, instead of a second, hand-maintained
-// copy of this switch.
-func TargetStatusName(cfg config.Tracker, class tracker.StatusClass) (string, bool) {
-	switch class {
-	case tracker.StatusClassInProgress:
-		return cfg.Statuses.InProgress, true
-	case tracker.StatusClassInReview:
-		return cfg.Statuses.InReview, true
-	default:
-		return "", false
-	}
-}
-
 // Transition implements tracker.Tracker.Transition. Idempotent by
 // comparing the issue's current status name to the target, not by
 // tracking ai-flow's own history — "already in progress" is a no-op
 // with no further HTTP calls.
 func (c *Client) Transition(ctx context.Context, key string, class tracker.StatusClass) error {
-	target, ok := TargetStatusName(c.cfg, class)
+	target, ok := tracker.TargetStatusName(c.cfg, class)
 	if !ok {
 		return &envelope.Error{
 			Code:    "usage",

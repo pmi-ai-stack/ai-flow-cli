@@ -4,7 +4,11 @@
 // never a change to calling code.
 package tracker
 
-import "context"
+import (
+	"context"
+
+	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
+)
 
 // StatusClass is one of the three tracker-status classes ai-flow
 // reasons about, mapped to a provider's own status names by
@@ -73,9 +77,32 @@ type Tracker interface {
 	// doctor's own need: it has no ticket key to scope a real Fetch to
 	// (doctor is one of the spec's commands that take no key).
 	Reachable(ctx context.Context) error
+	// CurrentStatus returns the issue's status name as Fetch would
+	// report it, with the cheapest call the provider has — what
+	// `ticket update --simulate` compares against the target.
+	CurrentStatus(ctx context.Context, key string) (string, error)
 	// Statuses returns every status name configured across the
 	// tracker's own workflow(s) — doctor's source of truth for
 	// verifying config.tracker.statuses' names actually exist there
 	// (the inherited question phase 4 left for this phase to resolve).
 	Statuses(ctx context.Context) ([]string, error)
+}
+
+// TargetStatusName resolves class to the tracker's configured status
+// name. todo is never a transition target — the spec's "Ticket side
+// effects" table only ever transitions *to* in_progress or in_review;
+// todo only appears there as a source class. Exported so a caller that
+// needs the name without performing a transition (the CLI's --simulate
+// preview) has one place to ask, instead of a second, hand-maintained
+// copy of this switch. Provider-neutral: every provider maps a class to
+// the configured name the same way (a Jira status, a GitHub label).
+func TargetStatusName(cfg config.Tracker, class StatusClass) (string, bool) {
+	switch class {
+	case StatusClassInProgress:
+		return cfg.Statuses.InProgress, true
+	case StatusClassInReview:
+		return cfg.Statuses.InReview, true
+	default:
+		return "", false
+	}
 }

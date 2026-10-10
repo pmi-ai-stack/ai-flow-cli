@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -35,6 +36,7 @@ func Validate(cfg *Config, kubeconfigPath string) (warnings []string, err error)
 		ruleStandardsSourcesShape(cfg),
 		ruleDefaultBaseBranchIsARef(cfg),
 		ruleTrackerBaseURLSecure(cfg),
+		ruleTrackerProvider(cfg),
 	}
 	return kubeconfigWarnings(cfg, kubeconfigPath), errors.Join(errs...)
 }
@@ -199,6 +201,42 @@ func ruleDefaultBaseBranchIsARef(cfg *Config) error {
 }
 
 // Rule 13: tracker.base_url is an https URL (CheckTrackerBaseURL).
+// Rule 14: tracker.provider is jira or github; github maps key
+// prefixes to owner/repo in tracker.repositories, which jira refuses so
+// that a setting never silently does nothing.
+var (
+	keyPrefixPattern = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
+	ownerRepoPattern = regexp.MustCompile(`^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
+)
+
+func ruleTrackerProvider(cfg *Config) error {
+	t := cfg.Tracker
+	switch t.TrackerProvider() {
+	case TrackerJira:
+		if len(t.Repositories) > 0 {
+			return fmt.Errorf("tracker.repositories: only used when tracker.provider is %q (it is %q)", TrackerGitHub, t.TrackerProvider())
+		}
+		return nil
+	case TrackerGitHub:
+	default:
+		return fmt.Errorf("tracker.provider: %q is not one of %s, %s", t.Provider, TrackerJira, TrackerGitHub)
+	}
+	if len(t.Repositories) == 0 {
+		return fmt.Errorf("tracker.repositories: must map at least one ticket-key prefix to owner/repo when tracker.provider is %q", TrackerGitHub)
+	}
+	var errs []error
+	for _, prefix := range sortedKeys(t.Repositories) {
+		repo := t.Repositories[prefix]
+		if !keyPrefixPattern.MatchString(prefix) {
+			errs = append(errs, fmt.Errorf("tracker.repositories.%s: the key must be a ticket-key prefix (uppercase letter, then uppercase letters or digits)", prefix))
+		}
+		if !ownerRepoPattern.MatchString(repo) {
+			errs = append(errs, fmt.Errorf("tracker.repositories.%s: %q is not owner/repo", prefix, repo))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func ruleTrackerBaseURLSecure(cfg *Config) error {
 	return CheckTrackerBaseURL(cfg.Tracker.BaseURL)
 }
