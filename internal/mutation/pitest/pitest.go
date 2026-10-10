@@ -36,11 +36,11 @@ var _ mutation.Tool = Tool{}
 // plan's design decision 13, an accepted gap rather than a guess.
 func fqnFor(file string) (fqn string, ok bool) {
 	const marker = "src/main/java/"
-	idx := strings.Index(file, marker)
-	if idx < 0 {
+	_, after, ok := strings.Cut(file, marker)
+	if !ok {
 		return "", false
 	}
-	rel := file[idx+len(marker):]
+	rel := after
 	rel = strings.TrimSuffix(rel, ".java")
 	return strings.ReplaceAll(rel, "/", "."), true
 }

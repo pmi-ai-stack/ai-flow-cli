@@ -1,5 +1,7 @@
 package ops
 
+import "slices"
+
 // KindClass is an action's blast-radius classification — assigned per
 // addon from a table (the terraform/kubectl kind-class maps arrive in
 // phases 21/22), consumed by risk scoring (phase 23). The nine values
@@ -28,10 +30,5 @@ var kindClasses = []KindClass{
 
 // IsKindClass reports whether k is one of the nine documented values.
 func IsKindClass(k KindClass) bool {
-	for _, c := range kindClasses {
-		if c == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(kindClasses, k)
 }

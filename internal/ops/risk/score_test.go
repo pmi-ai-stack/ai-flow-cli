@@ -123,7 +123,7 @@ func TestScoreFloatFreeDeterminism(t *testing.T) {
 		{Action: ops.ActionReplace, KindClass: ops.KindSecret, Tier: "sandbox"},
 	}
 	first, firstContrib := Score(actions, 3, 2, specExampleRisk)
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		got, gotContrib := Score(actions, 3, 2, specExampleRisk)
 		if got != first {
 			t.Fatalf("run %d: score = %d, want %d (first run)", i, got, first)

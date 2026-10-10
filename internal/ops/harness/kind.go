@@ -59,7 +59,7 @@ func ListClusters(ctx context.Context, x exec.Execer) ([]string, error) {
 		return nil, err
 	}
 	var names []string
-	for _, line := range strings.Split(out.Stdout, "\n") {
+	for line := range strings.SplitSeq(out.Stdout, "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			names = append(names, line)

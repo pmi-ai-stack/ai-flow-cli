@@ -117,8 +117,7 @@ func TestParseHook_Malformed(t *testing.T) {
 	if err == nil {
 		t.Fatal("ParseHook(malformed): want error, got nil")
 	}
-	var unparsable *agenthost.ErrUnparsable
-	if !errors.As(err, &unparsable) {
+	if _, ok := errors.AsType[*agenthost.ErrUnparsable](err); !ok {
 		t.Fatalf("ParseHook(malformed): error is not *agenthost.ErrUnparsable: %v", err)
 	}
 }

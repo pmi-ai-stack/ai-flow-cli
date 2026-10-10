@@ -56,7 +56,7 @@ func (g *GitOps) Diff(ctx context.Context, dir, base string) (DiffResult, error)
 func dedupSortedLines(blocks ...string) []string {
 	var lines []string
 	for _, block := range blocks {
-		for _, line := range strings.Split(strings.TrimRight(block, "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(block, "\n"), "\n") {
 			if line != "" {
 				lines = append(lines, line)
 			}

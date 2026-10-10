@@ -2,6 +2,7 @@ package detect
 
 import (
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -20,10 +21,8 @@ var frontendPathSegments = []string{"components", "pages", "views", "styles"}
 func Frontend(files []string) bool {
 	for _, f := range files {
 		ext := strings.ToLower(path.Ext(f))
-		for _, want := range frontendExtensions {
-			if ext == want {
-				return true
-			}
+		if slices.Contains(frontendExtensions, ext) {
+			return true
 		}
 		if hasPathSegment(f, frontendPathSegments...) {
 			return true

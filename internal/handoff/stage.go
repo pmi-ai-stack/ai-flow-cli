@@ -57,12 +57,7 @@ func StageNames() []string {
 
 // IsStage reports whether s is one of Stages().
 func IsStage(s Stage) bool {
-	for _, st := range stages {
-		if st == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(stages, s)
 }
 
 // pipelineIndex returns s's position in Stages(), or -1 if s is not a

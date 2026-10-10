@@ -138,14 +138,14 @@ func checkDescription(s skills.Skill) []Finding {
 		}
 	}
 
-	idx := strings.Index(desc, ". ")
-	if idx == -1 && !strings.HasSuffix(desc, ".") {
+	_, after, ok := strings.Cut(desc, ". ")
+	if !ok && !strings.HasSuffix(desc, ".") {
 		return fail("\"description\" must end with a period")
 	}
-	if idx == -1 {
+	if !ok {
 		return fail("\"description\" must have at least two sentences (what it does, then Use when … / Loaded by …)")
 	}
-	second := strings.TrimSpace(desc[idx+2:])
+	second := strings.TrimSpace(after)
 	label, matches := secondSentenceForms(s)
 	if !matches(second) {
 		return fail(fmt.Sprintf("\"description\"'s second sentence must match %s, got %q", label, second))

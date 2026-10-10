@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"reflect"
 	"sort"
 )
@@ -80,9 +81,7 @@ func stripVolatile(obj map[string]any) map[string]any {
 
 func stripVolatileMetadata(meta map[string]any) map[string]any {
 	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
+	maps.Copy(out, meta)
 	for _, k := range volatileMetadataKeys {
 		delete(out, k)
 	}

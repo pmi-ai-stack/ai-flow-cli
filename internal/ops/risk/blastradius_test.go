@@ -78,7 +78,7 @@ func TestComputeBlastRadiusDeterministicOrder(t *testing.T) {
 		{Action: ops.ActionCreate, Addon: "kubectl", Env: "dev", Kind: "Deployment", Address: "a/Deployment/a"},
 	}
 	first := ComputeBlastRadius(actions, nil)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		got := ComputeBlastRadius(actions, nil)
 		if len(got.Entries) != len(first.Entries) {
 			t.Fatalf("run %d: len(Entries) = %d, want %d", i, len(got.Entries), len(first.Entries))

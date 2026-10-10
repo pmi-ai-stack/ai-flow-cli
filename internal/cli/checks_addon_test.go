@@ -18,10 +18,10 @@ import (
 func writeRenderDriftFixture(t *testing.T, home, key, targetKey, hash string) {
 	t.Helper()
 	artifact := renderDriftArtifact{Targets: []opsDriftResultTarget{{
-		DriftReport: ops.DriftReport{Drift: ops.DriftNotApplicable, Resources: []string{}},
-		Hash:        hash,
-		Target:      targetKey,
-		Validation:  []ops.Finding{},
+		Drift: ops.DriftNotApplicable, Resources: []string{},
+		Hash:       hash,
+		Target:     targetKey,
+		Validation: []ops.Finding{},
 	}}}
 	if _, err := handoff.WriteArtifact(filepath.Join(home, key), "render-drift-results.json", "render-drift-results", artifact); err != nil {
 		t.Fatalf("write render-drift-results.json: %v", err)
@@ -53,7 +53,7 @@ func TestStandardsCheckAddonScopedPolicyRunsAgainstRendering(t *testing.T) {
 	targetKey := "acme.billing.api:infra/prod"
 	hash := "abc123deadbeef"
 	writeOpsTargetsFixture(t, home, "PROJ-9", []ops.Target{
-		{Addon: "terraform", Repo: "acme.billing.api", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: boolPtr(true)},
+		{Addon: "terraform", Repo: "acme.billing.api", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: new(true)},
 	})
 	writeRenderDriftFixture(t, home, "PROJ-9", targetKey, hash)
 

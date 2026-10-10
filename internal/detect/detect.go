@@ -11,6 +11,7 @@ package detect
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -62,11 +63,9 @@ func filepathToSlash(f string) string {
 // path segment (not a substring match) — shared by Frontend's
 // directory check and AppFiles' "docs/" exclusion.
 func hasPathSegment(f string, names ...string) bool {
-	for _, seg := range strings.Split(filepathToSlash(f), "/") {
-		for _, want := range names {
-			if seg == want {
-				return true
-			}
+	for seg := range strings.SplitSeq(filepathToSlash(f), "/") {
+		if slices.Contains(names, seg) {
+			return true
 		}
 	}
 	return false

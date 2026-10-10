@@ -31,11 +31,9 @@ func DedupSorted(in []string) []string {
 // whole "/"-separated element, not a substring match — so "tests"
 // matches "app/tests/foo.py" but not "app/testset/foo.py".
 func HasPathSegment(path string, segments ...string) bool {
-	for _, part := range strings.Split(path, "/") {
-		for _, want := range segments {
-			if part == want {
-				return true
-			}
+	for part := range strings.SplitSeq(path, "/") {
+		if slices.Contains(segments, part) {
+			return true
 		}
 	}
 	return false

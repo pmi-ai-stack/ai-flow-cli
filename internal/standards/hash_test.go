@@ -105,7 +105,7 @@ func TestResolutionHashCoversTheSpecsOwnInputs(t *testing.T) {
 	e := &Effective{
 		Languages: []string{"go"}, Addons: []string{}, BudgetTokens: 6000,
 		Packs:   []*Pack{{ID: "acme-org", Layer: LayerOrg, Ref: "v3.2.0", Commit: "abc1234", Fingerprint: "sha256:aaaa"}},
-		Waivers: []WaiverRecord{{Waiver: Waiver{CheckID: "org.deps", Repo: "r", Expires: "2026-12-01T00:00:00Z"}}},
+		Waivers: []WaiverRecord{{CheckID: "org.deps", Repo: "r", Expires: "2026-12-01T00:00:00Z"}},
 	}
 	base := resolutionHash(e)
 

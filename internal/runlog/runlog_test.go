@@ -135,13 +135,13 @@ func TestConcurrentLinesDoNotInterleave(t *testing.T) {
 	var buf bytes.Buffer
 	l := newTestLogger(JSON, &buf)
 	done := make(chan struct{})
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		go func() { l.Info("line", Field{"n", i}); done <- struct{}{} }()
 	}
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		<-done
 	}
-	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
 		var m map[string]any
 		if err := json.Unmarshal([]byte(line), &m); err != nil {
 			t.Fatalf("interleaved or torn line %q: %v", line, err)

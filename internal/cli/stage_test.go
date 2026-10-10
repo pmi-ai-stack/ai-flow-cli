@@ -537,7 +537,7 @@ func TestStageCompleteRollbackPlanCheck(t *testing.T) {
 		t.Fatalf("write AGENTS.md: %v", err)
 	}
 	writeRepoFixture(t, ticketDir, "Team Beta", []repoArtifactRepository{{Name: "acme.infra", LocalPath: repoDir, InstructionsFile: "AGENTS.md"}})
-	tgt := ops.Target{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: boolPtr(false)}
+	tgt := ops.Target{Addon: "terraform", Repo: "acme.infra", Path: "infra/prod", Scope: ops.ScopeDiff, Changed: new(false)}
 	writeOpsTargetsFixture(t, home, key, []ops.Target{tgt})
 	writeDryRunResultsFixture(t, home, key, []opsDryRunArtifactTarget{
 		{Hash: "h1", Target: ops.TargetKey(tgt), Validation: []ops.Finding{}},
@@ -575,8 +575,6 @@ func TestStageCompleteRollbackPlanCheck(t *testing.T) {
 		t.Errorf("state = %s, want pass once the mitigation is present", env.Result.State)
 	}
 }
-
-func boolPtr(b bool) *bool { return &b }
 
 // TestStageShipApproveRefusedOnOutputNotPassed and
 // TestStageShipApproveRefusedOnOpenMustFinding exercise `stage approve

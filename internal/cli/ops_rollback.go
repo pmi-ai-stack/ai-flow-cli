@@ -139,11 +139,11 @@ func checkRollbackPlanCheck(ticketDir string, rollbackResultsData []byte) error 
 // entirely, or present without this section) — every address then
 // counts as missing.
 func nonRevertibleSection(md string) string {
-	idx := strings.Index(md, nonRevertibleHeading)
-	if idx < 0 {
+	_, after, ok := strings.Cut(md, nonRevertibleHeading)
+	if !ok {
 		return ""
 	}
-	rest := md[idx+len(nonRevertibleHeading):]
+	rest := after
 	if next := strings.Index(rest, "\n## "); next >= 0 {
 		rest = rest[:next]
 	}

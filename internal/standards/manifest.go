@@ -29,7 +29,7 @@ type Section struct {
 	ID        string    `json:"id"`
 	Path      string    `json:"path"`
 	Severity  string    `json:"severity"`
-	AppliesTo AppliesTo `json:"applies_to,omitempty"`
+	AppliesTo AppliesTo `json:"applies_to"`
 }
 
 // Check is one standards.json checks[] entry: one tool run the CLI
@@ -46,7 +46,7 @@ type Check struct {
 	Config    string    `json:"config,omitempty"`
 	Severity  string    `json:"severity"`
 	Input     string    `json:"input,omitempty"` // "source" (default) or "render"
-	AppliesTo AppliesTo `json:"applies_to,omitempty"`
+	AppliesTo AppliesTo `json:"applies_to"`
 }
 
 // Override is one standards.json overrides[] entry: this pack

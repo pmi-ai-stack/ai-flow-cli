@@ -56,15 +56,13 @@ func (tf *targetFailures) err(total int) error {
 	details := make([]string, 0, len(tf.items))
 	for _, f := range tf.items {
 		code, msg := "internal", f.err.Error()
-		var e *envelope.Error
-		if errors.As(f.err, &e) {
+		if e, ok := errors.AsType[*envelope.Error](f.err); ok {
 			code, msg = e.Code, e.Message
 		}
 		details = append(details, fmt.Sprintf("%s: %s: %s", ops.TargetKey(f.target), code, msg))
 	}
 	code := "internal"
-	var e *envelope.Error
-	if errors.As(tf.items[0].err, &e) {
+	if e, ok := errors.AsType[*envelope.Error](tf.items[0].err); ok {
 		code = e.Code
 	}
 	return &envelope.Error{

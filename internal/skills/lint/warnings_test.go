@@ -20,7 +20,7 @@ func TestLint_SoftBodyWarning(t *testing.T) {
 
 	var body strings.Builder
 	body.WriteString("---\nname: run-mutation\ndescription: A. Loaded by the develop orchestrator at the mutation stage; not for direct use.\nlicense: MIT\ncompatibility: Requires the ai-flow CLI on PATH and a git checkout of the in-scope repositories.\n---\n\n")
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		body.WriteString("Filler line.\n")
 	}
 	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body.String()), 0o644); err != nil {

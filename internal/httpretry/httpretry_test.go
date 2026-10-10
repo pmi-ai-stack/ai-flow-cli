@@ -147,8 +147,7 @@ func TestFailureMapsTransportErrorsToToolFailed(t *testing.T) {
 	if err == nil {
 		t.Fatal("Do returned nil for a failing transport")
 	}
-	var te *TransportError
-	if !errors.As(err, &te) {
+	if _, ok := errors.AsType[*TransportError](err); !ok {
 		t.Fatalf("Do error %T is not a *TransportError", err)
 	}
 	got := Failure("jira: GET /x", err)
@@ -172,8 +171,7 @@ func TestFailureMapsOversizeBodyToToolFailed(t *testing.T) {
 func TestFailureKeepsOtherErrorsInternal(t *testing.T) {
 	build := errors.New("build request: bad url")
 	got := Failure("jira: GET /x", build)
-	var env *envelope.Error
-	if errors.As(got, &env) {
+	if env, ok := errors.AsType[*envelope.Error](got); ok {
 		t.Fatalf("a request-build error became %q; it is our bug and must stay unclassified", env.Code)
 	}
 	if !errors.Is(got, build) {

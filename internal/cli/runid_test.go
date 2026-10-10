@@ -21,7 +21,7 @@ func eventRunIDs(t *testing.T, path string) []string {
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}
 	var ids []string
-	for _, line := range bytes.Split(bytes.TrimRight(data, "\n"), []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimRight(data, "\n"), []byte("\n")) {
 		var e struct {
 			RunID string `json:"run_id"`
 			Type  string `json:"type"`
@@ -49,7 +49,7 @@ func TestEventsJoinToTheStderrLogByRunID(t *testing.T) {
 	}
 
 	logIDs := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stderr.String()), "\n") {
 		var m struct {
 			RunID string `json:"run_id"`
 		}
@@ -80,7 +80,7 @@ func TestEventsCarryARunIDWithoutVerbose(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(home, "PROJ-1"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if _, _, ec := runRoot(t, "status", "PROJ-1", "--home", home); ec != 0 {
 			t.Fatalf("status: exitCode = %d", ec)
 		}
@@ -137,7 +137,7 @@ func TestDoctorVerboseLogsItsProbes(t *testing.T) {
 		t.Fatalf("doctor: exitCode = %d", ec)
 	}
 	var sawMyself bool
-	for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stderr.String()), "\n") {
 		var m struct {
 			Msg       string `json:"msg"`
 			Component string `json:"component"`

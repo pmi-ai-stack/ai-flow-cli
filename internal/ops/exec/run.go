@@ -90,8 +90,7 @@ func NotFound(tool string) error {
 // IsNotFound reports whether err says the tool was not on PATH, and
 // which tool.
 func IsNotFound(err error) (string, bool) {
-	var nf *NotFoundError
-	if errors.As(err, &nf) {
+	if nf, ok := errors.AsType[*NotFoundError](err); ok {
 		return nf.Tool, true
 	}
 	return "", false

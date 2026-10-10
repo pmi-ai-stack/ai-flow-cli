@@ -23,7 +23,7 @@ func readEventTypes(t *testing.T, path string) []struct{ Type, Command string } 
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}
 	var got []struct{ Type, Command string }
-	for _, line := range bytes.Split(bytes.TrimRight(data, "\n"), []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimRight(data, "\n"), []byte("\n")) {
 		if len(line) == 0 {
 			continue
 		}

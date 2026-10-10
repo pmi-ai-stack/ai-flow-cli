@@ -24,42 +24,40 @@ type StageDef struct {
 	Artifacts []string
 }
 
-func strp(s string) *string { return &s }
-
 // stageTable is StageTable's backing data, built once from the spec's
 // Workflow table.
 var stageTable = []StageDef{
-	{Stage: StageFetch, Skill: nil, Command: strp("ticket fetch"), GatePosition: GateNone, SkipRule: "never",
+	{Stage: StageFetch, Skill: nil, Command: new("ticket fetch"), GatePosition: GateNone, SkipRule: "never",
 		Artifacts: []string{"ticket.json", "attachments/", "images.md"}},
-	{Stage: StageLocate, Skill: nil, Command: strp("repo locate"), GatePosition: GateNone, SkipRule: "never",
+	{Stage: StageLocate, Skill: nil, Command: new("repo locate"), GatePosition: GateNone, SkipRule: "never",
 		Artifacts: []string{"repo.json"}},
-	{Stage: StagePlan, Skill: strp("plan-solution"), Command: nil, GatePosition: GatePost, SkipRule: "never",
+	{Stage: StagePlan, Skill: new("plan-solution"), Command: nil, GatePosition: GatePost, SkipRule: "never",
 		Artifacts: []string{"ops-targets.json", "standards.json", "guidance.md", "plan.md"}},
-	{Stage: StageImplement, Skill: strp("implement-plan"), Command: nil, GatePosition: GateNone, SkipRule: "never",
+	{Stage: StageImplement, Skill: new("implement-plan"), Command: nil, GatePosition: GateNone, SkipRule: "never",
 		Artifacts: []string{"code", "tests", "implementation.log", "test-results.json"}},
-	{Stage: StageRenderDrift, Skill: strp("assess-drift"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageRenderDrift),
+	{Stage: StageRenderDrift, Skill: new("assess-drift"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageRenderDrift),
 		Artifacts: []string{"render/", "render-drift-results.json"}},
-	{Stage: StageChecks, Skill: strp("apply-checks"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageChecks),
+	{Stage: StageChecks, Skill: new("apply-checks"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageChecks),
 		Artifacts: []string{"checks-results.json"}},
-	{Stage: StageDryRun, Skill: strp("dry-run-change"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageDryRun),
+	{Stage: StageDryRun, Skill: new("dry-run-change"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageDryRun),
 		Artifacts: []string{"plans/", "dryrun-results.json"}},
-	{Stage: StageImpact, Skill: strp("assess-impact"), Command: nil, GatePosition: GatePost, SkipRule: skipRuleFor(StageImpact),
+	{Stage: StageImpact, Skill: new("assess-impact"), Command: nil, GatePosition: GatePost, SkipRule: skipRuleFor(StageImpact),
 		Artifacts: []string{"impact-results.json", "impact.md"}},
-	{Stage: StageRollback, Skill: strp("plan-rollback"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageRollback),
+	{Stage: StageRollback, Skill: new("plan-rollback"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageRollback),
 		Artifacts: []string{"rollback-results.json", "rollback-plan.md"}},
-	{Stage: StageInfraTest, Skill: strp("test-infra"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageInfraTest),
+	{Stage: StageInfraTest, Skill: new("test-infra"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageInfraTest),
 		Artifacts: []string{"infra-test-results.json", "test files"}},
-	{Stage: StageMutation, Skill: strp("run-mutation"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageMutation),
+	{Stage: StageMutation, Skill: new("run-mutation"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageMutation),
 		Artifacts: []string{"mutation-results.json"}},
-	{Stage: StageVisualTest, Skill: strp("run-visual-tests"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageVisualTest),
+	{Stage: StageVisualTest, Skill: new("run-visual-tests"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageVisualTest),
 		Artifacts: []string{"visual-test-results.json", "screenshots/"}},
-	{Stage: StageE2E, Skill: strp("run-e2e"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageE2E),
+	{Stage: StageE2E, Skill: new("run-e2e"), Command: nil, GatePosition: GateNone, SkipRule: skipRuleFor(StageE2E),
 		Artifacts: []string{"e2e-results.json"}},
-	{Stage: StageReview, Skill: strp("review-changes"), Command: nil, GatePosition: GateNone, SkipRule: "never",
+	{Stage: StageReview, Skill: new("review-changes"), Command: nil, GatePosition: GateNone, SkipRule: "never",
 		Artifacts: []string{"review.md"}},
-	{Stage: StageOutput, Skill: nil, Command: strp("summary render"), GatePosition: GateNone, SkipRule: "never",
+	{Stage: StageOutput, Skill: nil, Command: new("summary render"), GatePosition: GateNone, SkipRule: "never",
 		Artifacts: []string{"output.md"}},
-	{Stage: StageShip, Skill: strp("ship"), Command: nil, GatePosition: GatePre, SkipRule: "never",
+	{Stage: StageShip, Skill: new("ship"), Command: nil, GatePosition: GatePre, SkipRule: "never",
 		Artifacts: []string{"commit-message.md", "pr-body.md", "ship-results.json"}},
 }
 

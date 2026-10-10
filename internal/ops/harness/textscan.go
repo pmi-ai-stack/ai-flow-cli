@@ -43,7 +43,7 @@ func runTextScanTool(ctx context.Context, x exec.Execer, tool string, args []str
 // line's own case name into Failures[].
 func parsePassFailLines(text, tool string) Result {
 	res := Result{Tool: tool}
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(line, "--- PASS:"):

@@ -3,6 +3,7 @@ package terraform
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -182,10 +183,8 @@ func sensitiveLeaf(v any) bool {
 			}
 		}
 	case []any:
-		for _, sub := range t {
-			if sensitiveLeaf(sub) {
-				return true
-			}
+		if slices.ContainsFunc(t, sensitiveLeaf) {
+			return true
 		}
 	}
 	return false

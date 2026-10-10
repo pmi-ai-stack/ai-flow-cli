@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,12 +64,7 @@ func dependencyFinding(in RunInput, target, message string) Finding {
 }
 
 func bannedMatch(banned []string, name string) bool {
-	for _, b := range banned {
-		if b == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(banned, name)
 }
 
 // readManifestDependencies reads whichever dependency manifest exists

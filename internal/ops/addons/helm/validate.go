@@ -66,7 +66,7 @@ func (a *Addon) runHelmLint(ctx context.Context, renderedDir string) ([]ops.Find
 	}
 
 	var findings []ops.Finding
-	for _, line := range strings.Split(out.Stdout, "\n") {
+	for line := range strings.SplitSeq(out.Stdout, "\n") {
 		m := helmLintLine.FindStringSubmatch(line)
 		if m == nil {
 			continue

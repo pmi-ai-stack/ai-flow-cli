@@ -22,7 +22,7 @@ func TestStandardsCheckGithubActionsPolicyAndScanFireAgainstRendering(t *testing
 	targetKey := "acme.billing.api:.github/workflows/ci.yml"
 	hash := "ghaction123hash"
 	writeOpsTargetsFixture(t, home, "PROJ-27", []ops.Target{
-		{Addon: "github-actions", Repo: "acme.billing.api", Path: ".github/workflows/ci.yml", Scope: ops.ScopeDiff, Changed: boolPtr(true)},
+		{Addon: "github-actions", Repo: "acme.billing.api", Path: ".github/workflows/ci.yml", Scope: ops.ScopeDiff, Changed: new(true)},
 	})
 	writeRenderDriftFixture(t, home, "PROJ-27", targetKey, hash)
 
@@ -77,7 +77,7 @@ func TestStandardsCheckJenkinsPolicyFiresAgainstRendering(t *testing.T) {
 	targetKey := "acme.billing.api:jobs/build.xml"
 	hash := "jenkinshash456"
 	writeOpsTargetsFixture(t, home, "PROJ-28", []ops.Target{
-		{Addon: "jenkins", Repo: "acme.billing.api", Path: "jobs/build.xml", Scope: ops.ScopeDiff, Changed: boolPtr(true)},
+		{Addon: "jenkins", Repo: "acme.billing.api", Path: "jobs/build.xml", Scope: ops.ScopeDiff, Changed: new(true)},
 	})
 	writeRenderDriftFixture(t, home, "PROJ-28", targetKey, hash)
 

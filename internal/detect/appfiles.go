@@ -2,6 +2,7 @@ package detect
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/strutil"
@@ -20,10 +21,8 @@ var documentationBasenamePrefixes = []string{"LICENSE", "CHANGELOG"}
 func isDocumentation(f string) bool {
 	base := path.Base(f)
 	ext := strings.ToLower(path.Ext(f))
-	for _, want := range documentationExtensions {
-		if ext == want {
-			return true
-		}
+	if slices.Contains(documentationExtensions, ext) {
+		return true
 	}
 	for _, prefix := range documentationBasenamePrefixes {
 		if strings.HasPrefix(base, prefix) {
