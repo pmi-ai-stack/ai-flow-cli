@@ -1,6 +1,6 @@
 module github.com/pmi-ai-stack/ai-flow-cli
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/go-git/go-git/v5 v5.19.2
