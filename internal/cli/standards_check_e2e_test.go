@@ -65,6 +65,7 @@ func TestStandardsCheckReadmeCommandEndToEnd(t *testing.T) {
 	args := readmeCICommand(t) // before Chdir: the path is relative to this package
 	repo := stageTerraformE2E(t)
 	t.Setenv("HOME", t.TempDir())
+	isolateTempDir(t)
 	t.Setenv("PATH", bin)
 	t.Chdir(repo)
 
@@ -116,6 +117,7 @@ func TestStandardsCheckFindsSecretInMarkdown(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	isolateTempDir(t)
 	t.Setenv("PATH", bin)
 	t.Chdir(repo)
 
@@ -158,6 +160,7 @@ func TestStandardsCheckSARIFEndToEnd(t *testing.T) {
 	repo := stageTerraformE2E(t)
 	sarif := filepath.Join(t.TempDir(), "ai-flow.sarif")
 	t.Setenv("HOME", t.TempDir())
+	isolateTempDir(t)
 	t.Setenv("PATH", bin)
 	t.Chdir(repo)
 
@@ -178,4 +181,15 @@ func TestStandardsCheckSARIFEndToEnd(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("results = %q\nwant      %q", got, want)
 	}
+}
+
+// isolateTempDir gives a test that runs real check tools its own
+// os.TempDir(). The runners write tool configs and reports to fixed
+// paths there (named by check id, so a scripted test can predict the
+// argv), and a real run would otherwise race another package's test
+// using the same check id when `go test ./...` runs packages in
+// parallel.
+func isolateTempDir(t *testing.T) {
+	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir())
 }
