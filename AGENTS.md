@@ -4,6 +4,7 @@ This repo is the **CLI**: the sole deterministic actor in the ai-flow pipeline. 
 
 - **The plugin** (skills, hooks, agent-facing manifests) is a sibling repository, `ai-flow`.
 - **The contract this binary implements** — command catalog, envelope/exit-code shape, config schema, handoff layout, addon interface — is defined by its own code and tests, which are authoritative: `internal/envelope` (envelope shape, exit codes), `internal/cli` (commands, global flags), `internal/ops/exec` (the execution allowlist). Read the relevant package before adding or changing any command, schema, config field or exit code; there is no separate design document to consult.
+- **Where things are:** `docs/architecture.md` — the request path and a one-line map of every package (kept complete by `TestArchitectureDocNamesEveryPackage`). It restates no rule.
 - **Go rules:** `packs/reference/languages/go/guidance/*.md` — the reviewer's checklist for every Go file in this module, split by topic (`00-ten-rules.md` first). Follow it; do not duplicate its rules here.
 
 ## Pre-PR command

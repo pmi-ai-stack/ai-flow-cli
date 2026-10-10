@@ -1,6 +1,10 @@
 package ops
 
-import "strings"
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+)
 
 // Target is one deployable unit an addon found: a Terraform root
 // module, a Helm chart + values file, a Kustomize overlay, a directory
@@ -53,6 +57,30 @@ const (
 // phase 20's render-drift-results.json/dryrun-results.json record.
 func TargetKey(t Target) string {
 	return t.Repo + ":" + t.Path
+}
+
+// CheckTarget refuses a target whose Repo, Addon or Path could escape
+// the directory it is joined under: the redacted rendering lives at
+// <KEY>/render/<repo>/<addon>/<path>/<hash>/ and a target's source is
+// <checkout>/<path>. Repo and Addon must be names (not empty, "." or a
+// path that leaves its parent); Path must be relative and stay inside
+// the repository ("." is the repository root). Detection never
+// produces anything this refuses, so a refusal means ops-targets.json
+// was edited or a detector is broken (security review 2026-09-27 S10).
+// The message is the reason only; callers prefix TargetKey.
+func CheckTarget(t Target) error {
+	name := func(s string) bool {
+		return filepath.IsLocal(filepath.FromSlash(s)) && filepath.Clean(filepath.FromSlash(s)) != "."
+	}
+	switch {
+	case !name(t.Repo):
+		return errors.New("repo must be a name, not a path")
+	case !name(t.Addon):
+		return errors.New("addon must be a name, not a path")
+	case !filepath.IsLocal(filepath.FromSlash(t.Path)):
+		return errors.New("path must be relative and stay inside the repository")
+	}
+	return nil
 }
 
 // FilesUnderPath returns every entry of changed that equals path or

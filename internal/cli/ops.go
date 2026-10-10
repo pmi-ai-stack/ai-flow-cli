@@ -208,11 +208,7 @@ func loadOpsTargets(ticketDir string) (*ops.DetectResult, error) {
 	if data == nil {
 		return nil, &envelope.Error{Code: "missing_artifact", Message: "ops-targets.json not found; run ops detect first"}
 	}
-	var r ops.DetectResult
-	if err := json.Unmarshal(data, &r); err != nil {
-		return nil, fmt.Errorf("cli: decode ops-targets.json: %w", err)
-	}
-	return &r, nil
+	return decodeOpsTargets(data)
 }
 
 // loadOpsTargetsTolerant is loadOpsTargets without the missing_artifact
@@ -227,9 +223,31 @@ func loadOpsTargetsTolerant(ticketDir string) (*ops.DetectResult, error) {
 	if data == nil {
 		return nil, nil
 	}
+	return decodeOpsTargets(data)
+}
+
+// decodeOpsTargets decodes ops-targets.json and refuses it, as exit 6
+// invalid_result with one details line per offending target, when any
+// target's repo, addon or path could escape the directory it is joined
+// under (ops.CheckTarget). Every reader goes through here, so no
+// command renders, checks or plans a target outside its repository.
+func decodeOpsTargets(data []byte) (*ops.DetectResult, error) {
 	var r ops.DetectResult
 	if err := json.Unmarshal(data, &r); err != nil {
 		return nil, fmt.Errorf("cli: decode ops-targets.json: %w", err)
+	}
+	var details []string
+	for _, t := range r.Targets {
+		if err := ops.CheckTarget(t); err != nil {
+			details = append(details, ops.TargetKey(t)+": "+err.Error())
+		}
+	}
+	if len(details) > 0 {
+		return nil, &envelope.Error{
+			Code:    "invalid_result",
+			Message: fmt.Sprintf("ops-targets.json: %d target(s) escape their repository or the render directory", len(details)),
+			Details: details,
+		}
 	}
 	return &r, nil
 }

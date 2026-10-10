@@ -8,9 +8,13 @@ title = "ai-flow reference gitleaks config"
 [extend]
 useDefault = true
 
+# Markdown is scanned like everything else: a key pasted into a README
+# or a design note is as leaked as one in code, and this check cannot be
+# waived. A repository that needs an exemption overrides org.secrets with
+# its own config (see this repo's .ai-flow/standards/), where the
+# exemption is visible and reviewed.
 [allowlist]
-description = "generated fixtures and this pack's own documentation examples"
+description = "generated test fixtures"
 paths = [
   '''testdata/''',
-  '''\.md$''',
 ]

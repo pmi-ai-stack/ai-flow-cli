@@ -86,3 +86,50 @@ func TestStandardsCheckReadmeCommandEndToEnd(t *testing.T) {
 		t.Errorf("details = %q\nwant      %q", env.Error, want)
 	}
 }
+
+// TestStandardsCheckFindsSecretInMarkdown runs the directory form with
+// a real gitleaks against a repository whose README carries an
+// AWS-shaped access key. The reference pack's secrets check must report
+// it: Markdown is not exempt (security review 2026-09-27 S5).
+//
+// Needs a real gitleaks. Skipped when there is none, unless
+// AI_FLOW_E2E_REQUIRE_TOOLS=1 (CI's required job sets it).
+func TestStandardsCheckFindsSecretInMarkdown(t *testing.T) {
+	gitleaks, ok := exec.Which("gitleaks")
+	if !ok {
+		if os.Getenv("AI_FLOW_E2E_REQUIRE_TOOLS") == "1" {
+			t.Fatal("gitleaks is not on PATH and AI_FLOW_E2E_REQUIRE_TOOLS=1")
+		}
+		t.Skip("gitleaks not on PATH")
+	}
+	bin := t.TempDir()
+	if err := os.Symlink(gitleaks, filepath.Join(bin, "gitleaks")); err != nil {
+		t.Fatalf("symlink gitleaks: %v", err)
+	}
+
+	repo := filepath.Join(t.TempDir(), "docs-repo")
+	if err := os.MkdirAll(repo, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	readme := "# Setup\n\nexport AWS_ACCESS_KEY_ID=AKIAQWERTYUIOPASDFGH\n"
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte(readme), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", bin)
+	t.Chdir(repo)
+
+	stdout, _, ec := runRoot(t, "standards", "check", ".")
+	if ec != 6 {
+		t.Fatalf("exitCode = %d, want 6 (invalid_result)\n%s", ec, stdout.String())
+	}
+	var env dirCheckEnvelope
+	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if env.Error == nil || !slices.ContainsFunc(env.Error.Details, func(d string) bool {
+		return strings.HasPrefix(d, "org.secrets: README.md")
+	}) {
+		t.Errorf("no org.secrets finding on README.md:\n%s", stdout.String())
+	}
+}

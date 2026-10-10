@@ -61,12 +61,32 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # AI_FLOW_E2E_REQUIRE_TOOLS turns the README end-to-end test's
-      # "conftest not on PATH" skip into a failure here.
+      # AI_FLOW_E2E_REQUIRE_TOOLS turns the end-to-end tests' "conftest /
+      # gitleaks not on PATH" skips into failures here. -coverpkg=./...
+      # credits a package with the coverage its callers' tests give it
+      # (a per-package figure without it misreads, e.g. internal/agenthost);
+      # the suite runs once, with instrumentation. The profile is written
+      # outside the checkout so the dogfood steps below never scan it.
       - name: go test -race
         env:
           AI_FLOW_E2E_REQUIRE_TOOLS: "1"
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -coverpkg=./... -coverprofile="$RUNNER_TEMP/coverage.out" ./...
+
+      # A report, not a gate (phase 48, HYG-4): the total goes to the job
+      # summary and the profile is kept for a week. Nothing compares
+      # per-package numbers.
+      - name: coverage report
+        run: |
+          total="$(go tool cover -func="$RUNNER_TEMP/coverage.out" | awk '/^total:/ {print $NF}')"
+          echo "Statement coverage (-coverpkg=./...): ${total}"
+          echo "### Coverage: ${total} of statements (-coverpkg=./..., report only)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload coverage profile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage
+          path: ${{ runner.temp }}/coverage.out
+          retention-days: 7
 
       - name: cross-build six platforms (goreleaser snapshot)
         run: go tool goreleaser build --snapshot --clean

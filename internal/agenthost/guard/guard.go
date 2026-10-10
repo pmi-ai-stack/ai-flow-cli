@@ -1,5 +1,5 @@
 // Package guard evaluates a normalized agenthost.HookEvent against the
-// Guardrails section's seven-row protected table and returns an
+// Guardrails section's protected table and returns an
 // agenthost.Decision — the one thing hook guard needs to turn into a
 // host-shaped response. The guard prevents accidents; it is not a
 // sandbox, and it fails open by design: a nil Active (no ticket
@@ -28,8 +28,9 @@ type Input struct {
 	Now    time.Time
 }
 
-// Evaluate applies the seven-row protected table (rows.go) to in and
-// returns the resulting Decision: the first row that matches denies;
+// Evaluate applies the protected table (rows.go) to in and
+// returns the resulting Decision: the first row that matches denies
+// (gate approval asks instead);
 // no match allows. The idle rule runs once, up front — "an entry
 // whose last_event_at is older than
 // config.defaults.guard_idle_hours ... is ignored by the guard",

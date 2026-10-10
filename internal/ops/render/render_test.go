@@ -291,3 +291,29 @@ func TestLoadOfAnUnrenderedHashHasNoMarkings(t *testing.T) {
 		t.Errorf("Marked = %+v, want none", rendered.Marked)
 	}
 }
+
+// TestRenderRefusesEscapingTarget: a target path with ".." elements
+// would place the redacted copy outside <KEY>/render/. Render refuses
+// before writing anything.
+func TestRenderRefusesEscapingTarget(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "a.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := render.Render(context.Background(), render.Options{
+		Addon:     fixtureaddon.New("fixture", "infra"),
+		Target:    ops.Target{Addon: "fixture", Repo: "acme.infra", Path: "../../../../escaped"},
+		Ref:       ops.RefBranch,
+		SourceDir: src,
+		Home:      home,
+		Key:       "PROJ-1",
+	})
+	if err == nil {
+		t.Fatal("Render accepted a target path that escapes the ticket directory")
+	}
+	entries, _ := os.ReadDir(home)
+	if len(entries) != 0 {
+		t.Errorf("Render wrote %d entries under home before refusing", len(entries))
+	}
+}

@@ -44,6 +44,9 @@ type Result struct {
 // <KEY>/render/<repo>/<addon>/<path>/<hash>/, redacted via
 // redact.RedactMarked over the rendering's own sensitivity markings.
 func Render(ctx context.Context, opts Options) (*Result, error) {
+	if err := ops.CheckTarget(opts.Target); err != nil {
+		return nil, fmt.Errorf("render: %s: %w", ops.TargetKey(opts.Target), err)
+	}
 	hash, err := TreeHash(opts.SourceDir, SkipFor(opts.Addon))
 	if err != nil {
 		return nil, err

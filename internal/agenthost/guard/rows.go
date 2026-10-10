@@ -22,7 +22,7 @@ type RowInfo struct {
 	OwningCommand string
 }
 
-// Rows documents the Guardrails section's own seven-row table, in its
+// Rows documents the Guardrails section's own protected table, in its
 // own order.
 func Rows() []RowInfo {
 	return []RowInfo{
