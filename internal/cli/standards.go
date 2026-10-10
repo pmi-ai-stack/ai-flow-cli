@@ -20,6 +20,7 @@ func newStandardsCmd(cio cmdIO) *cobra.Command {
 		Short: "Sync, validate and resolve standards packs, and waive a check",
 	}
 	cmd.AddCommand(newStandardsValidateCmd(cio))
+	cmd.AddCommand(newStandardsDiffCmd(cio))
 	cmd.AddCommand(newStandardsSyncCmd(cio))
 	cmd.AddCommand(newStandardsExportCmd(cio))
 	cmd.AddCommand(newStandardsResolveCmd(cio))

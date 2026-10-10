@@ -169,7 +169,29 @@ func EmbeddedPack() (*Pack, error) {
 // phase 12's "a tag, a commit and a local path produce identical
 // trees" already established for the trees themselves.
 func Fingerprint(fsys fs.FS) (string, error) {
-	var lines []string
+	digests, err := fileDigests(fsys)
+	if err != nil {
+		return "", err
+	}
+	lines := make([]string, 0, len(digests))
+	for path, sum := range digests {
+		lines = append(lines, path+"\x00"+sum+"\n")
+	}
+
+	sort.Strings(lines)
+	h := sha256.New()
+	for _, l := range lines {
+		// hash.Hash.Write is documented never to return an error.
+		h.Write([]byte(l))
+	}
+	return sha256Prefixed(h.Sum(nil)), nil
+}
+
+// fileDigests maps every file in fsys to the lowercase hex sha256 of
+// its content — the per-file view Fingerprint hashes and Diff compares,
+// so the two can never disagree about what changed.
+func fileDigests(fsys fs.FS) (map[string]string, error) {
+	out := map[string]string{}
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -182,20 +204,13 @@ func Fingerprint(fsys fs.FS) (string, error) {
 			return err
 		}
 		sum := sha256.Sum256(data)
-		lines = append(lines, path+"\x00"+hex.EncodeToString(sum[:])+"\n")
+		out[path] = hex.EncodeToString(sum[:])
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	sort.Strings(lines)
-	h := sha256.New()
-	for _, l := range lines {
-		// hash.Hash.Write is documented never to return an error.
-		h.Write([]byte(l))
-	}
-	return sha256Prefixed(h.Sum(nil)), nil
+	return out, nil
 }
 
 // sha256Prefixed renders a digest the way every hash this package
