@@ -35,7 +35,7 @@ type CommandSpec struct {
 var catalog = []CommandSpec{
 	{Name: "version", TicketScoped: false},
 	{Name: "schema", TicketScoped: false, Positional: []string{"artifact"}},
-	{Name: "config init", TicketScoped: false},
+	{Name: "config init", TicketScoped: false, Flags: []string{"tracker"}},
 	{Name: "config validate", TicketScoped: false},
 	{Name: "status", TicketScoped: true},
 	{Name: "stage should-run", TicketScoped: true, Positional: []string{"stage"}, SkipToolRunEvent: true},

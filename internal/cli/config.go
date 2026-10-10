@@ -24,19 +24,22 @@ type configInitResult struct {
 }
 
 func newConfigInitCmd(cio cmdIO) *cobra.Command {
-	return &cobra.Command{
+	var tracker string
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Write the embedded config template to ~/.ai-flow/config.json",
 		Args:  cobra.NoArgs,
 		RunE: wrap("config init", cio.stdout, cio.exitCode, func(cmd *cobra.Command, _ []string) (Outcome, error) {
 			f := FlagsFrom(cmd.Context())
-			path, err := config.Init(f.Home, f.Config)
+			path, err := config.InitFor(f.Home, f.Config, tracker)
 			if err != nil {
 				return Outcome{}, err
 			}
 			return Outcome{Result: configInitResult{Path: path}}, nil
 		}),
 	}
+	cmd.Flags().StringVar(&tracker, "tracker", config.TrackerJira, "tracker the template is written for: jira or github")
+	return cmd
 }
 
 type configValidateResult struct {

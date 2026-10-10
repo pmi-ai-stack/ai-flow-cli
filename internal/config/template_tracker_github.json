@@ -1,0 +1,12 @@
+{
+  "provider": "github",
+  "base_url": "https://api.github.com",
+  "repositories": { "APP": "your-org/your-repo" },
+  "statuses": {
+    "todo": ["open"],
+    "in_progress": "in progress",
+    "in_review": "in review"
+  },
+  "bug_types": ["bug"],
+  "comment_limit": 5
+}

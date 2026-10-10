@@ -64,6 +64,18 @@ Then add `%LOCALAPPDATA%\ai-flow` to `PATH`. With cosign installed, verify `chec
 - The plugin's hook scripts need a POSIX shell (Git Bash or WSL). Without one the guard fails open, by design.
 - OPS tooling on Windows is unverified.
 
+## Configure
+
+The ticket pipeline reads `~/.ai-flow/config.json`. `config init` writes a template for your tracker, and `config validate` checks it:
+
+```sh
+ai-flow config init                    # Jira: AI_FLOW_JIRA_EMAIL and AI_FLOW_JIRA_TOKEN
+ai-flow config init --tracker github   # GitHub Issues: AI_FLOW_GITHUB_TOKEN
+ai-flow config validate
+```
+
+For GitHub Issues, replace the placeholder in `tracker.repositories`. It maps a ticket-key prefix to the repository whose issue numbers it names: `{ "APP": "acme/app" }` makes `APP-42` issue #42 of `acme/app`. The status classes are labels (`in progress`, `in review`), and an open issue with neither label counts as `open`. `ai-flow doctor` checks the token and that the tracker is reachable.
+
 ## Use in CI
 
 Check a repository against the standards pack from its own pipeline — no ticket, no `config.json` and no `~/.ai-flow` needed:
