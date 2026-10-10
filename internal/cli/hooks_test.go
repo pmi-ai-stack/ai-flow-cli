@@ -42,6 +42,12 @@ func TestHooksInstall_ClaudeCodeProject_WritesSettings(t *testing.T) {
 	if len(hooks.PreToolUse) != 2 || hooks.PreToolUse[0].Hooks[0].Command != "ai-flow hook guard" {
 		t.Errorf("PreToolUse = %+v", hooks.PreToolUse)
 	}
+	// Every Claude Code tool that writes a file reaches the guard's
+	// path rows — NotebookEdit and MultiEdit included (2026-10-04
+	// security review #6). Same string as ai-flow/hooks/claude-code.json.
+	if len(hooks.PreToolUse) == 2 && hooks.PreToolUse[1].Matcher != "Write|Edit|MultiEdit|NotebookEdit" {
+		t.Errorf("write matcher = %q, want Write|Edit|MultiEdit|NotebookEdit", hooks.PreToolUse[1].Matcher)
+	}
 	if len(hooks.SessionStart) != 1 {
 		t.Fatalf("SessionStart = %+v", hooks.SessionStart)
 	}
@@ -112,6 +118,11 @@ func TestHooksInstall_CursorUser_WritesHooksFile(t *testing.T) {
 	}
 	if len(file.Hooks.PreToolUse) != 2 || !file.Hooks.PreToolUse[0].FailClosed {
 		t.Errorf("PreToolUse = %+v", file.Hooks.PreToolUse)
+	}
+	// Write and Delete both reach the guard's path rows (phase 47);
+	// same string as ai-flow/hooks/cursor.json.
+	if len(file.Hooks.PreToolUse) == 2 && file.Hooks.PreToolUse[1].Matcher != "Write|Delete" {
+		t.Errorf("write matcher = %q, want Write|Delete", file.Hooks.PreToolUse[1].Matcher)
 	}
 }
 

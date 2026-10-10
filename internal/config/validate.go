@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -32,6 +34,7 @@ func Validate(cfg *Config, kubeconfigPath string) (warnings []string, err error)
 		ruleE2ESandboxTier(cfg),
 		ruleStandardsSourcesShape(cfg),
 		ruleDefaultBaseBranchIsARef(cfg),
+		ruleTrackerBaseURLSecure(cfg),
 	}
 	return kubeconfigWarnings(cfg, kubeconfigPath), errors.Join(errs...)
 }
@@ -193,6 +196,37 @@ func ruleDefaultBaseBranchIsARef(cfg *Config) error {
 		return fmt.Errorf("host.default_base_branch: %s", err.Error())
 	}
 	return nil
+}
+
+// Rule 13: tracker.base_url is an https URL (CheckTrackerBaseURL).
+func ruleTrackerBaseURLSecure(cfg *Config) error {
+	return CheckTrackerBaseURL(cfg.Tracker.BaseURL)
+}
+
+// CheckTrackerBaseURL refuses a tracker base URL the Jira credentials
+// must not be sent to: anything but an absolute https:// URL with a
+// host, except plain http:// to a loopback host (localhost, 127.0.0.0/8,
+// ::1), which is what a local fake tracker serves. Every request
+// carries the Basic credentials, so a plain-http URL would put them on
+// the wire in clear (2026-10-04 security review #3). Exported because
+// it runs twice more outside `config validate` — before buildTracker
+// and doctor's tracker probe attach any credential — since nothing
+// forces `config validate` to run first.
+func CheckTrackerBaseURL(raw string) error {
+	if u, err := url.Parse(raw); err == nil && u.Hostname() != "" {
+		if u.Scheme == "https" || u.Scheme == "http" && isLoopbackHost(u.Hostname()) {
+			return nil
+		}
+	}
+	return fmt.Errorf("tracker.base_url: %q must be an https:// URL (plain http:// is accepted only for a loopback host)", raw)
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // Rule 10: every standards source (org config.standards.sources, plus

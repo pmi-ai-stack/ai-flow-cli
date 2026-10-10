@@ -9,7 +9,10 @@
 // wired from this phase on, vacuously, against zero rows.
 package exec
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 // Class is a row's blast-radius classification.
 type Class string
@@ -38,9 +41,13 @@ type Row struct {
 	// "rollout history". Free arguments after the verb are never
 	// matched.
 	Verb []string
-	// RequiredFlags must all be present in argv for the row to match.
+	// RequiredFlags must all be present in argv for the row to match;
+	// a "name=value" one must also not be contradicted by another
+	// spelling of the same flag (see overridden).
 	RequiredFlags []string
-	// ForbiddenFlags must all be absent from argv for the row to match.
+	// ForbiddenFlags must all be absent from argv for the row to match,
+	// in any spelling — "flag", "flag=value", either dash count (see
+	// names).
 	ForbiddenFlags []string
 	// Mutating declares whether this verb changes state for this tool.
 	// Every row with Mutating true must satisfy
@@ -104,14 +111,60 @@ func flagsSatisfied(argv []string, r Row) bool {
 		present[a] = true
 	}
 	for _, f := range r.RequiredFlags {
-		if !present[f] {
+		if !present[f] || overridden(argv, f) {
 			return false
 		}
 	}
 	for _, f := range r.ForbiddenFlags {
-		if present[f] {
-			return false
+		for _, a := range argv {
+			if names(a, f) {
+				return false
+			}
 		}
 	}
 	return true
+}
+
+// overridden reports whether a required "name=value" flag is
+// contradicted elsewhere in argv: another argument naming the same flag
+// bare ("--dry-run", whose value is the next argument) or with a
+// different value ("--dry-run=none"). The tools this table drives take
+// the last occurrence, so a contradiction anywhere is a bypass
+// (2026-10-04 security review #5). A required flag with no "=" carries
+// no value to contradict.
+func overridden(argv []string, required string) bool {
+	name, _, ok := strings.Cut(flagBody(required), "=")
+	if !ok {
+		return false
+	}
+	want := flagBody(required)
+	for _, a := range argv {
+		if !strings.HasPrefix(a, "-") {
+			continue
+		}
+		body := flagBody(a)
+		if body == want {
+			continue
+		}
+		if body == name || strings.HasPrefix(body, name+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+// names reports whether arg spells flag: exactly, or as "flag=value",
+// with either dash count (Go's flag package, which terraform uses,
+// accepts "-x" and "--x" alike). "--fix-dry-run" does not name "--fix".
+func names(arg, flag string) bool {
+	if !strings.HasPrefix(arg, "-") {
+		return false
+	}
+	body, want := flagBody(arg), flagBody(flag)
+	return body == want || strings.HasPrefix(body, want+"=")
+}
+
+// flagBody strips a flag's leading dashes.
+func flagBody(s string) string {
+	return strings.TrimLeft(s, "-")
 }

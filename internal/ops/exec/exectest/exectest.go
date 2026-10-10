@@ -24,6 +24,7 @@ type Call struct {
 	Args  []string
 	Dir   string
 	Stdin string
+	Env   []string
 }
 
 // Scripted is a scripted exec.Execer: responses are matched by the
@@ -85,7 +86,7 @@ func (s *Scripted) OnFailWithOutput(tool string, args []string, out exec.Output,
 // Run implements exec.Execer against the registered script.
 func (s *Scripted) Run(_ context.Context, tool string, args []string, opts exec.RunOpts) (exec.Output, error) {
 	s.t.Helper()
-	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir, Stdin: opts.Stdin})
+	s.Calls = append(s.Calls, Call{Tool: tool, Args: args, Dir: opts.Dir, Stdin: opts.Stdin, Env: opts.Env})
 	k := key(tool, args)
 	if f, ok := s.fail[k]; ok {
 		return f.out, f.err

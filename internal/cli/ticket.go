@@ -110,6 +110,13 @@ func buildTracker(cmd *cobra.Command, f Flags) (*jira.Client, *config.Config, er
 		}
 	}
 
+	// The credentials go to base_url on every request: refuse an
+	// insecure one before they are attached, since nothing forces
+	// `config validate` to have run first.
+	if err := config.CheckTrackerBaseURL(cfg.Tracker.BaseURL); err != nil {
+		return nil, nil, &envelope.Error{Code: "config_invalid", Message: err.Error()}
+	}
+
 	verbose := runlog.From(cmd.Context()).LineWriter("jira")
 
 	return jira.New(cfg.Tracker, email, token, newJiraTransport(), verbose).WithTimeout(cfg.Defaults.HTTPTimeout()), cfg, nil

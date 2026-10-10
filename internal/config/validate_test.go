@@ -39,6 +39,20 @@ func TestValidateRules(t *testing.T) {
 			wantErr: `host.default_base_branch: "" is not a valid git branch or ref name: it is empty`,
 		},
 		{
+			name: "rule13_tracker_base_url_plain_http",
+			mutate: func(c *Config) {
+				c.Tracker.BaseURL = "http://acme.atlassian.net"
+			},
+			wantErr: `tracker.base_url: "http://acme.atlassian.net" must be an https:// URL`,
+		},
+		{
+			name: "rule13_tracker_base_url_empty",
+			mutate: func(c *Config) {
+				c.Tracker.BaseURL = ""
+			},
+			wantErr: `tracker.base_url: "" must be an https:// URL`,
+		},
+		{
 			name: "rule1_team_not_defined",
 			mutate: func(c *Config) {
 				c.Routing.ProjectKeyMap["PROJ"] = ProjectKeyMapEntry{Team: "Ghost Team", Repos: []string{"acme.billing.api"}}
@@ -200,6 +214,39 @@ func TestHasAtMostThreeDecimals(t *testing.T) {
 	for _, c := range cases {
 		if got := hasAtMostThreeDecimals(c.v); got != c.want {
 			t.Errorf("hasAtMostThreeDecimals(%v) = %v, want %v", c.v, got, c.want)
+		}
+	}
+}
+
+// TestCheckTrackerBaseURL: the Jira credentials go to tracker.base_url
+// on every request, so it must be https — plain http only to a
+// loopback host, for local fakes (2026-10-04 security review #3).
+func TestCheckTrackerBaseURL(t *testing.T) {
+	ok := []string{
+		"https://acme.atlassian.net",
+		"https://jira.internal:8443/jira",
+		"http://127.0.0.1:41234",
+		"http://localhost:8080",
+		"http://[::1]:9000",
+	}
+	for _, u := range ok {
+		if err := CheckTrackerBaseURL(u); err != nil {
+			t.Errorf("CheckTrackerBaseURL(%q) = %v, want nil", u, err)
+		}
+	}
+	bad := []string{
+		"",
+		"http://acme.atlassian.net",
+		"http://127.0.0.1.attacker.example",
+		"http://localhost.attacker.example",
+		"ftp://acme.atlassian.net",
+		"https://",
+		"acme.atlassian.net",
+		"://nope",
+	}
+	for _, u := range bad {
+		if err := CheckTrackerBaseURL(u); err == nil {
+			t.Errorf("CheckTrackerBaseURL(%q) = nil, want an error", u)
 		}
 	}
 }

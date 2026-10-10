@@ -408,6 +408,11 @@ func doctorProbeTracker(ctx context.Context, cfg *config.Config) doctorTracker {
 	if !dt.CredsSet || cfg == nil {
 		return dt
 	}
+	// No probe — and so no credential sent — to an insecure base_url.
+	if err := config.CheckTrackerBaseURL(cfg.Tracker.BaseURL); err != nil {
+		dt.Error = err.Error()
+		return dt
+	}
 
 	timeout := cfg.Defaults.HTTPTimeout()
 	ctx, cancel := context.WithTimeout(ctx, 2*timeout) // one deadline over both calls below, each also bounded by the client

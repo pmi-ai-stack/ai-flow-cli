@@ -40,6 +40,8 @@ func Rows() []RowInfo {
 			OwningCommand: "git commit / git push / pr create"},
 		{ID: "row7_infra_test_mutation_tools", Kind: "command", Scope: "cwd inside an active ticket's in-scope repository", When: "that ticket is active",
 			OwningCommand: "the equivalent ai-flow ops … / standards check / test run / mutation run"},
+		{ID: "row8_gate_approval", Kind: "command", Scope: "anywhere", When: "always",
+			OwningCommand: "stage approve, confirmed by the developer"},
 	}
 }
 
@@ -136,9 +138,15 @@ var row7InfraTools = []string{"terraform", "kubectl", "helm", "kustomize", "act"
 // pure waste.
 var execAllowlist = exec.NewAllowlist(exec.Table...)
 
-// evaluateShell applies rows 6 and 7 to a Shell/Bash event, in table
-// order.
+// evaluateShell applies row 8, then rows 6 and 7, to a Shell/Bash
+// event. Row 8 comes first and ignores active.json and cwd: approving a
+// gate is the developer's decision wherever the command runs.
 func evaluateShell(ev agenthost.HookEvent, active *handoff.Active) agenthost.Decision {
+	if approvesGate(ev.Command) {
+		return askDecision("row8_gate_approval", "stage approve, confirmed by the developer",
+			"approving a gate is the developer's decision, so the host asks them to confirm it. "+
+				"Where the host cannot ask (Cursor), the developer runs `ai-flow stage approve KEY STAGE` in their own terminal")
+	}
 	if active == nil {
 		return allowDecision("allow")
 	}
@@ -213,6 +221,34 @@ func isWithin(path, root string) bool {
 func cwdInScope(cwd string, roots []string) bool {
 	for _, root := range roots {
 		if isWithin(cwd, root) {
+			return true
+		}
+	}
+	return false
+}
+
+// approvesGate reports whether command invokes `ai-flow … stage
+// approve` anywhere in it. Unlike commandArgv's argv[0]-only matching,
+// it scans every token, with shell separators and quotes read as
+// whitespace, so `cd x && ai-flow stage approve …`, `sh -c "ai-flow
+// stage approve …"` and global flags before the verb (`ai-flow --home h
+// stage approve`) all match: an over-match only costs the developer one
+// prompt. Command substitution, aliases and PATH tricks still pass —
+// the guard is not a sandbox.
+func approvesGate(command string) bool {
+	tokens := strings.Fields(strings.Map(func(r rune) rune {
+		if strings.ContainsRune(";&|()`'\"<>\n", r) {
+			return ' '
+		}
+		return r
+	}, command))
+	sawCLI := false
+	for i, tok := range tokens {
+		if filepath.Base(tok) == "ai-flow" {
+			sawCLI = true
+			continue
+		}
+		if sawCLI && tok == "stage" && i+1 < len(tokens) && tokens[i+1] == "approve" {
 			return true
 		}
 	}

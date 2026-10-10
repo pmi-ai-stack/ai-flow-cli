@@ -26,6 +26,7 @@ var secretEnvVars = struct {
 		"GH_TOKEN",
 		"AI_FLOW_JENKINS_USER",
 		"AI_FLOW_JENKINS_TOKEN",
+		"JENKINS_API_TOKEN",
 		"ANTHROPIC_API_KEY",
 	},
 	prefixes: []string{"AWS_", "ARM_"},

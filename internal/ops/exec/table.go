@@ -213,7 +213,7 @@ var Table = []Row{
 	// config.ops.environments[name].jenkins binding (a live Jenkins
 	// server), the same class kubectl's own "diff"/"get" rows already
 	// use for an addon-tool's live read. Neither mutates anything.
-	// jenkins-cli's own verb comes before "-s"/"-auth" (the phase-27
+	// jenkins-cli's own verb comes before "-s" (the phase-27
 	// plan's own design decision 3): this package's own allowlist
 	// matches the verb strictly at argv[1] (see allowlist.go's
 	// verbMatches), which the real jenkins-cli.jar's own documented

@@ -1,0 +1,12 @@
+{
+  "session_id": "sess-abc123",
+  "cwd": "/home/dev/acme.billing.api",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "MultiEdit",
+  "tool_input": {
+    "file_path": "/home/dev/.ai-flow/PROJ-1/status.json",
+    "edits": [
+      { "old_string": "\"state\": \"awaiting_approval\"", "new_string": "\"state\": \"approved\"" }
+    ]
+  }
+}

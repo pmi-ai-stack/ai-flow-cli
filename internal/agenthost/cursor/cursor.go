@@ -50,22 +50,53 @@ func (Adapter) SkillsDirs() []string {
 	}
 }
 
-// payload is Cursor's own preToolUse/sessionStart hook input shape —
-// this adapter's own wire type, never exported, never shared with
-// internal/agenthost/claudecode's equivalent.
+// payload is Cursor's own preToolUse/sessionStart hook input shape, as
+// its hooks reference documents it (cursor.com/docs/agent/hooks):
+// tool_name/tool_input on preToolUse, cursor_version and
+// workspace_roots among the fields every hook receives. This adapter's
+// own wire type, never exported, never shared with
+// internal/agenthost/claudecode's equivalent. Phase 9 shipped a
+// hand-built tool/input/app_version guess that the product never sent,
+// so every real preToolUse decoded as unknown and the guard allowed it;
+// phase 47 replaced it with the documented names and no fallback.
 type payload struct {
-	HookEventName string `json:"hook_event_name"`
-	Cwd           string `json:"cwd"`
-	Tool          string `json:"tool"`
-	Input         struct {
-		Command  string `json:"command"`
-		FilePath string `json:"file_path"`
-	} `json:"input"`
-	PluginRoot string `json:"plugin_root"`
-	// AppVersion is this adapter's provisional reading of
-	// sessionStart's own-host-version field — unconfirmed against the
-	// real product, see the plan's design decision 8.
-	AppVersion string `json:"app_version"`
+	HookEventName  string   `json:"hook_event_name"`
+	Cwd            string   `json:"cwd"`
+	WorkspaceRoots []string `json:"workspace_roots"`
+	CursorVersion  string   `json:"cursor_version"`
+	ToolName       string   `json:"tool_name"`
+	ToolInput      struct {
+		Command          string `json:"command"`
+		WorkingDirectory string `json:"working_directory"`
+		// Cursor does not document the path field of its Write or
+		// Delete tool input; these are read in this order, and none
+		// leaves FilePath empty (hook_shape_unknown in the guard).
+		FilePath   string `json:"file_path"`
+		Path       string `json:"path"`
+		TargetFile string `json:"target_file"`
+	} `json:"tool_input"`
+}
+
+// cwd is where the event happens: a shell command's own
+// working_directory, else the hook's cwd, else the first workspace
+// root.
+func (p payload) cwd() string {
+	if p.ToolInput.WorkingDirectory != "" {
+		return p.ToolInput.WorkingDirectory
+	}
+	if p.Cwd != "" || len(p.WorkspaceRoots) == 0 {
+		return p.Cwd
+	}
+	return p.WorkspaceRoots[0]
+}
+
+func (p payload) filePath() string {
+	for _, f := range []string{p.ToolInput.FilePath, p.ToolInput.Path, p.ToolInput.TargetFile} {
+		if f != "" {
+			return f
+		}
+	}
+	return ""
 }
 
 // ParseHook decodes a Cursor preToolUse or sessionStart payload. A
@@ -79,22 +110,22 @@ func (Adapter) ParseHook(raw []byte) (agenthost.HookEvent, error) {
 		return agenthost.HookEvent{}, &agenthost.ErrUnparsable{Host: agenthost.HostCursor, Err: err}
 	}
 
-	ev := agenthost.HookEvent{Host: agenthost.HostCursor, Cwd: p.Cwd}
+	ev := agenthost.HookEvent{Host: agenthost.HostCursor, Cwd: p.cwd()}
 
 	switch p.HookEventName {
 	case "sessionStart":
 		ev.Event = agenthost.EventSessionStart
-		ev.PluginRoot = p.PluginRoot
-		ev.HostVersion = p.AppVersion
+		ev.HostVersion = p.CursorVersion
 		return ev, nil
 	case "preToolUse":
-		switch p.Tool {
+		switch p.ToolName {
 		case "Shell":
 			ev.Event = agenthost.EventShell
-			ev.Command = p.Input.Command
-		case "Write":
+			ev.Command = p.ToolInput.Command
+		case "Write", "Delete":
+			// Deleting a protected file is a write to it.
 			ev.Event = agenthost.EventWrite
-			ev.FilePath = p.Input.FilePath
+			ev.FilePath = p.filePath()
 		default:
 			ev.Event = agenthost.EventUnknown
 		}
@@ -114,6 +145,11 @@ type response struct {
 
 // EncodeHook renders d as Cursor's own permission shape.
 func (Adapter) EncodeHook(d agenthost.Decision) ([]byte, error) {
+	// Cursor's preToolUse response requires "permission", and under
+	// failClosed an empty response blocks, so an allow stays explicit
+	// here (unlike claudecode's). An ask is a deny: Cursor accepts
+	// "ask" on preToolUse but documents it as not enforced, and an
+	// unenforced prompt would be an allow in disguise.
 	permission := "deny"
 	if d.Allow {
 		permission = "allow"

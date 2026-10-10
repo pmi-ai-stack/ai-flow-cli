@@ -119,8 +119,13 @@ func runHookGuard(stdin io.Reader, stdout io.Writer, f Flags) int {
 	if err != nil {
 		return 2
 	}
-	_, _ = stdout.Write(out)
-	_, _ = stdout.Write([]byte("\n"))
+	// An empty encoding is a deliberate "no decision" (claudecode's
+	// allow): print nothing, not even a newline, so the host's own
+	// permission flow runs.
+	if len(out) > 0 {
+		_, _ = stdout.Write(out)
+		_, _ = stdout.Write([]byte("\n"))
+	}
 	return 0
 }
 

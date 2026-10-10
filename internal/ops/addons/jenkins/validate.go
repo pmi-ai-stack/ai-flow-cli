@@ -51,8 +51,8 @@ func (a *Addon) Validate(ctx context.Context, r *ops.Rendered) ([]ops.Finding, e
 		return nil, fmt.Errorf("jenkins: validate: %w", err)
 	}
 
-	args := append([]string{"declarative-linter", "-s", url}, jenkinsAuthArgs()...)
-	out, err := a.x.Run(ctx, "jenkins-cli", args, exec.RunOpts{Dir: r.Dir, Stdin: string(data), Timeout: a.timeout()})
+	args := []string{"declarative-linter", "-s", url}
+	out, err := a.x.Run(ctx, "jenkins-cli", args, exec.RunOpts{Dir: r.Dir, Env: jenkinsAuthEnv(), Stdin: string(data), Timeout: a.timeout()})
 	if err == nil {
 		return nil, nil
 	}

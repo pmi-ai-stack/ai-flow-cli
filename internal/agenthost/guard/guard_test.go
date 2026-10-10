@@ -54,8 +54,8 @@ func evalShell(command, cwd string, active *handoff.Active) agenthost.Decision {
 
 func requireDeny(t *testing.T, d agenthost.Decision) {
 	t.Helper()
-	if d.Allow {
-		t.Fatalf("Allow = true, want deny (reason=%q)", d.Reason)
+	if d.Allow || d.Ask {
+		t.Fatalf("Allow = %v, Ask = %v, want deny (reason=%q)", d.Allow, d.Ask, d.Reason)
 	}
 	if d.OwningCommand == "" {
 		t.Error("a deny decision must name an owning command")
@@ -268,14 +268,61 @@ func TestHookShapeUnknown(t *testing.T) {
 	})
 }
 
-func TestRows_SevenRows(t *testing.T) {
+func TestRows_EightRows(t *testing.T) {
 	rows := guard.Rows()
-	if len(rows) != 7 {
-		t.Fatalf("Rows() returned %d rows, want 7", len(rows))
+	if len(rows) != 8 {
+		t.Fatalf("Rows() returned %d rows, want 8", len(rows))
 	}
 	for _, r := range rows {
 		if r.ID == "" || r.Kind == "" || r.Scope == "" || r.When == "" || r.OwningCommand == "" {
 			t.Errorf("row %+v has an empty field", r)
 		}
+	}
+}
+
+// --- Row 8: ai-flow stage approve — the developer's decision ---
+
+// TestRow8_GateApproval: approving a gate asks the developer through
+// the host, whatever the active ticket or cwd — the one command whose
+// whole point is a human decision (2026-10-04 security review #2).
+func TestRow8_GateApproval(t *testing.T) {
+	asks := []string{
+		"ai-flow stage approve PROJ-1 ship",
+		"/usr/local/bin/ai-flow stage approve PROJ-1 plan",
+		"ai-flow --home /tmp/h stage approve PROJ-1 impact",
+		"AI_FLOW_X=1 ai-flow stage approve PROJ-1 ship",
+		"cd /tmp && ai-flow stage approve PROJ-1 ship",
+		"true;ai-flow stage approve PROJ-1 ship",
+		`sh -c "ai-flow stage approve PROJ-1 ship"`,
+		"ai-flow stage approve PROJ-1 ship | cat",
+	}
+	for _, cmd := range asks {
+		for name, active := range map[string]*handoff.Active{"active": freshActive(nil), "no ticket": nil, "stale": staleActive()} {
+			t.Run(name+"/"+cmd, func(t *testing.T) {
+				d := evalShell(cmd, "/somewhere/else", active)
+				if d.Allow || !d.Ask {
+					t.Fatalf("Allow = %v, Ask = %v, want ask (reason=%q)", d.Allow, d.Ask, d.Reason)
+				}
+				if d.Reason != "row8_gate_approval" {
+					t.Errorf("Reason = %q, want row8_gate_approval", d.Reason)
+				}
+				if d.UserMessage == "" || d.AgentMessage == "" || d.OwningCommand == "" {
+					t.Errorf("an ask decision must carry messages and an owning command: %+v", d)
+				}
+			})
+		}
+	}
+
+	allows := []string{
+		"ai-flow stage start PROJ-1 ship",
+		"ai-flow status PROJ-1",
+		"ai-flow stage complete PROJ-1 ship",
+		"echo approve the stage",
+		"git log --grep 'stage approve'",
+	}
+	for _, cmd := range allows {
+		t.Run("allow/"+cmd, func(t *testing.T) {
+			requireAllow(t, evalShell(cmd, testRepo, freshActive(nil)))
+		})
 	}
 }

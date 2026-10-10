@@ -69,6 +69,34 @@ func TestParseHook_Edit(t *testing.T) {
 	}
 }
 
+func TestParseHook_MultiEdit(t *testing.T) {
+	a := claudecode.New()
+	ev, err := a.ParseHook(fixture(t, "multi-edit.json"))
+	if err != nil {
+		t.Fatalf("ParseHook: %v", err)
+	}
+	if ev.Event != agenthost.EventWrite {
+		t.Fatalf("Event = %v, want EventWrite (MultiEdit maps to write)", ev.Event)
+	}
+	if ev.FilePath != "/home/dev/.ai-flow/PROJ-1/status.json" {
+		t.Errorf("FilePath = %q", ev.FilePath)
+	}
+}
+
+func TestParseHook_NotebookEdit(t *testing.T) {
+	a := claudecode.New()
+	ev, err := a.ParseHook(fixture(t, "notebook-edit.json"))
+	if err != nil {
+		t.Fatalf("ParseHook: %v", err)
+	}
+	if ev.Event != agenthost.EventWrite {
+		t.Fatalf("Event = %v, want EventWrite (NotebookEdit maps to write)", ev.Event)
+	}
+	if ev.FilePath != "/home/dev/.ai-flow/cache/PROJ-1/analysis.ipynb" {
+		t.Errorf("FilePath = %q, want notebook_path", ev.FilePath)
+	}
+}
+
 func TestParseHook_SessionStart(t *testing.T) {
 	a := claudecode.New()
 	ev, err := a.ParseHook(fixture(t, "session-start.json"))
@@ -107,22 +135,41 @@ func TestParseHook_UnrecognizedTool(t *testing.T) {
 	}
 }
 
+// TestEncodeHook_Allow pins the 2026-10-04 security fix: an allow is
+// no output at all, which Claude Code documents as "no decision;
+// normal permission flow applies". An explicit "allow" would skip the
+// developer's own permission prompt for every Bash/Write/Edit call.
 func TestEncodeHook_Allow(t *testing.T) {
 	a := claudecode.New()
-	data, err := a.EncodeHook(agenthost.Decision{Allow: true})
+	data, err := a.EncodeHook(agenthost.Decision{Allow: true, Reason: "allow"})
 	if err != nil {
 		t.Fatalf("EncodeHook: %v", err)
 	}
-	var decoded map[string]any
+	if len(data) != 0 {
+		t.Errorf("EncodeHook(allow) = %s, want no output", data)
+	}
+}
+
+func TestEncodeHook_Ask(t *testing.T) {
+	a := claudecode.New()
+	data, err := a.EncodeHook(agenthost.Decision{Ask: true, UserMessage: "approve?", AgentMessage: "approve?"})
+	if err != nil {
+		t.Fatalf("EncodeHook: %v", err)
+	}
+	var decoded struct {
+		HookSpecificOutput struct {
+			PermissionDecision       string `json:"permissionDecision"`
+			PermissionDecisionReason string `json:"permissionDecisionReason"`
+		} `json:"hookSpecificOutput"`
+	}
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("decode: %v", err)
+		t.Fatalf("decode %s: %v", data, err)
 	}
-	out, ok := decoded["hookSpecificOutput"].(map[string]any)
-	if !ok {
-		t.Fatalf("missing hookSpecificOutput: %v", decoded)
+	if decoded.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Errorf("permissionDecision = %q, want ask", decoded.HookSpecificOutput.PermissionDecision)
 	}
-	if out["permissionDecision"] != "allow" {
-		t.Errorf("permissionDecision = %v, want allow", out["permissionDecision"])
+	if decoded.HookSpecificOutput.PermissionDecisionReason != "approve?" {
+		t.Errorf("permissionDecisionReason = %q", decoded.HookSpecificOutput.PermissionDecisionReason)
 	}
 }
 

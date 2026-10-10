@@ -35,7 +35,9 @@ func TestStageStartRecordsToolConfigFiles(t *testing.T) {
 	}
 
 	t.Setenv("CLAUDE_PLUGIN_ROOT", "/plugin")
-	for path, wantDecision := range map[string]string{".golangci.yml": "deny", "main.go": "allow"} {
+	// An allow prints no decision at all (normal permission flow), so
+	// it reads back as "".
+	for path, wantDecision := range map[string]string{".golangci.yml": "deny", "main.go": ""} {
 		payload, _ := json.Marshal(map[string]any{
 			"hook_event_name": "PreToolUse", "cwd": repoDir, "tool_name": "Write",
 			"tool_input": map[string]any{"file_path": path, "content": "x"},
@@ -46,7 +48,7 @@ func TestStageStartRecordsToolConfigFiles(t *testing.T) {
 				PermissionDecision string `json:"permissionDecision"`
 			} `json:"hookSpecificOutput"`
 		}
-		if ec != 0 || json.Unmarshal(stdout.Bytes(), &resp) != nil {
+		if ec != 0 || (stdout.Len() > 0 && json.Unmarshal(stdout.Bytes(), &resp) != nil) {
 			t.Fatalf("hook guard %s: exitCode = %d\n%s", path, ec, stdout.String())
 		}
 		if got := resp.HookSpecificOutput.PermissionDecision; got != wantDecision {

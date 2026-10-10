@@ -1,5 +1,12 @@
 {
+  "conversation_id": "conv-1",
+  "generation_id": "gen-1",
   "hook_event_name": "sessionStart",
-  "plugin_root": "/home/dev/.cursor/plugins/local/ai-flow",
-  "app_version": "1.5.0"
+  "cursor_version": "2.1.0",
+  "workspace_roots": ["/home/dev/acme.billing.api"],
+  "user_email": null,
+  "transcript_path": null,
+  "session_id": "sess-1",
+  "is_background_agent": false,
+  "composer_mode": "agent"
 }

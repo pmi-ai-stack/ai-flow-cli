@@ -29,10 +29,32 @@ func runRootStdin(t *testing.T, stdin string, args ...string) (stdout, stderr by
 	return stdout, stderr, exitCode
 }
 
+// TestHookGuard_AllowsWhenNoActiveTicket: under Claude Code an allow
+// prints nothing at all — "no decision; normal permission flow
+// applies" — so the guard never skips the developer's own permission
+// prompt (2026-10-04 security review #1).
 func TestHookGuard_AllowsWhenNoActiveTicket(t *testing.T) {
 	t.Setenv("CLAUDE_PLUGIN_ROOT", "/plugin")
 	home := t.TempDir()
-	payload := `{"hook_event_name":"PreToolUse","cwd":"/repo","tool_name":"Bash","tool_input":{"command":"git status"}}`
+	for _, command := range []string{"git status", "rm -rf ~/important"} {
+		payload := `{"hook_event_name":"PreToolUse","cwd":"/repo","tool_name":"Bash","tool_input":{"command":"` + command + `"}}`
+		stdout, _, exitCode := runRootStdin(t, payload, "hook", "guard", "--home", home)
+		if exitCode != 0 {
+			t.Fatalf("%s: exitCode = %d, want 0\n%s", command, exitCode, stdout.String())
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("%s: stdout = %q, want empty (no permission decision)", command, stdout.String())
+		}
+	}
+}
+
+// TestHookGuard_AsksForGateApproval: `ai-flow stage approve` is the
+// developer's call — "ask" under Claude Code, with or without an
+// active ticket (2026-10-04 security review #2).
+func TestHookGuard_AsksForGateApproval(t *testing.T) {
+	t.Setenv("CLAUDE_PLUGIN_ROOT", "/plugin")
+	home := t.TempDir()
+	payload := `{"hook_event_name":"PreToolUse","cwd":"/repo","tool_name":"Bash","tool_input":{"command":"ai-flow stage approve PROJ-1 ship"}}`
 
 	stdout, _, exitCode := runRootStdin(t, payload, "hook", "guard", "--home", home)
 	if exitCode != 0 {
@@ -46,8 +68,31 @@ func TestHookGuard_AllowsWhenNoActiveTicket(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
 		t.Fatalf("stdout not valid JSON: %v\n%s", err, stdout.String())
 	}
-	if resp.HookSpecificOutput.PermissionDecision != "allow" {
-		t.Errorf("permissionDecision = %q, want allow", resp.HookSpecificOutput.PermissionDecision)
+	if resp.HookSpecificOutput.PermissionDecision != "ask" {
+		t.Errorf("permissionDecision = %q, want ask", resp.HookSpecificOutput.PermissionDecision)
+	}
+}
+
+// TestHookGuard_CursorDeniesGateApproval: Cursor does not enforce
+// "ask" on preToolUse, so gate approval is denied with guidance.
+func TestHookGuard_CursorDeniesGateApproval(t *testing.T) {
+	t.Setenv("CURSOR_PLUGIN_ROOT", "/plugin")
+	home := t.TempDir()
+	payload := `{"hook_event_name":"preToolUse","cwd":"/repo","tool_name":"Shell","tool_input":{"command":"ai-flow stage approve PROJ-1 ship"}}`
+
+	stdout, _, _ := runRootStdin(t, payload, "hook", "guard", "--home", home)
+	var resp struct {
+		Permission   string `json:"permission"`
+		AgentMessage string `json:"agent_message"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf("stdout not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if resp.Permission != "deny" {
+		t.Errorf("permission = %q, want deny", resp.Permission)
+	}
+	if !strings.Contains(resp.AgentMessage, "own terminal") {
+		t.Errorf("agent_message does not tell the developer to run it themselves: %q", resp.AgentMessage)
 	}
 }
 
@@ -124,7 +169,7 @@ func TestHookGuard_NoHostEnvExits2(t *testing.T) {
 func TestHookGuard_CursorShape(t *testing.T) {
 	t.Setenv("CURSOR_PLUGIN_ROOT", "/plugin")
 	home := t.TempDir()
-	payload := `{"hook_event_name":"preToolUse","cwd":"/repo","tool":"Shell","input":{"command":"git status"}}`
+	payload := `{"hook_event_name":"preToolUse","cwd":"/repo","tool_name":"Shell","tool_input":{"command":"git status"}}`
 
 	stdout, _, exitCode := runRootStdin(t, payload, "hook", "guard", "--home", home)
 	if exitCode != 0 {
@@ -138,6 +183,65 @@ func TestHookGuard_CursorShape(t *testing.T) {
 	}
 	if resp.Permission != "allow" {
 		t.Errorf("permission = %q, want allow", resp.Permission)
+	}
+}
+
+// TestHookGuard_CursorDeniesGitPushInActiveTicketRepo: a git push in
+// Cursor's documented preToolUse shape, run (working_directory) inside
+// an active ticket's repository, reaches row 6. With phase 9's guessed
+// field names it decoded as unknown and was allowed (phase 47).
+func TestHookGuard_CursorDeniesGitPushInActiveTicketRepo(t *testing.T) {
+	t.Setenv("CURSOR_PLUGIN_ROOT", "/plugin")
+	home := t.TempDir()
+	repo := filepath.Join(home, "..", "acme.billing.api")
+	if err := os.MkdirAll(filepath.Join(home, "PROJ-1"), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeActiveFixture(t, home, "PROJ-1", "ship", []string{repo})
+
+	payload, _ := json.Marshal(map[string]any{
+		"hook_event_name": "preToolUse", "cursor_version": "2.1.0", "workspace_roots": []string{home},
+		"tool_name": "Shell", "tool_input": map[string]any{"command": "git push origin feature/PROJ-1", "working_directory": repo},
+		"cwd": home,
+	})
+	stdout, _, exitCode := runRootStdin(t, string(payload), "hook", "guard", "--home", home)
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0\n%s", exitCode, stdout.String())
+	}
+	var resp struct {
+		Permission string `json:"permission"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf("stdout not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if resp.Permission != "deny" {
+		t.Errorf("permission = %q, want deny", resp.Permission)
+	}
+}
+
+// TestHookGuard_CursorDeleteOfStatusJSONDenied: Delete reaches the
+// path rows like Write does.
+func TestHookGuard_CursorDeleteOfStatusJSONDenied(t *testing.T) {
+	t.Setenv("CURSOR_PLUGIN_ROOT", "/plugin")
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "PROJ-1"), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeActiveFixture(t, home, "PROJ-1", "ship", []string{filepath.Join(home, "..", "acme.billing.api")})
+
+	payload, _ := json.Marshal(map[string]any{
+		"hook_event_name": "preToolUse", "tool_name": "Delete",
+		"tool_input": map[string]any{"path": filepath.Join(home, "PROJ-1", "status.json")}, "cwd": home,
+	})
+	stdout, _, _ := runRootStdin(t, string(payload), "hook", "guard", "--home", home)
+	var resp struct {
+		Permission string `json:"permission"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf("stdout not valid JSON: %v\n%s", err, stdout.String())
+	}
+	if resp.Permission != "deny" {
+		t.Errorf("permission = %q, want deny", resp.Permission)
 	}
 }
 

@@ -1,0 +1,12 @@
+{
+  "session_id": "sess-abc123",
+  "cwd": "/home/dev/acme.billing.api",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "NotebookEdit",
+  "tool_input": {
+    "notebook_path": "/home/dev/.ai-flow/cache/PROJ-1/analysis.ipynb",
+    "cell_id": "cell-1",
+    "new_source": "print('hi')",
+    "edit_mode": "replace"
+  }
+}

@@ -41,15 +41,15 @@ const (
 // HookEvent is the normalized shape every Adapter's ParseHook builds,
 // and the one shape guard.Evaluate reads — the Guardrails section's
 // own words: "normalizes it to { host, event, command, file_path,
-// cwd }". PluginRoot and HostVersion are populated only for
-// EventSessionStart.
+// cwd }". HostVersion is populated only for EventSessionStart; the
+// plugin root reaches `hook session-start` as its --plugin-root flag,
+// never through a payload.
 type HookEvent struct {
 	Host        Host
 	Event       EventKind
 	Command     string
 	FilePath    string
 	Cwd         string
-	PluginRoot  string
 	HostVersion string
 }
 
@@ -61,8 +61,14 @@ type HookEvent struct {
 // stable, machine-facing code (e.g. "hook_shape_unknown",
 // "row6_git_publish") — never shown to a human, only ever written to
 // events.jsonl by the hook guard command.
+//
+// Allow and Ask are mutually exclusive; neither set is a deny. Ask
+// means the developer must confirm the call through the host's own
+// permission prompt (gate approval) — an adapter whose host cannot
+// enforce a prompt must encode it as a deny, never as an allow.
 type Decision struct {
 	Allow         bool
+	Ask           bool
 	Reason        string
 	UserMessage   string
 	AgentMessage  string

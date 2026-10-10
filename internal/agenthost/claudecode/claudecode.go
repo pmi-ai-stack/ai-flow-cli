@@ -50,8 +50,9 @@ type payload struct {
 	Cwd           string `json:"cwd"`
 	ToolName      string `json:"tool_name"`
 	ToolInput     struct {
-		Command  string `json:"command"`
-		FilePath string `json:"file_path"`
+		Command      string `json:"command"`
+		FilePath     string `json:"file_path"`
+		NotebookPath string `json:"notebook_path"`
 	} `json:"tool_input"`
 	// Version is this adapter's provisional reading of SessionStart's
 	// own-host-version field — unconfirmed against the real product,
@@ -82,9 +83,12 @@ func (Adapter) ParseHook(raw []byte) (agenthost.HookEvent, error) {
 		case "Bash":
 			ev.Event = agenthost.EventShell
 			ev.Command = p.ToolInput.Command
-		case "Write", "Edit":
+		case "Write", "Edit", "MultiEdit":
 			ev.Event = agenthost.EventWrite
 			ev.FilePath = p.ToolInput.FilePath
+		case "NotebookEdit":
+			ev.Event = agenthost.EventWrite
+			ev.FilePath = p.ToolInput.NotebookPath
 		default:
 			ev.Event = agenthost.EventUnknown
 		}
@@ -111,9 +115,18 @@ type response struct {
 // EncodeHook renders d as Claude Code's own
 // hookSpecificOutput.permissionDecision shape.
 func (Adapter) EncodeHook(d agenthost.Decision) ([]byte, error) {
-	decision := "deny"
+	// An allow is no output at all: Claude Code documents exit 0
+	// without a decision as "normal permission flow applies". An
+	// explicit "allow" would skip the developer's own permission
+	// prompt for every tool call the guard has no objection to — the
+	// guard prevents accidents, it never grants permission (2026-10-04
+	// security review #1).
 	if d.Allow {
-		decision = "allow"
+		return nil, nil
+	}
+	decision := "deny"
+	if d.Ask {
+		decision = "ask"
 	}
 	resp := response{
 		HookSpecificOutput: hookSpecificOutput{

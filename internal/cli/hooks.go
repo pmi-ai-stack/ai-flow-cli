@@ -156,7 +156,7 @@ func claudeCodeHooks(pluginRoot string) claudeCodeHooksBlock {
 		},
 		PreToolUse: []claudeCodeHookGroup{
 			{Matcher: "Bash", Hooks: []claudeCodeHookCmd{{Type: "command", Command: guardCommand}}},
-			{Matcher: "Write|Edit", Hooks: []claudeCodeHookCmd{{Type: "command", Command: guardCommand}}},
+			{Matcher: "Write|Edit|MultiEdit|NotebookEdit", Hooks: []claudeCodeHookCmd{{Type: "command", Command: guardCommand}}},
 		},
 	}
 }
@@ -219,7 +219,7 @@ func writeCursorHooks(path, pluginRoot string) error {
 			SessionStart: []cursorSessionStartHook{{Command: sessionStartCommand(pluginRoot)}},
 			PreToolUse: []cursorPreToolUseHook{
 				{Matcher: "Shell", FailClosed: true, Command: guardCommand},
-				{Matcher: "Write", Command: guardCommand},
+				{Matcher: "Write|Delete", Command: guardCommand},
 			},
 		},
 	}

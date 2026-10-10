@@ -1,0 +1,13 @@
+{
+  "conversation_id": "conv-1",
+  "generation_id": "gen-1",
+  "hook_event_name": "preToolUse",
+  "cursor_version": "2.1.0",
+  "workspace_roots": ["/home/dev/acme.billing.api"],
+  "tool_name": "Delete",
+  "tool_input": {
+    "path": "/home/dev/.ai-flow/PROJ-1/status.json"
+  },
+  "tool_use_id": "tool-3",
+  "cwd": "/home/dev/acme.billing.api"
+}

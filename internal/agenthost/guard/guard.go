@@ -75,6 +75,19 @@ func allowDecision(reason string) agenthost.Decision {
 	return agenthost.Decision{Allow: true, Reason: reason}
 }
 
+// askDecision is a call the developer must confirm through the host's
+// own permission prompt; see agenthost.Decision's Ask.
+func askDecision(reason, owning, description string) agenthost.Decision {
+	msg := "ai-flow's guard needs your confirmation: " + description + "."
+	return agenthost.Decision{
+		Ask:           true,
+		Reason:        reason,
+		OwningCommand: owning,
+		UserMessage:   msg,
+		AgentMessage:  msg,
+	}
+}
+
 func denyDecision(reason, owning, description string) agenthost.Decision {
 	msg := "ai-flow's guard blocked this: " + description + ". Run `ai-flow " + owning + "` instead."
 	return agenthost.Decision{

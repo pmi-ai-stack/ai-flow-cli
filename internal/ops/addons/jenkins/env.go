@@ -50,19 +50,23 @@ func jenkinsBinding(cfg *config.Config) (url string, ok bool) {
 	return "", false
 }
 
-// jenkinsAuthArgs builds jenkins-cli's own "-auth user:token" argument
-// pair from AI_FLOW_JENKINS_USER/AI_FLOW_JENKINS_TOKEN, read directly
-// from the environment (never through config.Config) — the same
-// precedent internal/cli/ticket.go's buildTracker already established
-// for Jira's own credentials. Empty when either is unset: some Jenkins
-// servers allow anonymous read access, and a missing credential should
-// not stop this addon from at least attempting the call — a real
+// jenkinsAuthEnv builds the environment jenkins-cli reads its own
+// credentials from (JENKINS_USER_ID, JENKINS_API_TOKEN — the CLI's
+// documented alternative to "-auth user:token") out of
+// AI_FLOW_JENKINS_USER/AI_FLOW_JENKINS_TOKEN, read directly from the
+// environment (never through config.Config) — the same precedent
+// internal/cli/ticket.go's buildTracker already established for Jira's
+// own credentials. Environment, not argv: an argument is readable by
+// every local user through ps or /proc, and the token used to be one
+// (2026-10-04 security review #4). Empty when either is unset: some
+// Jenkins servers allow anonymous read access, and a missing credential
+// should not stop this addon from at least attempting the call — a real
 // server that requires auth then fails cleanly as tool_failed.
-func jenkinsAuthArgs() []string {
+func jenkinsAuthEnv() []string {
 	user := os.Getenv("AI_FLOW_JENKINS_USER")
 	token := os.Getenv("AI_FLOW_JENKINS_TOKEN")
 	if user == "" || token == "" {
 		return nil
 	}
-	return []string{"-auth", user + ":" + token}
+	return []string{"JENKINS_USER_ID=" + user, "JENKINS_API_TOKEN=" + token}
 }

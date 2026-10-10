@@ -44,8 +44,8 @@ func (a *Addon) Drift(ctx context.Context, t ops.Target, env ops.Env, baseRender
 // getJob runs jenkins-cli get-job for real, returning its own stdout
 // (the job's live config content).
 func (a *Addon) getJob(ctx context.Context, url string, t ops.Target) (string, error) {
-	args := append([]string{"get-job", jobName(t.Repo, t.Path), "-s", url}, jenkinsAuthArgs()...)
-	out, err := a.x.Run(ctx, "jenkins-cli", args, exec.RunOpts{Timeout: a.timeout()})
+	args := []string{"get-job", jobName(t.Repo, t.Path), "-s", url}
+	out, err := a.x.Run(ctx, "jenkins-cli", args, exec.RunOpts{Env: jenkinsAuthEnv(), Timeout: a.timeout()})
 	if err != nil {
 		return "", err
 	}
