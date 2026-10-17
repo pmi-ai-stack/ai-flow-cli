@@ -37,6 +37,14 @@ var ticketOnlyKinds = map[string]bool{"docs": true, "commit": true, "pr": true}
 // design decision 1).
 var addonScopedKinds = map[string]bool{"policy": true, "scan": true}
 
+// newCheckScratch makes the private directory one runEffectiveChecks
+// call hands its runners (check.RunInput.Scratch): owner-only, with a
+// random name, so concurrent runs never share a file and no other user
+// can predict or pre-create one. Tests pin it to a known directory so
+// their scripted Execers can predict argv, mirroring git.go's
+// newExecer.
+var newCheckScratch = func() (string, error) { return os.MkdirTemp("", "ai-flow-check-") }
+
 // checksResultsWire is checks-results.json's own shape — check.Finding
 // already mirrors the schema field for field (runner.go's own doc
 // comment), so this is the one place internal/cli wraps it for
@@ -399,7 +407,17 @@ func ticketCheckTargets(ticketDir string) (checkTargets, error) {
 //
 // The second return value lists applicable addon-scoped checks that
 // had nothing to run against (see runAddonScopedCheck).
-func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []repoArtifactRepository, scope checkTargets, stage string, fix bool, ticketDir string, x exec.Execer, timeout time.Duration) ([]check.Finding, []skippedCheck, error) {
+//
+// Every runner of this call shares one scratch directory (newCheckScratch)
+// for the configs, policy directories and reports it writes, removed
+// when the call returns, on every path.
+func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []repoArtifactRepository, scope checkTargets, stage string, fix bool, ticketDir string, x exec.Execer, timeout time.Duration) (_ []check.Finding, _ []skippedCheck, err error) {
+	scratch, err := newCheckScratch()
+	if err != nil {
+		return nil, nil, fmt.Errorf("standards check: scratch directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(scratch) }()
+
 	// Detected once per repository, not once per (check, repository)
 	// pair: a repository's own languages never change during one run.
 	// One map keyed by repo name serves both the per-repo and the
@@ -430,7 +448,7 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 		}
 
 		if ticketOnlyKinds[c.Kind] {
-			findings, err := rec.run(ctx, runner, check.RunInput{Check: c, Stage: stage, Fix: fix, TicketDir: ticketDir}, timeout, "", "")
+			findings, err := rec.run(ctx, runner, check.RunInput{Check: c, Stage: stage, Fix: fix, TicketDir: ticketDir, Scratch: scratch}, timeout, "", "")
 			if err != nil {
 				return nil, nil, err
 			}
@@ -439,7 +457,7 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 		}
 
 		if addonScopedKinds[c.Kind] {
-			findings, skips, err := runAddonScopedCheck(ctx, c, scope, repoInfo, ticketDir, stage, fix, runner, rec, timeout)
+			findings, skips, err := runAddonScopedCheck(ctx, c, scope, repoInfo, ticketDir, scratch, stage, fix, runner, rec, timeout)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -454,7 +472,7 @@ func runEffectiveChecks(ctx context.Context, e *standards.Effective, repos []rep
 			}
 			findings, err := rec.run(ctx, runner, check.RunInput{
 				Check: c, Repo: check.Repo{Name: r.Name, LocalPath: r.LocalPath},
-				Stage: stage, Fix: fix, TicketDir: ticketDir,
+				Stage: stage, Fix: fix, TicketDir: ticketDir, Scratch: scratch,
 			}, timeout, r.Name, "")
 			if err != nil {
 				return nil, nil, err
@@ -525,7 +543,7 @@ type repoCheckInfo struct {
 // the directory form can say so instead of looking like a clean pass.
 func runAddonScopedCheck(
 	ctx context.Context, c standards.EffectiveCheck, scope checkTargets, repoInfo map[string]repoCheckInfo,
-	ticketDir, stage string, fix bool, runner check.CheckRunner, rec *missingToolRecorder, timeout time.Duration,
+	ticketDir, scratch, stage string, fix bool, runner check.CheckRunner, rec *missingToolRecorder, timeout time.Duration,
 ) ([]check.Finding, []skippedCheck, error) {
 	var out []check.Finding
 	var skipped []skippedCheck
@@ -555,7 +573,7 @@ func runAddonScopedCheck(
 		}
 
 		findings, err := rec.run(ctx, runner, check.RunInput{
-			Check: c, Target: target, Stage: stage, Fix: fix, TicketDir: ticketDir,
+			Check: c, Target: target, Stage: stage, Fix: fix, TicketDir: ticketDir, Scratch: scratch,
 		}, timeout, t.Repo, target.Key)
 		if err != nil {
 			return nil, nil, err

@@ -104,6 +104,8 @@ linters:
         linters: [gochecknoglobals] # newGitHubIssuesTransport is the injectable RoundTripper source, newJiraTransport's counterpart (ticket.go)
       - path: ^internal/cli/git\.go$
         linters: [gochecknoglobals] # newExecer is the injectable Execer constructor by design — tests reassign it, mirroring handoff/clock.go's Now
+      - path: ^internal/cli/checks\.go$
+        linters: [gochecknoglobals] # ticketOnlyKinds/addonScopedKinds are lookup tables; newCheckScratch is the injectable scratch-directory constructor, mirroring git.go's newExecer
       - path: ^internal/cli/ops\.go$
         linters: [gochecknoglobals] # newOpsExecer is the injectable Execer constructor for buildOpsRegistry's own addons, mirroring git.go's newExecer
       - path: ^internal/ops/addons/terraform/kindclass\.go$
@@ -132,8 +134,6 @@ linters:
         linters: [gochecknoglobals] # envelopeRedactor is an injectable constructor, like newExecer
       - path: ^internal/cli/toolconfig\.go$
         linters: [gochecknoglobals] # toolConfigFileNames is a lookup table, not mutable state
-      - path: ^internal/cli/checks\.go$
-        linters: [gochecknoglobals] # ticketOnlyKinds is a lookup table, not mutable state
       - path: ^internal/render/data\.go$
         linters: [gochecknoglobals] # severityOrder is a lookup table, not mutable state
       - path: ^internal/agenthost/guard/rows\.go$

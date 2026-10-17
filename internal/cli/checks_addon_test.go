@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -57,7 +56,7 @@ func TestStandardsCheckAddonScopedPolicyRunsAgainstRendering(t *testing.T) {
 	})
 	writeRenderDriftFixture(t, home, "PROJ-9", targetKey, hash)
 
-	policyDir := filepath.Join(os.TempDir(), "ai-flow-check-policy-repo.infra.policy")
+	policyDir := filepath.Join(pinCheckScratch(t), "policy-repo.infra.policy")
 	renderDir := filepath.Join(home, "PROJ-9", "render", "acme.billing.api", "terraform", "infra", "prod", hash)
 
 	// The embedded reference pack (the org layer, since standardsTicket
@@ -68,7 +67,7 @@ func TestStandardsCheckAddonScopedPolicyRunsAgainstRendering(t *testing.T) {
 	// names, so both fire against it too, alongside the repo-layer
 	// check under test. Both are scripted to a clean, empty response
 	// (input: "source", so they scan sourceDir, not renderDir).
-	embeddedTFPolicyDir := filepath.Join(os.TempDir(), "ai-flow-check-policy-infra.terraform.policy")
+	embeddedTFPolicyDir := filepath.Join(pinCheckScratch(t), "policy-infra.terraform.policy")
 	x := scriptEmbeddedGoChecks(t, `{"Issues":[]}`).
 		On("conftest", []string{"test", "--policy", policyDir, "--output", "json", "."},
 			exec.Output{Stdout: `[{"filename":"main.tf","namespace":"main","failures":[{"msg":"missing required tag"}],"warnings":[]}]`}).

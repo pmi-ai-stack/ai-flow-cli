@@ -14,10 +14,9 @@ import (
 )
 
 func TestRunSecretsGitleaksFindsLeak(t *testing.T) {
-	configPath := filepath.Join(os.TempDir(), "ai-flow-check-config-org.secrets.toml")
-	reportPath := filepath.Join(os.TempDir(), "ai-flow-check-report-org.secrets.json")
-	defer os.Remove(configPath) // best-effort cleanup
-	defer os.Remove(reportPath) // best-effort cleanup
+	scratch := t.TempDir()
+	configPath := filepath.Join(scratch, "config-org.secrets.toml")
+	reportPath := filepath.Join(scratch, "report-org.secrets.json")
 
 	if err := os.WriteFile(reportPath, []byte(`[{"File":"config.yaml","StartLine":4,"Description":"AWS key","RuleID":"aws-access-key"}]`), 0o600); err != nil {
 		t.Fatal(err)
@@ -37,7 +36,7 @@ func TestRunSecretsGitleaksFindsLeak(t *testing.T) {
 		t.Fatal("no secrets runner registered")
 	}
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Repo: check.Repo{Name: "acme.api", LocalPath: "/repo"},
+		Check: c, Repo: check.Repo{Name: "acme.api", LocalPath: "/repo"}, Scratch: scratch,
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -55,10 +54,9 @@ func TestRunSecretsGitleaksFindsLeak(t *testing.T) {
 }
 
 func TestRunSecretsGitleaksCleanNoReportFile(t *testing.T) {
-	configPath := filepath.Join(os.TempDir(), "ai-flow-check-config-org.secrets2.toml")
-	reportPath := filepath.Join(os.TempDir(), "ai-flow-check-report-org.secrets2.json")
-	defer os.Remove(configPath) // best-effort cleanup
-	_ = os.Remove(reportPath)   // gitleaks writes no report file at all when it finds nothing
+	scratch := t.TempDir() // gitleaks writes no report file at all when it finds nothing
+	configPath := filepath.Join(scratch, "config-org.secrets2.toml")
+	reportPath := filepath.Join(scratch, "report-org.secrets2.json")
 
 	x := exectest.New(t).On("gitleaks", []string{
 		"detect", "--source", ".", "--no-git", "--report-format", "json",
@@ -71,7 +69,7 @@ func TestRunSecretsGitleaksCleanNoReportFile(t *testing.T) {
 	}
 	runner, _ := check.ForKind("secrets")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Repo: check.Repo{Name: "acme.api", LocalPath: "/repo"},
+		Check: c, Repo: check.Repo{Name: "acme.api", LocalPath: "/repo"}, Scratch: scratch,
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)

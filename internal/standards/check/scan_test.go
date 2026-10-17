@@ -22,7 +22,8 @@ func TestRunScanCheckovSingleFrameworkObject(t *testing.T) {
 		t.Fatal("no scan runner registered")
 	}
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -50,7 +51,8 @@ func TestRunScanCheckovMultiFrameworkArray(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "infra.terraform.scan", Kind: "scan", Tool: "checkov", Severity: "should"}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -65,7 +67,8 @@ func TestRunScanCheckovClean(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "infra.terraform.scan", Kind: "scan", Tool: "checkov", Severity: "should"}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.infra:modules/vpc", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -83,7 +86,8 @@ func TestRunScanTrivyConfig(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "infra.kubernetes.scan", Kind: "scan", Tool: "trivy", Severity: "should", Input: "render"}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.k8s:overlays/prod", Repo: "acme.k8s", RenderDir: "/ticket/render/x"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.k8s:overlays/prod", Repo: "acme.k8s", RenderDir: "/ticket/render/x"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -112,7 +116,8 @@ func TestRunScanKyvernoApply(t *testing.T) {
 	}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.k8s:overlays/prod", Repo: "acme.k8s", RenderDir: "/ticket/render/x"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.k8s:overlays/prod", Repo: "acme.k8s", RenderDir: "/ticket/render/x"},
 	}, fake, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -133,7 +138,8 @@ func TestRunScanKyvernoApplyNoConfigIsError(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "x", Kind: "scan", Tool: "kyverno", Severity: "must"}
 	runner, _ := check.ForKind("scan")
 	_, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "a:b", RenderDir: "/x"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "a:b", RenderDir: "/x"},
 	}, exectest.New(t), time.Second)
 	if err == nil {
 		t.Fatal("Run: want an error when kyverno has no Config, got nil")
@@ -153,7 +159,8 @@ func TestRunScanZizmor(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "infra.github-actions.scan", Kind: "scan", Tool: "zizmor", Severity: "should", Input: "render"}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -176,7 +183,8 @@ func TestRunScanZizmorNoFindingsHasNoLocationCrash(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "infra.github-actions.scan", Kind: "scan", Tool: "zizmor", Severity: "should", Input: "render"}
 	runner, _ := check.ForKind("scan")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "acme.svc:.github/workflows/ci.yml", Repo: "acme.svc", RenderDir: "/ticket/render/x"},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -190,7 +198,8 @@ func TestRunScanUnknownToolIsError(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "x", Kind: "scan", Tool: "snyk", Severity: "must"}
 	runner, _ := check.ForKind("scan")
 	_, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "a:b", SourceDir: "/repo"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "a:b", SourceDir: "/repo"},
 	}, exectest.New(t), time.Second)
 	if err == nil {
 		t.Fatal("Run: want an error for an unrecognized scan tool, got nil")

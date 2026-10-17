@@ -88,6 +88,13 @@ type RunInput struct {
 	// all when it is empty (design decision 4 in the phase-14 plan) —
 	// there is nothing under a bare directory for them to check.
 	TicketDir string
+	// Scratch is a directory private to this invocation (created 0700
+	// with a random name by the caller, removed by it afterwards). Every
+	// file a runner writes for its tool — a materialized config, a
+	// policy directory, a report — goes under it, never directly into
+	// the shared os.TempDir(). A runner that needs one and finds it
+	// empty fails rather than fall back to a shared path.
+	Scratch string
 }
 
 // CheckRunner runs one check against one input.
@@ -132,29 +139,25 @@ func ForKind(kind string) (CheckRunner, bool) {
 // materializeConfig reads check's Config (a path relative to its
 // Pack.FS — the embedded reference pack, a synced pack or a
 // repository's own in-tree pack all read the same way) into a real
-// temp file, since every external tool needs a real filesystem path
-// for its --config/-c flag and the embedded pack has no path of its
-// own on disk. The caller removes the returned path when done.
+// file, since every external tool needs a real filesystem path for its
+// --config/-c flag and the embedded pack has no path of its own on
+// disk. The caller removes the returned path when done.
 //
-// The path is deterministic — <tmp>/ai-flow-check-config-<check
-// id><ext> — rather than a fresh random name each call, the same
-// reason internal/verify/unit's pytest report path is fixed rather
-// than temp-random: a caller's own test scripts the exact argv it
-// expects an exec.Execer to receive (exectest.Scripted matches argv
-// verbatim), which a random suffix would make impossible to assert
-// against. The original file's extension is preserved because some
-// tools (gitleaks confirmed by hand against the real binary; eslint's
-// flat config format is documented to need one too) infer their
-// config's format from it and fail outright on an extensionless path.
-// Two concurrent runs of the *same* check id on the same machine would
-// race on this path — an accepted limitation for a single-developer
-// local CLI, not a shared build farm concern this phase's mandate
-// covers.
+// The path is <scratch>/config-<check id><ext>: deterministic inside
+// the invocation's private Scratch directory, so a caller's test can
+// still script the exact argv it expects an exec.Execer to receive
+// (exectest.Scripted matches argv verbatim), while two concurrent runs
+// never share a path and no other user can predict or pre-create one.
+// The original file's extension is preserved because some tools
+// (gitleaks confirmed by hand against the real binary; eslint's flat
+// config format is documented to need one too) infer their config's
+// format from it and fail outright on an extensionless path.
 //
 // Returns ("", nil, nil) when the check carries no Config at all — a
 // built-in check (dependency/layout use their own Config directly,
 // never through this helper; docs/commit/pr have none).
-func materializeConfig(c standards.EffectiveCheck) (path string, cleanup func(), err error) {
+func materializeConfig(in RunInput) (path string, cleanup func(), err error) {
+	c := in.Check
 	if c.Config == "" {
 		return "", func() {}, nil
 	}
@@ -162,7 +165,10 @@ func materializeConfig(c standards.EffectiveCheck) (path string, cleanup func(),
 	if err != nil {
 		return "", nil, fmt.Errorf("check: read config %s for %s: %w", c.Config, c.ID, err)
 	}
-	path = filepath.Join(os.TempDir(), "ai-flow-check-config-"+c.ID+filepath.Ext(c.Config))
+	path, err = scratchPath(in, "config-"+c.ID+filepath.Ext(c.Config))
+	if err != nil {
+		return "", nil, err
+	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", nil, fmt.Errorf("check: write config for %s: %w", c.ID, err)
 	}
@@ -173,14 +179,15 @@ func materializeConfig(c standards.EffectiveCheck) (path string, cleanup func(),
 // names a whole directory rather than one file — conftest's own
 // --policy flag (and kyverno apply's own policy argument) needs a real
 // directory of files on disk, not one config file handed by path.
-// Every file under c.Config in c.Pack.FS is copied into a fresh
-// deterministic temp directory (<tmp>/ai-flow-check-policy-<check
-// id>/, cleared first so a stale run's leftovers never leak into this
-// one — the same determinism materializeConfig's own doc comment
-// explains, for the same reason: a caller's test scripts the exact
-// argv it expects).
-func materializeConfigDir(c standards.EffectiveCheck) (dir string, cleanup func(), err error) {
-	dir = filepath.Join(os.TempDir(), "ai-flow-check-policy-"+c.ID)
+// Every file under c.Config in c.Pack.FS is copied into
+// <scratch>/policy-<check id>/, cleared first so an earlier target's
+// run of the same check in this invocation never leaks into this one.
+func materializeConfigDir(in RunInput) (dir string, cleanup func(), err error) {
+	c := in.Check
+	dir, err = scratchPath(in, "policy-"+c.ID)
+	if err != nil {
+		return "", nil, err
+	}
 	if err := os.RemoveAll(dir); err != nil {
 		return "", nil, fmt.Errorf("check: %s: clear %s: %w", c.ID, dir, err)
 	}
@@ -212,6 +219,16 @@ func materializeConfigDir(c standards.EffectiveCheck) (dir string, cleanup func(
 		return "", nil, fmt.Errorf("check: %s: materialize config dir %s: %w", c.ID, c.Config, walkErr)
 	}
 	return dir, cleanup, nil
+}
+
+// scratchPath is name inside in.Scratch, or an error when the caller
+// gave no scratch directory: falling back to os.TempDir() would bring
+// back the shared, predictable path Scratch exists to remove.
+func scratchPath(in RunInput, name string) (string, error) {
+	if in.Scratch == "" {
+		return "", fmt.Errorf("check: %s: no scratch directory to write %s in", in.Check.ID, name)
+	}
+	return filepath.Join(in.Scratch, name), nil
 }
 
 // runToolJSON runs tool with args in dir and returns its stdout,

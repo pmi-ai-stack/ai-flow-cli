@@ -107,8 +107,8 @@ func TestRunFormatPrettierCheck(t *testing.T) {
 }
 
 func TestRunFormatRuffFormatCheckAndFix(t *testing.T) {
-	configPath := filepath.Join(os.TempDir(), "ai-flow-check-config-python.format.toml")
-	defer os.Remove(configPath) // best-effort cleanup
+	scratch := t.TempDir()
+	configPath := filepath.Join(scratch, "config-python.format.toml")
 
 	x := exectest.New(t)
 	checkOut, checkErr := toolFailed(exec.Output{Stdout: "Would reformat: app.py\n"})
@@ -122,7 +122,7 @@ func TestRunFormatRuffFormatCheckAndFix(t *testing.T) {
 
 	runner, _ := check.ForKind("format")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Repo: check.Repo{Name: "acme.svc", LocalPath: "/repo"}, Fix: true,
+		Check: c, Repo: check.Repo{Name: "acme.svc", LocalPath: "/repo"}, Fix: true, Scratch: scratch,
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)

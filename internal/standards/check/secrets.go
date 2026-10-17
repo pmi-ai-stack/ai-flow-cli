@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/ops/exec"
@@ -36,16 +35,21 @@ type gitleaksFinding struct {
 // the reference pack's own gitleaks.toml already carries a testdata/
 // allowlist anticipating exactly this from phase 12.
 func runSecrets(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	// The report path is checked first so a missing scratch directory
+	// fails before anything is written.
+	reportPath, err := scratchPath(in, "report-"+in.Check.ID+".json")
+	if err != nil {
+		return nil, err
+	}
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup()
 
-	// Deterministic, not exec.RunOpts-random, for the same reason
-	// materializeConfig's own path is deterministic: a caller's test
-	// scripts the exact argv it expects (see runner.go's doc comment).
-	reportPath := filepath.Join(os.TempDir(), "ai-flow-check-report-"+in.Check.ID+".json")
+	// Deterministic within the private scratch directory, for the same
+	// reason materializeConfig's own path is: a caller's test scripts
+	// the exact argv it expects (see runner.go's doc comment).
 	defer func() { _ = os.Remove(reportPath) }()
 
 	args := []string{"detect", "--source", ".", "--no-git", "--report-format", "json", "--report-path", reportPath, "--exit-code", "0"}

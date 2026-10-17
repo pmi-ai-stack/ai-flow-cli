@@ -41,8 +41,8 @@ func TestJSONToolFailingWithoutReportIsAnError(t *testing.T) {
 		c    standards.EffectiveCheck
 		in   check.RunInput
 	}{
-		{"policy", policy, check.RunInput{Check: policy, Target: target}},
-		{"lint", lint, check.RunInput{Check: lint, Repo: repo}},
+		{"policy", policy, check.RunInput{Check: policy, Target: target, Scratch: t.TempDir()}},
+		{"lint", lint, check.RunInput{Check: lint, Repo: repo, Scratch: t.TempDir()}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner, _ := check.ForKind(tc.c.Kind)
@@ -61,7 +61,7 @@ func TestJSONToolFailingWithoutReportIsAnError(t *testing.T) {
 
 	// The report-carrying failure is still a result, not an error.
 	runner, _ := check.ForKind("policy")
-	findings, err := runner.Run(context.Background(), check.RunInput{Check: policy, Target: target},
+	findings, err := runner.Run(context.Background(), check.RunInput{Check: policy, Target: target, Scratch: t.TempDir()},
 		failingExecer{out: exec.Output{Stdout: `[{"filename":"main.tf","failures":[{"msg":"bad"}]}]`}, err: crashed}, time.Second)
 	if err != nil || len(findings) != 1 {
 		t.Errorf("tool_failed with a report = (%v, %v), want one finding", findings, err)

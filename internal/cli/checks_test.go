@@ -20,14 +20,10 @@ import (
 // registers each once and both runs reuse it.
 func scriptEmbeddedGoChecks(t *testing.T, golangciReport string) *exectest.Scripted {
 	t.Helper()
-	golangciConfig := filepath.Join(os.TempDir(), "ai-flow-check-config-go.lint.yml")
-	secretsConfig := filepath.Join(os.TempDir(), "ai-flow-check-config-org.secrets.toml")
-	secretsReport := filepath.Join(os.TempDir(), "ai-flow-check-report-org.secrets.json")
-	t.Cleanup(func() {
-		_ = os.Remove(golangciConfig)
-		_ = os.Remove(secretsConfig)
-		_ = os.Remove(secretsReport)
-	})
+	scratch := pinCheckScratch(t)
+	golangciConfig := filepath.Join(scratch, "config-go.lint.yml")
+	secretsConfig := filepath.Join(scratch, "config-org.secrets.toml")
+	secretsReport := filepath.Join(scratch, "report-org.secrets.json")
 
 	return exectest.New(t).
 		On("gofmt", []string{"-l", "."}, exec.Output{}).

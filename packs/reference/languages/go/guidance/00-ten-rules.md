@@ -15,7 +15,7 @@ This is the reviewer's checklist for every Go file in `ai-flow-cli`. Every rule 
 4. **Every error is checked, wrapped with `%w` and new context, and handled once** — returned *or* logged, never both. **[tool + review]**
 5. **`ctx` first, timeout on every external call** (tracker, host, git, tool subprocess). Ctrl-C cancels everything through one `signal.NotifyContext`. **[review]**
 6. **Every subprocess goes through `internal/ops/exec`** and its typed allowlist. No `exec.Command` anywhere else; no `sh -c`, ever. **[tool: `TestAllowlistNeverMutatesPersistentState` + `TestNoOsExecOutsideExecPackage`, both in `internal/ops/exec`]**
-7. **Same inputs, same bytes.** JSON artifacts: sorted keys, two-space indent, trailing newline, no timestamps. Wall-clock data goes only to `events.jsonl`. **[tool: `TestByteStable`]**
+7. **Same inputs, same bytes.** JSON artifacts: sorted keys, two-space indent, trailing newline, no timestamps. Wall-clock data goes only to `events.jsonl`. **[tool: `handofftest.RequireByteStable`]**
 8. **Every write to the handoff dir is atomic** (temp file in the same directory, then rename) and schema-validated before rename. **[review]**
 9. **Secrets come from env only, and are redacted** from stderr, errors, `events.jsonl` and copied artifacts. Never in flags, never in config, never in the handoff dir. **[review + tests in `internal/redact`]**
 10. **Tests run offline**: fixtures under `testdata/`, fake providers behind interfaces, no network, no tool binaries, `-race` always. Integration tests live behind build tags. **[tool]**

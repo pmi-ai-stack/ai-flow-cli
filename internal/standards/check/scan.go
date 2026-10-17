@@ -75,7 +75,7 @@ func runCheckov(ctx context.Context, in RunInput, x exec.Execer, timeout time.Du
 	if err != nil {
 		return nil, err
 	}
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func runTrivyConfig(ctx context.Context, in RunInput, x exec.Execer, timeout tim
 	if err != nil {
 		return nil, err
 	}
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func runKyvernoApply(ctx context.Context, in RunInput, x exec.Execer, timeout ti
 		return nil, err
 	}
 
-	policyDir, cleanup, err := materializeConfigDir(in.Check)
+	policyDir, cleanup, err := materializeConfigDir(in)
 	if err != nil {
 		return nil, err
 	}

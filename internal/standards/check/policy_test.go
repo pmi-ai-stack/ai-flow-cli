@@ -29,8 +29,9 @@ func TestRunPolicyConftestSourceInputFindsFailure(t *testing.T) {
 		t.Fatal("no policy runner registered")
 	}
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check:  c,
-		Target: check.Target{Key: "acme.infra:modules/vpc", Addon: "terraform", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
+		Scratch: t.TempDir(),
+		Check:   c,
+		Target:  check.Target{Key: "acme.infra:modules/vpc", Addon: "terraform", Repo: "acme.infra", SourceDir: "/repo/modules/vpc"},
 	}, fake, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -64,7 +65,8 @@ func TestRunPolicyConftestRenderInputCleanRun(t *testing.T) {
 	}
 	runner, _ := check.ForKind("policy")
 	findings, err := runner.Run(context.Background(), check.RunInput{
-		Check: c,
+		Scratch: t.TempDir(),
+		Check:   c,
 		Target: check.Target{
 			Key: "acme.k8s:overlays/prod", Addon: "kubectl", Repo: "acme.k8s",
 			SourceDir: "/repo/overlays/prod", RenderDir: "/ticket/render/acme.k8s/kubectl/overlays/prod/abc123",
@@ -88,8 +90,9 @@ func TestRunPolicyConftestRenderInputNoRenderDirIsError(t *testing.T) {
 	}
 	runner, _ := check.ForKind("policy")
 	_, err := runner.Run(context.Background(), check.RunInput{
-		Check:  c,
-		Target: check.Target{Key: "acme.k8s:overlays/prod", Addon: "kubectl", Repo: "acme.k8s", SourceDir: "/repo/overlays/prod"},
+		Scratch: t.TempDir(),
+		Check:   c,
+		Target:  check.Target{Key: "acme.k8s:overlays/prod", Addon: "kubectl", Repo: "acme.k8s", SourceDir: "/repo/overlays/prod"},
 	}, exectest.New(t), time.Second)
 	if err == nil {
 		t.Fatal("Run: want an error when input: render has no RenderDir, got nil")
@@ -100,7 +103,8 @@ func TestRunPolicyUnknownToolIsError(t *testing.T) {
 	c := standards.EffectiveCheck{ID: "x", Kind: "policy", Tool: "opa", Severity: "must"}
 	runner, _ := check.ForKind("policy")
 	_, err := runner.Run(context.Background(), check.RunInput{
-		Check: c, Target: check.Target{Key: "a:b", SourceDir: "/repo"},
+		Scratch: t.TempDir(),
+		Check:   c, Target: check.Target{Key: "a:b", SourceDir: "/repo"},
 	}, exectest.New(t), time.Second)
 	if err == nil {
 		t.Fatal("Run: want an error for an unrecognized policy tool, got nil")

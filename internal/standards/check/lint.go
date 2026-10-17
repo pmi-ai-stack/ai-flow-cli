@@ -63,7 +63,7 @@ type golangciLintReport struct {
 }
 
 func runGolangciLint(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ type esLintReport []struct {
 }
 
 func runESLint(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ type ruffCheckReport []struct {
 }
 
 func runRuffCheck(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ type checkstyleReport struct {
 }
 
 func runCheckstyle(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}

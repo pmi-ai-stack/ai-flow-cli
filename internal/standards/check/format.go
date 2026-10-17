@@ -80,7 +80,7 @@ func runPrettier(ctx context.Context, in RunInput, x exec.Execer, timeout time.D
 // runRuffFormat: `ruff format --check --config <path> .` prints
 // "Would reformat: <path>" per file; the fix form drops --check.
 func runRuffFormat(ctx context.Context, in RunInput, x exec.Execer, timeout time.Duration) ([]Finding, error) {
-	configPath, cleanup, err := materializeConfig(in.Check)
+	configPath, cleanup, err := materializeConfig(in)
 	if err != nil {
 		return nil, err
 	}

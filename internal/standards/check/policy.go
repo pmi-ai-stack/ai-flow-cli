@@ -38,7 +38,7 @@ func runPolicy(ctx context.Context, in RunInput, x exec.Execer, timeout time.Dur
 		return nil, err
 	}
 
-	policyDir, cleanup, err := materializeConfigDir(in.Check)
+	policyDir, cleanup, err := materializeConfigDir(in)
 	if err != nil {
 		return nil, err
 	}

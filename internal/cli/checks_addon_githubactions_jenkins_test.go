@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -27,7 +26,7 @@ func TestStandardsCheckGithubActionsPolicyAndScanFireAgainstRendering(t *testing
 	writeRenderDriftFixture(t, home, "PROJ-27", targetKey, hash)
 
 	renderDir := filepath.Join(home, "PROJ-27", "render", "acme.billing.api", "github-actions", ".github", "workflows", "ci.yml", hash)
-	policyDir := filepath.Join(os.TempDir(), "ai-flow-check-policy-infra.github-actions.policy")
+	policyDir := filepath.Join(pinCheckScratch(t), "policy-infra.github-actions.policy")
 
 	x := scriptEmbeddedGoChecks(t, `{"Issues":[]}`).
 		On("conftest", []string{"test", "--policy", policyDir, "--output", "json", "."},
@@ -81,7 +80,7 @@ func TestStandardsCheckJenkinsPolicyFiresAgainstRendering(t *testing.T) {
 	})
 	writeRenderDriftFixture(t, home, "PROJ-28", targetKey, hash)
 
-	policyDir := filepath.Join(os.TempDir(), "ai-flow-check-policy-infra.jenkins.policy")
+	policyDir := filepath.Join(pinCheckScratch(t), "policy-infra.jenkins.policy")
 
 	x := scriptEmbeddedGoChecks(t, `{"Issues":[]}`).
 		On("conftest", []string{"test", "--policy", policyDir, "--output", "json", "."},
