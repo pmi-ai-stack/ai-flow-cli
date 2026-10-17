@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -82,6 +83,11 @@ func TestInstallShPointsWindowsAtTheZip(t *testing.T) {
 // TestInstallShRefusesUnknownOS keeps the generic refusal for every
 // other OS.
 func TestInstallShRefusesUnknownOS(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Git for Windows' sh.exe prepends its own /usr/bin to PATH, so
+		// the real uname (MINGW64_NT-…) shadows the SunOS stub.
+		t.Skip("a PATH stub cannot shadow uname under Git for Windows' sh.exe")
+	}
 	bin, curlLog := stubInstallTools(t, "SunOS")
 	stderr, ec := runInstallSh(t, bin)
 	if ec != 1 || !strings.Contains(stderr, "unsupported OS: SunOS") {
