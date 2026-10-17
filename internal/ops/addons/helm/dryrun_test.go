@@ -3,6 +3,7 @@ package helm
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
@@ -30,7 +31,7 @@ func TestDryRunHelmDiffSuccessProducesNoopChangesetWithNoFallback(t *testing.T) 
 	writeFile(t, dir, "rendered.yaml", "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  namespace: default\nspec:\n  replicas: 2\n")
 
 	x := exectest.New(t)
-	x.On("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", "testdata/chart/values.yaml", "--kube-context", "prod-ctx"}, exec.Output{ExitCode: 0})
+	x.On("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", filepath.Join("testdata", "chart", "values.yaml"), "--kube-context", "prod-ctx"}, exec.Output{ExitCode: 0})
 
 	a := New(x, boundConfig())
 	cs, err := a.DryRun(context.Background(), ops.Target{Repo: "r", Path: "testdata/chart"}, ops.Env{Name: "prod", Tier: "prod"}, &ops.Rendered{Dir: dir})
@@ -50,7 +51,7 @@ func TestDryRunFallsBackToKubectlDiffOnAnyHelmDiffFailure(t *testing.T) {
 	writeFile(t, dir, "rendered.yaml", "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  namespace: default\nspec:\n  replicas: 2\n")
 
 	x := exectest.New(t)
-	x.OnFail("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", "testdata/chart/values.yaml", "--kube-context", "prod-ctx"},
+	x.OnFail("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", filepath.Join("testdata", "chart", "values.yaml"), "--kube-context", "prod-ctx"},
 		&envelope.Error{Code: "tool_failed", Message: "unknown command \"diff\""})
 	x.On("kubectl", []string{"diff", "--server-side", "-f", ".", "--context", "prod-ctx"}, exec.Output{ExitCode: 0})
 
@@ -71,7 +72,7 @@ func TestDryRunFallbackBuildsCreateAndUpdateActions(t *testing.T) {
 		"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n  namespace: default\ndata:\n  key: value\n")
 
 	x := exectest.New(t)
-	x.OnFail("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", "testdata/chart/values.yaml", "--kube-context", "prod-ctx"},
+	x.OnFail("helm", []string{"diff", "upgrade", "demo", "testdata/chart", "--detailed-exitcode", "-f", filepath.Join("testdata", "chart", "values.yaml"), "--kube-context", "prod-ctx"},
 		&envelope.Error{Code: "tool_failed", Message: "boom"})
 	x.OnFailWithOutput("kubectl", []string{"diff", "--server-side", "-f", ".", "--context", "prod-ctx"},
 		exec.Output{ExitCode: 1}, &envelope.Error{Code: "tool_failed", Message: "diff found changes"})

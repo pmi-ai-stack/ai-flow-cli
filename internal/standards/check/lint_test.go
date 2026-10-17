@@ -2,6 +2,8 @@ package check_test
 
 import (
 	"context"
+	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,7 +18,13 @@ import (
 var golangciArgs = []string{"run", "--output.json.path", "stdout", "--show-stats=false", "--path-mode", "abs", "./..."}
 
 func TestRunLintGolangciLint(t *testing.T) {
-	report := `{"Issues":[{"Text":"unused variable","Pos":{"Filename":"/repo/cmd/main.go","Line":10},"FromLinter":"unused"}]}`
+	// A real absolute path: "/repo/..." is not absolute on Windows.
+	repo := t.TempDir()
+	file, err := json.Marshal(filepath.Join(repo, "cmd", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := `{"Issues":[{"Text":"unused variable","Pos":{"Filename":` + string(file) + `,"Line":10},"FromLinter":"unused"}]}`
 	x := exectest.New(t).On("golangci-lint", golangciArgs, exec.Output{Stdout: report})
 
 	runner, ok := check.ForKind("lint")
@@ -25,7 +33,7 @@ func TestRunLintGolangciLint(t *testing.T) {
 	}
 	findings, err := runner.Run(context.Background(), check.RunInput{
 		Check: standards.EffectiveCheck{ID: "go.lint", Tool: "golangci-lint", Severity: "must"},
-		Repo:  check.Repo{Name: "acme.api", LocalPath: "/repo"},
+		Repo:  check.Repo{Name: "acme.api", LocalPath: repo},
 	}, x, time.Second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)

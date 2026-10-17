@@ -8,7 +8,6 @@ import (
 	osexec "os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -84,7 +83,7 @@ func unlistedCmd(ctx context.Context, dir, tool string, args, env []string) (cmd
 // unlisted_run event before each start.
 func (r *Runner) StartUnlisted(ctx context.Context, dir, tool string, args, env []string) (*Process, error) {
 	cmd, stdout, stderr := unlistedCmd(ctx, dir, tool, args, env)
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.Cancel = func() error { return terminate(cmd.Process) }
 
 	logStart(ctx, tool, args, dir)
 	if err := cmd.Start(); err != nil {
@@ -93,9 +92,9 @@ func (r *Runner) StartUnlisted(ctx context.Context, dir, tool string, args, env 
 	return &Process{cmd: cmd, stdout: stdout, stderr: stderr}, nil
 }
 
-// Stop terminates p: SIGTERM, then up to grace for it to exit, then
-// SIGKILL. Safe to call on a nil *Process (a Start that never
-// succeeded) and safe to call twice — both are no-ops, so a caller's
+// Stop terminates p: SIGTERM (a kill on Windows, see terminate), then
+// up to grace for it to exit, then SIGKILL. Safe to call on a nil
+// *Process (a Start that never succeeded) and safe to call twice — both are no-ops, so a caller's
 // defer is always correct regardless of how far Start got.
 func (p *Process) Stop(ctx context.Context, grace time.Duration) error {
 	if p == nil || p.cmd.Process == nil {
@@ -113,7 +112,7 @@ func (p *Process) stop(ctx context.Context, grace time.Duration) error {
 	done := make(chan error, 1)
 	go func() { done <- p.cmd.Wait() }()
 
-	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	if err := terminate(p.cmd.Process); err != nil {
 		// The process may have already exited between the nil check
 		// above and this call — that is success, not a Stop failure.
 		select {

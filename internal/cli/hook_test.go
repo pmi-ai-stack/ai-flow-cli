@@ -136,7 +136,13 @@ func TestHookGuard_DeniesGitPushInActiveTicketRepo(t *testing.T) {
 }
 
 func bashPushPayloadFor(repo string) string {
-	return `{"hook_event_name":"PreToolUse","cwd":"` + repo + `","tool_name":"Bash","tool_input":{"command":"git push origin feature/PROJ-1"}}`
+	// Marshalled, not concatenated: a Windows path's backslashes are
+	// not valid inside a JSON string.
+	cwd, err := json.Marshal(repo)
+	if err != nil {
+		panic(err)
+	}
+	return `{"hook_event_name":"PreToolUse","cwd":` + string(cwd) + `,"tool_name":"Bash","tool_input":{"command":"git push origin feature/PROJ-1"}}`
 }
 
 func writeActiveFixture(t *testing.T, home, key, stage string, repoRoots []string) {
