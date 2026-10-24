@@ -98,6 +98,8 @@ func TestHooksInstall_ClaudeCodePreservesOtherKeys(t *testing.T) {
 func TestHooksInstall_CursorUser_WritesHooksFile(t *testing.T) {
 	fakeHome := t.TempDir()
 	t.Setenv("HOME", fakeHome)
+	// os.UserHomeDir reads USERPROFILE on Windows, not HOME.
+	t.Setenv("USERPROFILE", fakeHome)
 
 	stdout, _, exitCode := runRoot(t, "hooks", "install", "--host", "cursor", "--scope", "user")
 	if exitCode != 0 {

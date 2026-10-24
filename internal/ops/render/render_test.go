@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -131,6 +132,13 @@ func TestRenderRedactsMarkedSecretButNotTheRealCache(t *testing.T) {
 
 // TestRenderRealCacheIsMode0700 asserts the spec's own mode, verbatim.
 func TestRenderRealCacheIsMode0700(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows has no Unix mode bits: os.Chmod sets only the
+		// read-only attribute and Stat reports 0777 for any directory.
+		// The cache stays under the user's own profile, whose ACLs
+		// already keep other users out.
+		t.Skip("Unix permission bits do not exist on Windows")
+	}
 	home := t.TempDir()
 	src := t.TempDir()
 	writeSource(t, src, map[string]string{"a.txt": "a"})

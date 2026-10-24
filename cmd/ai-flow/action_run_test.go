@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +24,12 @@ type actionRun struct {
 
 func runActionScript(t *testing.T, envelope string, exitCode int, inputs map[string]string) actionRun {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		// action.yml supports Linux and macOS runners only, and Git for
+		// Windows' sh.exe prepends its own /usr/bin to PATH, so the stub
+		// bin directory cannot isolate the script's tools.
+		t.Skip("the action runs on Linux and macOS runners only")
+	}
 	sh, ok := exec.Which("sh")
 	if !ok {
 		t.Skip("sh not on PATH")

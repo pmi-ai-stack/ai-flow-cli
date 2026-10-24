@@ -2,9 +2,11 @@ package cli
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,14 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/standards"
 )
+
+// fileURL is dir as a file URL. On Windows dir is C:\..., and
+// "file://"+dir does not parse (the drive colon reads as a port): the
+// URL form is file:///C:/..., which go-git's file transport turns back
+// into C:/... before running git-upload-pack.
+func fileURL(dir string) string {
+	return (&url.URL{Scheme: "file", Path: "/" + strings.TrimPrefix(filepath.ToSlash(dir), "/")}).String()
+}
 
 type diffEnvelope struct {
 	OK     bool `json:"ok"`
@@ -164,7 +174,7 @@ func TestStandardsDiffTwoRefsOfOneSource(t *testing.T) {
 		map[string]string{"org/b.md": "## B\n"})
 
 	t.Chdir(t.TempDir())
-	url := "file://" + dir
+	url := fileURL(dir)
 	env := runDiff(t, 0, url+"@v1", url+"@v2")
 	r := env.Result
 	if r.A.ID != "acme" || r.A.Version != "1.0.0" || r.B.Version != "2.0.0" {

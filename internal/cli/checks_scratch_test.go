@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -57,8 +58,14 @@ func TestNewCheckScratchIsPrivateAndUnique(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !info.IsDir() || info.Mode().Perm() != 0o700 {
-			t.Errorf("%s: mode %v, want a 0700 directory", dir, info.Mode())
+		if !info.IsDir() {
+			t.Errorf("%s: mode %v, want a directory", dir, info.Mode())
+		}
+		// Windows has no Unix mode bits (Stat reports 0777); there the
+		// directory is private by the user profile's ACLs, as for the
+		// render cache.
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
+			t.Errorf("%s: mode %v, want 0700", dir, info.Mode())
 		}
 		if filepath.Dir(dir) != os.TempDir() || !strings.HasPrefix(filepath.Base(dir), "ai-flow-check-") {
 			t.Errorf("%s: want ai-flow-check-* directly under %s", dir, os.TempDir())

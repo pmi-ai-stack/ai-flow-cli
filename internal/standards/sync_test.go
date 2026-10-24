@@ -2,6 +2,7 @@ package standards
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,14 @@ import (
 
 	"github.com/pmi-ai-stack/ai-flow-cli/internal/config"
 )
+
+// fileURL is dir as a file URL. On Windows dir is C:\..., and
+// "file://"+dir does not parse (the drive colon reads as a port): the
+// URL form is file:///C:/..., which go-git's file transport turns back
+// into C:/... before running git-upload-pack.
+func fileURL(dir string) string {
+	return (&url.URL{Scheme: "file", Path: "/" + strings.TrimPrefix(filepath.ToSlash(dir), "/")}).String()
+}
 
 // fixtureRemote is a non-bare local git repository this test drives
 // entirely through go-git — no os/exec, matching the phase-12 plan's
@@ -69,7 +78,7 @@ func newFixtureRemote(t *testing.T) fixtureRemote {
 	}
 
 	return fixtureRemote{
-		URL:        "file://" + dir,
+		URL:        fileURL(dir),
 		Tag:        "v1.0.0",
 		TaggedHash: taggedHash.String(),
 		HeadHash:   headHash.String(),
